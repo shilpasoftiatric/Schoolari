@@ -1,0 +1,1 @@
+import { createServerClient } from "@supabase/ssr"; import type { Database } from "./src/types/supabase"; const client = createServerClient<Database>("", "", { cookies: { getAll: () => [], setAll: () => {} } }); const q = client.from("applications"); let test: typeof q extends never ? true : false;
