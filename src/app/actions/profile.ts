@@ -12,20 +12,18 @@ export async function saveOnboardingStep(step: number, data: any) {
   }
 
   const payload: any = { onboarding_step: step };
+  if (data.onboarding_complete) payload.onboarding_complete = true;
 
-  if (data.first_name !== undefined) payload.first_name = data.first_name;
-  if (data.state !== undefined) payload.state = data.state;
-  if (data.grade_level !== undefined) payload.grade_level = data.grade_level;
-  if (data.gpa_range !== undefined) payload.gpa_range = data.gpa_range;
-  if (data.fields_of_study !== undefined) payload.fields_of_study = data.fields_of_study;
-  if (data.background_tags !== undefined) payload.background_tags = data.background_tags;
-  if (data.involvement_tags !== undefined) payload.involvement_tags = data.involvement_tags;
-  if (data.college_start !== undefined) payload.college_start = data.college_start;
-  if (data.biggest_challenge !== undefined) payload.biggest_challenge = data.biggest_challenge;
-  
-  if (data.onboarding_complete) {
-    payload.onboarding_complete = true;
-  }
+  const allowedKeys = [
+    'first_name', 'state', 'grade_level', 'gpa_range', 'fields_of_study', 
+    'background_tags', 'involvement_tags', 'college_start', 'biggest_challenge', 
+    'school_type', 'ethnicity_tags', 'financial_need', 'dashboard_priorities', 
+    'account_type', 'career_interests'
+  ];
+
+  allowedKeys.forEach(key => {
+    if (data[key] !== undefined) payload[key] = data[key];
+  });
 
   const { error } = await supabase
     .from("profiles")
@@ -60,19 +58,18 @@ export async function updateProfile(updates: any) {
 
   if (!user) throw new Error("Unauthorized");
 
-  const safeUpdates: any = {
-    first_name: updates.first_name,
-    phone: updates.phone,
-    state: updates.state,
-    grade_level: updates.grade_level,
-    gpa_range: updates.gpa_range,
-    fields_of_study: updates.fields_of_study,
-    background_tags: updates.background_tags,
-    involvement_tags: updates.involvement_tags,
-    college_start: updates.college_start,
-    biggest_challenge: updates.biggest_challenge,
-    updated_at: new Date().toISOString()
-  };
+  const safeUpdates: any = { updated_at: new Date().toISOString() };
+
+  const allowedKeys = [
+    'first_name', 'phone', 'state', 'grade_level', 'gpa_range', 'fields_of_study', 
+    'background_tags', 'involvement_tags', 'college_start', 'biggest_challenge', 
+    'school_type', 'ethnicity_tags', 'financial_need', 'dashboard_priorities', 
+    'account_type', 'career_interests'
+  ];
+
+  allowedKeys.forEach(key => {
+    if (updates[key] !== undefined) safeUpdates[key] = updates[key];
+  });
 
   Object.keys(safeUpdates).forEach(key => {
     if (safeUpdates[key] === undefined) {

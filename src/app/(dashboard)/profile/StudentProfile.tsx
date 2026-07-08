@@ -13,8 +13,8 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
 
   // Calculate completion
   const requiredFields = [
-    "first_name", "phone", "state", "grade_level", "gpa_range",
-    "fields_of_study", "background_tags", "involvement_tags", "college_start"
+    "first_name", "state", "grade_level", "gpa_range",
+    "career_interests", "school_type", "dashboard_priorities"
   ];
   const completedFields = requiredFields.filter(field => {
     const val = formData[field];
@@ -88,8 +88,9 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
         </div>
 
         <div className="flex-1 text-center md:text-left z-10">
-          <h2 className="text-3xl font-extrabold text-slate-900 mb-2">
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-2 flex items-center gap-2 justify-center md:justify-start">
             {formData.first_name || "Student"}
+            {formData.account_type === 'parent' && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-md uppercase font-bold">Parent Account</span>}
           </h2>
           <p className="text-slate-500 font-medium">{email}</p>
           
@@ -138,14 +139,6 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
                 )}
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Phone</label>
-                {isEditing ? (
-                  <Input name="phone" value={formData.phone} onChange={handleChange} className="h-9" />
-                ) : (
-                  <p className="text-slate-900 font-medium">{formData.phone || "-"}</p>
-                )}
-              </div>
-              <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">State</label>
                 {isEditing ? (
                   <Input name="state" value={formData.state} onChange={handleChange} className="h-9" />
@@ -163,15 +156,15 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
                     className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <option value="">Select...</option>
-                    <option value="High School Freshman">High School Freshman</option>
-                    <option value="High School Sophomore">High School Sophomore</option>
-                    <option value="High School Junior">High School Junior</option>
-                    <option value="High School Senior">High School Senior</option>
+                    <option value="9th">9th</option>
+                    <option value="10th">10th</option>
+                    <option value="11th">11th</option>
+                    <option value="12th">12th</option>
                     <option value="College Freshman">College Freshman</option>
                     <option value="College Sophomore">College Sophomore</option>
                     <option value="College Junior">College Junior</option>
                     <option value="College Senior">College Senior</option>
-                    <option value="Graduate Student">Graduate Student</option>
+                    <option value="Other">Other</option>
                   </select>
                 ) : (
                   <p className="text-slate-900 font-medium">{formData.grade_level || "-"}</p>
@@ -187,13 +180,51 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
                     className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <option value="">Select...</option>
-                    <option value="3.5 - 4.0">3.5 - 4.0</option>
-                    <option value="3.0 - 3.49">3.0 - 3.49</option>
-                    <option value="2.5 - 2.99">2.5 - 2.99</option>
-                    <option value="Below 2.5">Below 2.5</option>
+                    <option value="3.5–4.0">3.5–4.0</option>
+                    <option value="3.0–3.5">3.0–3.5</option>
+                    <option value="2.5–3.0">2.5–3.0</option>
+                    <option value="2.0–2.5">2.0–2.5</option>
+                    <option value="Under 2.0">Under 2.0</option>
                   </select>
                 ) : (
                   <p className="text-slate-900 font-medium">{formData.gpa_range || "-"}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Type of School</label>
+                {isEditing ? (
+                  <select 
+                    name="school_type" 
+                    value={formData.school_type} 
+                    onChange={handleChange}
+                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">Select...</option>
+                    <option value="4-year university">4-year university</option>
+                    <option value="Community college">Community college</option>
+                    <option value="Trade school">Trade school</option>
+                    <option value="Not sure">Not sure</option>
+                  </select>
+                ) : (
+                  <p className="text-slate-900 font-medium">{formData.school_type || "-"}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Financial Need</label>
+                {isEditing ? (
+                  <select 
+                    name="financial_need" 
+                    value={formData.financial_need} 
+                    onChange={handleChange}
+                    className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">Select...</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                    <option value="Not sure">Not sure</option>
+                  </select>
+                ) : (
+                  <p className="text-slate-900 font-medium">{formData.financial_need || "-"}</p>
                 )}
               </div>
             </div>
@@ -204,41 +235,41 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-500" /> Academic Profile
+              <BookOpen className="w-5 h-5 text-blue-500" /> Academic & Background
             </h3>
             
             <div className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Fields of Study</label>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Career Interests / Intended Major</label>
                 {isEditing ? (
                   <Input 
                     placeholder="E.g. Computer Science, Business (comma separated)"
-                    defaultValue={(formData.fields_of_study || []).join(", ")}
-                    onChange={(e) => handleArrayChange("fields_of_study", e.target.value)}
+                    defaultValue={(formData.career_interests || []).join(", ")}
+                    onChange={(e) => handleArrayChange("career_interests", e.target.value)}
                   />
                 ) : (
-                  renderBadges(formData.fields_of_study, "bg-blue-50 text-blue-700 border border-blue-200")
+                  renderBadges(formData.career_interests, "bg-blue-50 text-blue-700 border border-blue-200")
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Background Tags</label>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Ethnicity</label>
                 {isEditing ? (
                   <Input 
-                    placeholder="E.g. First Generation, Low Income (comma separated)"
-                    defaultValue={(formData.background_tags || []).join(", ")}
-                    onChange={(e) => handleArrayChange("background_tags", e.target.value)}
+                    placeholder="E.g. Hispanic/Latino (comma separated)"
+                    defaultValue={(formData.ethnicity_tags || []).join(", ")}
+                    onChange={(e) => handleArrayChange("ethnicity_tags", e.target.value)}
                   />
                 ) : (
-                  renderBadges(formData.background_tags, "bg-emerald-50 text-emerald-700 border border-emerald-200")
+                  renderBadges(formData.ethnicity_tags, "bg-emerald-50 text-emerald-700 border border-emerald-200")
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Involvement & Activities</label>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Extracurricular Activities</label>
                 {isEditing ? (
                   <Input 
-                    placeholder="E.g. Debate Team, Volunteer (comma separated)"
+                    placeholder="E.g. Sports, Arts (comma separated)"
                     defaultValue={(formData.involvement_tags || []).join(", ")}
                     onChange={(e) => handleArrayChange("involvement_tags", e.target.value)}
                   />
@@ -246,36 +277,26 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
                   renderBadges(formData.involvement_tags, "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200")
                 )}
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">College Start Year</label>
-                {isEditing ? (
-                  <Input name="college_start" value={formData.college_start} onChange={handleChange} placeholder="e.g. Fall 2025" />
-                ) : (
-                  <p className="text-slate-900 font-medium">{formData.college_start || "-"}</p>
-                )}
-              </div>
             </div>
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-              <Target className="w-5 h-5 text-rose-500" /> Biggest Challenge
+              <Target className="w-5 h-5 text-rose-500" /> Top Priorities
             </h3>
             
+            <div className="mb-4 text-sm text-slate-500">
+              Areas where you need the most help right now:
+            </div>
+            
             {isEditing ? (
-              <textarea
-                name="biggest_challenge"
-                value={formData.biggest_challenge}
-                onChange={handleChange}
-                placeholder="What is the biggest challenge you're facing with college applications?"
-                className="w-full resize-none rounded-xl border border-slate-200 p-4 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500"
-                rows={3}
+              <Input 
+                placeholder="E.g. Finding scholarships, Writing essays (comma separated)"
+                defaultValue={(formData.dashboard_priorities || []).join(", ")}
+                onChange={(e) => handleArrayChange("dashboard_priorities", e.target.value)}
               />
             ) : (
-              <p className="text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
-                {formData.biggest_challenge || "No challenge specified."}
-              </p>
+              renderBadges(formData.dashboard_priorities, "bg-rose-50 text-rose-700 border border-rose-200")
             )}
           </div>
         </div>

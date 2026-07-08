@@ -25,9 +25,18 @@ export interface Database {
           college_start: string;
           biggest_challenge: string;
           career_interests: string[];
+          school_type: string;
+          ethnicity_tags: string[];
+          financial_need: string;
+          dashboard_priorities: string[];
           onboarding_complete: boolean;
           onboarding_step: number;
           sms_opt_in: boolean;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          stripe_price_id: string | null;
+          subscription_status: string | null;
+          ai_dashboard_data: any;
           created_at: string;
           updated_at: string;
         };

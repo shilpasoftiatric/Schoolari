@@ -31,9 +31,9 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Protect dashboard and admin routes — redirect to login if not authenticated
+  // Protect dashboard, onboarding, and admin routes
   if (!user) {
-    if (pathname.startsWith("/dashboard")) {
+    if (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding") || pathname.startsWith("/pricing")) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
       return NextResponse.redirect(url);
@@ -45,10 +45,38 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Enforce Paywall for authenticated users
+  if (user && !pathname.startsWith("/admin")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_status")
+      .eq("id", user.id)
+      .single();
+
+    const isActive = profile?.subscription_status === "active" || profile?.subscription_status === "trialing";
+
+    // If they are not active, they can ONLY access /pricing (and auth callback)
+    if (!isActive && (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding"))) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/pricing";
+      return NextResponse.redirect(url);
+    }
+
+    // If they are active and try to access /pricing, send them to onboarding or dashboard
+    if (isActive && pathname.startsWith("/pricing")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding"; // They will be routed to dashboard from onboarding if complete
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Redirect authenticated users away from auth pages
   if (user && (pathname === "/login" || pathname === "/signup" || pathname === "/admin/login")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    // Instead of always /dashboard, check if they are active
+    if (!pathname.startsWith("/admin")) {
+      url.pathname = "/dashboard";
+    }
     return NextResponse.redirect(url);
   }
 
@@ -57,6 +85,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
