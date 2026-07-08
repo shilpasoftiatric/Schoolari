@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
@@ -50,7 +50,7 @@ const TIERS = [
   }
 ];
 
-export default function PricingPage() {
+function PricingContent() {
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
@@ -163,5 +163,13 @@ export default function PricingPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center p-8 text-slate-500">Loading pricing options...</div>}>
+      <PricingContent />
+    </Suspense>
   );
 }
