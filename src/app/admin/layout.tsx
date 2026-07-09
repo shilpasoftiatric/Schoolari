@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
-import { ShieldCheck, LayoutDashboard, Users, GraduationCap, Settings } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
+import { AdminNav } from "./AdminNav";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -33,24 +33,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <span className="text-xl font-extrabold text-slate-900 tracking-tight">Admin<span className="text-slate-400 font-normal">Panel</span></span>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <Link href="/admin/dashboard" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-900 bg-slate-100 transition-colors">
-            <LayoutDashboard className="w-4.5 h-4.5 text-slate-600" />
-            Dashboard
-          </Link>
-          <Link href="/admin/users" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-            <Users className="w-4.5 h-4.5 text-slate-400" />
-            Users / Members
-          </Link>
-          <Link href="/admin/scholarships" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-            <GraduationCap className="w-4.5 h-4.5 text-slate-400" />
-            Scholarships
-          </Link>
-          <Link href="/admin/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-            <Settings className="w-4.5 h-4.5 text-slate-400" />
-            Settings
-          </Link>
-        </nav>
+        <AdminNav />
       </div>
 
       {/* Main Content */}

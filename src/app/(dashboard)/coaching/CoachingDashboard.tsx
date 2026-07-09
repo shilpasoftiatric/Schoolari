@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { markMessageAsRead } from "@/app/actions/coaching";
 import { Trophy, Mail, Bell, Sparkles, ChevronRight, CheckCircle2, Flame, HeartHandshake, Compass } from "lucide-react";
 
 export function CoachingDashboard({ initialMessages }: { initialMessages: any[] }) {
@@ -14,7 +13,12 @@ export function CoachingDashboard({ initialMessages }: { initialMessages: any[] 
       // Optimistic update
       setMessages(messages.map(m => m.id === msg.id ? { ...m, is_read: true } : m));
       try {
-        await markMessageAsRead(msg.id);
+        const res = await fetch("/api/coaching/mark-read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: msg.id })
+        });
+        if (!res.ok) throw new Error("Failed to mark as read");
       } catch (err) {
         // Revert on failure
         setMessages(messages.map(m => m.id === msg.id ? { ...m, is_read: false } : m));

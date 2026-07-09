@@ -44,14 +44,18 @@ export async function uploadDocumentAction(formData: FormData) {
     .from("vault")
     .getPublicUrl(filePath);
 
-  // 4. Auto-detect category
-  let type = "other";
-  const nameLower = file.name.toLowerCase();
-  if (nameLower.includes("transcript")) type = "transcript";
-  else if (nameLower.includes("resume")) type = "resume";
-  else if (nameLower.includes("certificate")) type = "certificate";
-  else if (nameLower.includes("award")) type = "award";
-  else if (nameLower.includes("report")) type = "report_card";
+  // 4. Resolve category (prefer explicitly passed type parameter)
+  const requestedType = formData.get("type") as string;
+  let type = requestedType || "other";
+  
+  if (!requestedType) {
+    const nameLower = file.name.toLowerCase();
+    if (nameLower.includes("transcript")) type = "transcript";
+    else if (nameLower.includes("resume")) type = "resume";
+    else if (nameLower.includes("certificate")) type = "certificate";
+    else if (nameLower.includes("award")) type = "award";
+    else if (nameLower.includes("report")) type = "report_card";
+  }
 
   // 5. Save metadata to the database
   const { error: dbError } = await adminClient
@@ -73,6 +77,7 @@ export async function uploadDocumentAction(formData: FormData) {
   }
 
   revalidatePath("/documents");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -110,5 +115,6 @@ export async function deleteDocument(id: string, fileUrl: string) {
   }
 
   revalidatePath("/documents");
+  revalidatePath("/dashboard");
   return { success: true };
 }

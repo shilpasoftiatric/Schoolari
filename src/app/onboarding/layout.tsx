@@ -1,10 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "Schoolari — Complete your profile",
-};
 
 export default async function OnboardingLayout({
   children,
@@ -12,16 +7,15 @@ export default async function OnboardingLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (error || !user) {
+  if (!user) {
     redirect("/login");
   }
 
-  // Check onboarding status and role
   const { data: profile } = await supabase
     .from("profiles")
-    .select("onboarding_complete, role")
+    .select("subscription_status, role")
     .eq("id", user.id)
     .single();
 
@@ -29,8 +23,9 @@ export default async function OnboardingLayout({
     redirect("/admin/dashboard");
   }
 
-  if (profile?.onboarding_complete) {
-    redirect("/dashboard");
+  const isActive = profile?.subscription_status === "active" || profile?.subscription_status === "trialing";
+  if (!isActive) {
+    redirect("/pricing");
   }
 
   return <>{children}</>;

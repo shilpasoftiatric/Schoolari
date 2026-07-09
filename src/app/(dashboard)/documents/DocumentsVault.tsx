@@ -3,7 +3,6 @@
 import { useState, useTransition, useRef } from "react";
 import { UploadCloud, FileText, FileBadge, File, FileImage, Trash2, Download, Loader2, Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { uploadDocumentAction, deleteDocument } from "@/app/actions/documents";
 import { Button } from "@/components/ui/button";
 
 const DOCUMENT_TYPES = [
@@ -20,6 +19,7 @@ const DOCUMENT_TYPES = [
 export function DocumentsVault({ initialDocuments, userId }: { initialDocuments: any[], userId: string }) {
   const [isPending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
+  const [uploadType, setUploadType] = useState("transcript");
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -34,8 +34,16 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("type", uploadType);
 
-      await uploadDocumentAction(formData);
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData
+      });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Failed to upload document");
+      }
 
     } catch (err: any) {
       alert(err.message || "Failed to upload document");
@@ -56,7 +64,15 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
     if (!confirm("Are you sure you want to permanently delete this document?")) return;
     startTransition(async () => {
       try {
-        await deleteDocument(id, fileUrl);
+        const res = await fetch("/api/documents/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, fileUrl })
+        });
+        if (!res.ok) {
+          const errJson = await res.json();
+          throw new Error(errJson.error || "Failed to delete document");
+        }
       } catch (err: any) {
         alert(err.message);
       }
@@ -113,9 +129,22 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
         </div>
         
         <h3 className="text-xl font-bold text-slate-900 mb-2">Upload a document</h3>
-        <p className="text-slate-500 text-center max-w-sm mb-6">
+        <p className="text-slate-500 text-center max-w-sm mb-4">
           Drag and drop your PDF, Word, or image files here, or click to browse. Max size 10MB.
         </p>
+
+        <div className="flex flex-col sm:flex-row items-center gap-3 mb-6">
+          <span className="text-sm font-semibold text-slate-500">Document Type:</span>
+          <select 
+            value={uploadType} 
+            onChange={(e) => setUploadType(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 shadow-sm"
+          >
+            {DOCUMENT_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
         
         <Button 
           onClick={() => fileInputRef.current?.click()}

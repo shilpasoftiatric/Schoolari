@@ -45,37 +45,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Enforce Paywall for authenticated users
-  if (user && !pathname.startsWith("/admin")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("subscription_status")
-      .eq("id", user.id)
-      .single();
-
-    const isActive = profile?.subscription_status === "active" || profile?.subscription_status === "trialing";
-
-    // If they are not active, they can ONLY access /pricing (and auth callback)
-    if (!isActive && (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding"))) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/pricing";
-      return NextResponse.redirect(url);
-    }
-
-    // If they are active and try to access /pricing, send them to onboarding or dashboard
-    if (isActive && pathname.startsWith("/pricing")) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/onboarding"; // They will be routed to dashboard from onboarding if complete
-      return NextResponse.redirect(url);
-    }
-  }
-
   // Redirect authenticated users away from auth pages
   if (user && (pathname === "/login" || pathname === "/signup" || pathname === "/admin/login")) {
     const url = request.nextUrl.clone();
-    // Instead of always /dashboard, check if they are active
     if (!pathname.startsWith("/admin")) {
       url.pathname = "/dashboard";
+    } else {
+      url.pathname = "/admin/dashboard";
     }
     return NextResponse.redirect(url);
   }

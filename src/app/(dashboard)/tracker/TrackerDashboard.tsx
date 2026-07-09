@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateApplicationStatus, deleteApplication } from "@/app/actions/tracker";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +34,12 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
 
     startTransition(async () => {
       try {
-        await updateApplicationStatus(appId, newStatus);
+        const res = await fetch("/api/tracker/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicationId: appId, status: newStatus })
+        });
+        if (!res.ok) throw new Error("Failed to update status");
       } catch (e) {
         console.error("Failed to update status", e);
         // Revert on failure (simplified)
@@ -51,7 +55,12 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
 
     startTransition(async () => {
       try {
-        await deleteApplication(appId);
+        const res = await fetch("/api/tracker/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicationId: appId })
+        });
+        if (!res.ok) throw new Error("Failed to delete");
       } catch (e) {
         console.error("Failed to delete", e);
         setApplications(initialApplications);

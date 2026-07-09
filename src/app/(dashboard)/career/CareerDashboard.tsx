@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { updateCareerInterests } from "@/app/actions/career";
+import { useState, useEffect } from "react";
 import { uploadDocumentAction } from "@/app/actions/documents";
 import { ResumeBuilder } from "./ResumeBuilder";
 import { Briefcase, Target, UploadCloud, FileText, ArrowRight, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const MOCK_RESOURCES = [
   { type: "Internship", title: "Software Engineering Intern", company: "Google", location: "Remote", link: "#" },
@@ -18,12 +18,32 @@ const INDUSTRIES = [
   "Technology", "Finance", "Healthcare", "Education", "Marketing", "Engineering", "Arts & Design", "Law", "Non-Profit"
 ];
 
-export function CareerDashboard({ initialInterests, initialResumeData, uploadedResumes }: { initialInterests: string[], initialResumeData: any, uploadedResumes: any[] }) {
+export function CareerDashboard({ initialInterests, initialResumeData, uploadedResumes, initialJobs, profile }: { initialInterests: string[], initialResumeData: any, uploadedResumes: any[], initialJobs: any[], profile: any }) {
   const [interests, setInterests] = useState<string[]>(initialInterests || []);
   const [isSavingInterests, setIsSavingInterests] = useState(false);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   
   const [activeTab, setActiveTab] = useState<"builder" | "upload">("builder");
   const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingJobs(true);
+    fetch("/api/career/jobs")
+      .then(res => res.json())
+      .then(data => {
+        if (active) {
+          setJobs(data || []);
+          setIsLoadingJobs(false);
+        }
+      })
+      .catch(() => {
+        if (active) setIsLoadingJobs(false);
+      });
+    return () => { active = false; };
+  }, [refreshTrigger]);
 
   const toggleInterest = (industry: string) => {
     if (interests.includes(industry)) {
@@ -36,8 +56,14 @@ export function CareerDashboard({ initialInterests, initialResumeData, uploadedR
   const handleSaveInterests = async () => {
     setIsSavingInterests(true);
     try {
-      await updateCareerInterests(interests);
+      const res = await fetch("/api/career/interests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interests })
+      });
+      if (!res.ok) throw new Error("Failed to update");
       alert("Career interests updated!");
+      setRefreshTrigger(prev => prev + 1);
     } catch (e) {
       alert("Failed to update interests.");
     } finally {
@@ -128,18 +154,35 @@ export function CareerDashboard({ initialInterests, initialResumeData, uploadedR
               <Briefcase className="w-5 h-5 text-amber-500" /> Recommended for You
             </h2>
             <div className="space-y-4">
-              {MOCK_RESOURCES.map((res, i) => (
-                <a key={i} href={res.link} className="block p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:border-amber-200 hover:bg-amber-50 transition-colors group">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
-                      {res.type}
-                    </span>
-                    <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
-                  </div>
-                  <h3 className="font-bold text-slate-900 leading-tight mb-1">{res.title}</h3>
-                  <p className="text-xs font-medium text-slate-500">{res.company} • {res.location}</p>
-                </a>
-              ))}
+              {isLoadingJobs ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="p-4 rounded-2xl border border-slate-100 bg-slate-50 space-y-2">
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-5 w-48" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  ))}
+                </div>
+              ) : jobs && jobs.length > 0 ? (
+                jobs.map((res: any, i: number) => (
+                  <a key={i} href={res.link} target="_blank" rel="noopener noreferrer" className="block p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:border-amber-200 hover:bg-amber-50 transition-colors group">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                        {res.type}
+                      </span>
+                      <ExternalLink className="w-4 h-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
+                    </div>
+                    <h3 className="font-bold text-slate-900 leading-tight mb-1">{res.title}</h3>
+                    <p className="text-xs font-medium text-slate-500">{res.company} • {res.location}</p>
+                  </a>
+                ))
+              ) : (
+                <div className="text-center p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <Briefcase className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs text-slate-500 font-medium">No student government/internship positions found for your state and interests at this time.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -164,7 +207,7 @@ export function CareerDashboard({ initialInterests, initialResumeData, uploadedR
           </div>
 
           {activeTab === "builder" ? (
-            <ResumeBuilder initialData={initialResumeData} />
+            <ResumeBuilder initialData={initialResumeData} profile={profile} />
           ) : (
             <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm text-center">
               <div className="max-w-sm mx-auto">

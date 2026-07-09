@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("Missing STRIPE_SECRET_KEY environment variable");
-}
+let stripe: Stripe | null = null;
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-02-24.acacia", // Current Stripe API version or recent
-});
+function getStripe() {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("Missing STRIPE_SECRET_KEY environment variable");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-02-24.acacia" as any,
+    });
+  }
+  return stripe;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,7 +59,8 @@ export async function POST(req: NextRequest) {
       customer: profile?.stripe_customer_id || undefined, // Use existing customer if present
     };
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    const stripeClient = getStripe();
+    const session = await stripeClient.checkout.sessions.create(sessionParams);
 
     return NextResponse.json({ url: session.url });
   } catch (error: any) {

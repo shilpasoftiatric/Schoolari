@@ -1,35 +1,68 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callAI } from '@/lib/ai';
+import { compileDashboard, calculateWorkflowStates, isDashboardStateEqual } from '@/services/task-engine';
 
 const SYSTEM_PROMPT = `You are the Schoolari AI, an expert scholarship and college admissions counselor.
-Your job is to take a student's profile (including their GPA, state, career interests, ethnicity, financial need, and dashboard priorities) and generate a highly personalized action plan.
+Your job is to take a student's profile and their actual database progress metadata, and generate a highly personalized action plan.
+
+The action plan must be organized into three main content sections: Scholarships, Essays, and Colleges.
+Adhere strictly to the following rules for generating tasks:
+1. Do NOT repeat completed tasks.
+2. Under Today's Priority: show a maximum of 3 tasks per section.
+3. Under This Week's Goals: show a maximum of 5 goals per section.
+4. Tasks and goals must progress logically based on current database state:
+   - If transcript already uploaded (hasTranscript = true) -> Do NOT show "Upload Transcript". Show next task: "Attach transcript to scholarship applications".
+   - If essay draft finished (essaysCount > 0) -> Do NOT show "Finish Essay Outline". Show next task: "Review essay with AI".
+   - If student has saved scholarships (savedScholarshipsCount >= 5) -> Do NOT show "Find Scholarships". Show next task: "Apply to a saved scholarship".
+   - If student has saved colleges (savedCollegesCount > 0) -> Show next task: "Compare admission requirements".
 
 Respond STRICTLY in the following JSON format, with no markdown formatting or extra text:
 {
-  "tasks": [
-    { "id": 1, "title": "...", "done": false },
-    { "id": 2, "title": "...", "done": false },
-    { "id": 3, "title": "...", "done": false }
-  ],
-  "goals": [
-    "...", "...", "..."
-  ],
+  "scholarships": {
+    "tasks": [
+      { "title": "...", "done": false }
+    ],
+    "deadlines": [
+      { "name": "...", "date": "14 Days", "urgent": false }
+    ],
+    "goals": [
+      "..."
+    ]
+  },
+  "essays": {
+    "tasks": [
+      { "title": "...", "done": false }
+    ],
+    "deadlines": [
+      { "name": "...", "date": "30 Days", "urgent": false }
+    ],
+    "goals": [
+      "..."
+    ]
+  },
+  "colleges": {
+    "tasks": [
+      { "title": "...", "done": false }
+    ],
+    "deadlines": [
+      { "name": "...", "date": "45 Days", "urgent": false }
+    ],
+    "goals": [
+      "..."
+    ]
+  },
   "stats": [
-    { "label": "Matched", "sub": "Scholarships", "value": "12", "color": "text-emerald-500", "bg": "bg-emerald-50" },
-    { "label": "Action", "sub": "Items", "value": "5", "color": "text-blue-500", "bg": "bg-blue-50" },
-    { "label": "Essays", "sub": "To write", "value": "2", "color": "text-violet-500", "bg": "bg-violet-50" },
-    { "label": "Colleges", "sub": "Saved", "value": "4", "color": "text-amber-500", "bg": "bg-amber-50" }
+    { "label": "Scholarships Matched", "sub": "Total Matches", "value": "12", "color": "text-emerald-500", "bg": "bg-emerald-50" },
+    { "label": "Applied Scholarship Applications", "sub": "Submitted", "value": "0", "color": "text-blue-500", "bg": "bg-blue-50" },
+    { "label": "Essays Drafted", "sub": "Drafts", "value": "0", "color": "text-violet-500", "bg": "bg-violet-50" },
+    { "label": "Colleges Saved", "sub": "Shortlist", "value": "0", "color": "text-amber-500", "bg": "bg-amber-50" }
   ],
   "tracker": [
-    { "name": "...", "status": "Not Started", "deadline": "14 Days", "progress": 0, "urgent": false },
-    { "name": "...", "status": "Not Started", "deadline": "30 Days", "progress": 0, "urgent": false },
-    { "name": "...", "status": "Not Started", "deadline": "45 Days", "progress": 0, "urgent": false }
+    { "name": "...", "status": "Not Started", "deadline": "14 Days", "progress": 0, "urgent": false }
   ],
   "income_ideas": [
-    { "label": "...", "color": "text-emerald-500" },
-    { "label": "...", "color": "text-blue-500" },
-    { "label": "...", "color": "text-slate-500" }
+    { "title": "...", "description": "..." }
   ],
   "suggested_colleges": [
     { "name": "...", "reason": "...", "match": "98%" }
@@ -40,40 +73,57 @@ Respond STRICTLY in the following JSON format, with no markdown formatting or ex
   "resume_tips": [
     "...", "..."
   ]
-}
+}`;
 
-Make sure the tasks, goals, tracker items (suggested specific scholarship names matching their profile), suggested colleges, essay prompts, resume tips, and income ideas are deeply tailored to their specific data. If they chose "Earning money now", suggest relevant side-hustles. If they chose "Writing essays", add an essay task and prompt. If they selected resume help, provide resume tips.`;
-
-function getFallbackData(profile: any) {
+function getFallbackData(profile: any, progressStats: any) {
   const career = profile.career_interests?.[0] || 'College';
   const state = profile.state || 'National';
   
   return {
-    tasks: [
-      { id: 1, title: `Complete your ${career} profile`, done: false },
-      { id: 2, title: "Review your first 3 scholarship matches", done: false },
-      { id: 3, title: "Upload your high school transcript", done: false }
-    ],
-    goals: [
-      "Apply for 2 new scholarships this week",
-      "Finish your main essay draft",
-      "Log in 5 days in a row"
-    ],
+    scholarships: {
+      tasks: progressStats.hasTranscript 
+        ? [{ title: "Attach transcript to scholarship applications", done: false }]
+        : [{ title: "Upload your high school transcript to Vault", done: false }],
+      deadlines: [
+        { name: `${state} State Excellence Grant`, date: "14 Days", urgent: true }
+      ],
+      goals: [
+        "Apply for 2 new scholarships this week",
+        "Log in 5 days in a row"
+      ]
+    },
+    essays: {
+      tasks: progressStats.essaysCount > 0
+        ? [{ title: "Review essay draft with AI", done: false }]
+        : [{ title: "Finish your main essay outline", done: false }],
+      deadlines: [],
+      goals: [
+        "Write 500 words of your draft"
+      ]
+    },
+    colleges: {
+      tasks: progressStats.savedCollegesCount > 0
+        ? [{ title: "Compare admission requirements", done: false }]
+        : [{ title: "Add 3 colleges to your saved list", done: false }],
+      deadlines: [],
+      goals: [
+        "Research 2 universities program requirements"
+      ]
+    },
     stats: [
-      { label: "Matched", sub: "Scholarships", value: "12", color: "text-emerald-500", bg: "bg-emerald-50" },
-      { label: "Action", sub: "Items", value: "5", color: "text-blue-500", bg: "bg-blue-50" },
-      { label: "Essays", sub: "To write", value: "2", color: "text-violet-500", bg: "bg-violet-50" },
-      { label: "Colleges", sub: "Saved", value: "4", color: "text-amber-500", bg: "bg-amber-50" }
+      { label: "Scholarships Matched", sub: "Total Matches", value: "12", color: "text-emerald-500", bg: "bg-emerald-50" },
+      { label: "Applied Scholarship Applications", sub: "Submitted", value: String(progressStats.appliedScholarshipsCount), color: "text-blue-500", bg: "bg-blue-50" },
+      { label: "Essays Drafted", sub: "Drafts", value: String(progressStats.essaysCount), color: "text-violet-500", bg: "bg-violet-50" },
+      { label: "Colleges Saved", sub: "Shortlist", value: String(progressStats.savedCollegesCount), color: "text-amber-500", bg: "bg-amber-50" }
     ],
     tracker: [
-      { name: `${state} State Excellence Grant`, status: "Not Started", deadline: "14 Days", progress: 0, urgent: false },
+      { name: `${state} State Excellence Grant`, status: "Not Started", deadline: "14 Days", progress: 0, urgent: true },
       { name: `Future ${career} Leaders Award`, status: "Not Started", deadline: "30 Days", progress: 0, urgent: false },
       { name: "First-Generation Scholarship", status: "Not Started", deadline: "45 Days", progress: 0, urgent: false }
     ],
     income_ideas: [
-      { label: "Tutoring in your strong subjects", color: "text-emerald-500" },
-      { label: "Freelance gigs online", color: "text-blue-500" },
-      { label: "Local part-time work", color: "text-slate-500" }
+      { title: "Tutoring in your strong subjects", description: "Use your school GPA to tutor middle schoolers in math or science." },
+      { title: "Freelance gigs online", description: "Offer services on Fiverr or Upwork based on your career interests." }
     ],
     suggested_colleges: [
       { name: `${state} State University`, reason: `Great program for ${career}`, match: "95%" },
@@ -115,18 +165,83 @@ export async function POST(req: Request) {
       force = body.force;
     } catch (e) {}
 
-    if (!force && profile.ai_dashboard_data) {
-      return NextResponse.json(profile.ai_dashboard_data);
+    // Fetch actual user progress metadata scoped to the user
+    const [docsRes, essaysRes, collegesRes, appsRes, resumeRes] = await Promise.all([
+      supabase.from("documents").select("type").eq("user_id", user.id),
+      supabase.from("essays").select("status").eq("user_id", user.id),
+      supabase.from("saved_colleges").select("status, college_name, deadline").eq("user_id", user.id),
+      supabase.from("applications").select("status, scholarships(deadline, name)").eq("user_id", user.id),
+      supabase.from("resumes").select("*").eq("user_id", user.id).maybeSingle()
+    ]);
+
+    const docs = docsRes.data || [];
+    const essays = essaysRes.data || [];
+    const savedColleges = collegesRes.data || [];
+    const apps = appsRes.data || [];
+    const resume = resumeRes.data || null;
+
+    const progressStats = {
+      hasTranscript: docs.some(d => d.type === "transcript"),
+      hasRecommendationLetter: docs.some(d => d.type === "recommendation_letter"),
+      hasResume: docs.some(d => d.type === "resume"),
+      documentsCount: docs.length,
+      essaysCount: essays.length,
+      completedEssaysCount: essays.filter(e => e.status === "completed").length,
+      savedCollegesCount: savedColleges.length,
+      appliedScholarshipsCount: apps.filter(a => a.status === "Submitted").length,
+      savedScholarshipsCount: apps.length
+    };
+
+    // Calculate database-driven semantic states
+    const states = calculateWorkflowStates({
+      documents: docs,
+      essays,
+      savedColleges,
+      applications: apps,
+      resume,
+      profile
+    });
+
+    const currentState = {
+      ...states,
+      firstName: profile.first_name || ""
+    };
+
+    const cachedData = profile.ai_dashboard_data;
+    const cachedState = cachedData?._state;
+
+    const isStateEqual = isDashboardStateEqual(currentState, cachedState);
+
+    if (!force && cachedData && isStateEqual) {
+      return NextResponse.json(cachedData);
     }
+
+    // Compile dynamic priority checklist locally
+    const localDashboard = compileDashboard({
+      documents: docs,
+      essays,
+      savedColleges,
+      applications: apps,
+      resume,
+      profile
+    });
 
     let generatedJson = null;
 
     try {
-      // Use Claude because OpenAI quota is currently exhausted
+      const userPrompt = `
+Student Profile:
+${JSON.stringify(profile, null, 2)}
+
+Current Platform Progress:
+${JSON.stringify(progressStats, null, 2)}
+      `;
+
+      // Try OpenAI first since it is working well
       const responseText = await callAI({
         systemPrompt: SYSTEM_PROMPT,
-        userPrompt: JSON.stringify(profile, null, 2),
-        provider: 'claude', 
+        userPrompt: userPrompt,
+        provider: 'openai', 
         jsonMode: true
       });
       
@@ -138,7 +253,29 @@ export async function POST(req: Request) {
     // If AI failed use personalized fallback data
     if (!generatedJson) {
       console.log('Falling back to local generated data due to AI error.');
-      generatedJson = getFallbackData(profile);
+      generatedJson = getFallbackData(profile, progressStats);
+    }
+
+    // Merge JSearch/Admissions tips/ideas from AI with local progression logic
+    generatedJson = {
+      ...generatedJson,
+      ...localDashboard
+    };
+
+    // Update stats count in fallback or generated json using database values
+    if (generatedJson && generatedJson.stats) {
+      const statsMap: Record<string, string> = {
+        "Applied Scholarship Applications": String(progressStats.appliedScholarshipsCount),
+        "Essays Drafted": String(progressStats.essaysCount),
+        "Colleges Saved": String(progressStats.savedCollegesCount),
+      };
+      
+      generatedJson.stats = generatedJson.stats.map((s: any) => {
+        if (statsMap[s.label] !== undefined) {
+          return { ...s, value: statsMap[s.label] };
+        }
+        return s;
+      });
     }
 
     // Save to database

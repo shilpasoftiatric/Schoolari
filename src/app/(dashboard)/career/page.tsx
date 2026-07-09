@@ -1,5 +1,5 @@
 import { getProfile } from "@/app/actions/profile";
-import { getResume } from "@/app/actions/career";
+import { getResume, getJobsAndInternships } from "@/app/actions/career";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { CareerDashboard } from "./CareerDashboard";
@@ -33,6 +33,8 @@ export default async function CareerPage() {
         initialInterests={profile.career_interests || []} 
         initialResumeData={resume?.content || null}
         uploadedResumes={uploadedResumes}
+        initialJobs={[]}
+        profile={profile}
       />
     </div>
   );

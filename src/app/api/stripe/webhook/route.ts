@@ -3,19 +3,33 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
 
-if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) {
-  throw new Error("Missing STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET");
+let stripe: Stripe | null = null;
+let supabaseAdmin: any = null;
+
+function getStripe() {
+  if (!stripe) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("Missing STRIPE_SECRET_KEY");
+    }
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2025-02-24.acacia" as any,
+    });
+  }
+  return stripe;
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-02-24.acacia",
-});
-
-// We need a Service Role client to bypass RLS when updating from a webhook
-const supabaseAdmin = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  if (!supabaseAdmin) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Missing Supabase credentials for Admin");
+    }
+    supabaseAdmin = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabaseAdmin;
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -28,10 +42,14 @@ export async function POST(req: NextRequest) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      throw new Error("Missing STRIPE_WEBHOOK_SECRET");
+    }
+    const stripeClient = getStripe();
+    event = stripeClient.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err: any) {
     console.error(`Webhook signature verification failed: ${err.message}`);
@@ -54,11 +72,13 @@ export async function POST(req: NextRequest) {
         const customerId = session.customer as string;
         
         // We might want to retrieve the actual subscription object to get the price
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const stripeClient = getStripe();
+        const subscription = await stripeClient.subscriptions.retrieve(subscriptionId);
         const priceId = subscription.items.data[0].price.id;
 
         // Update the Supabase profile
-        const { error } = await supabaseAdmin
+        const adminClient = getSupabaseAdmin();
+        const { error } = await adminClient
           .from("profiles")
           .update({
             stripe_customer_id: customerId,
@@ -80,7 +100,8 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription;
         
         // Find the user by subscription ID and update their status
-        const { error } = await supabaseAdmin
+        const adminClient = getSupabaseAdmin();
+        const { error } = await adminClient
           .from("profiles")
           .update({
             subscription_status: subscription.status,

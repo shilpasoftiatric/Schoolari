@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { addCollege, updateCollege, deleteCollege } from "@/app/actions/colleges";
 import { GraduationCap, Plus, Calendar, Save, Trash2, CheckCircle2, Clock, X, Building, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +47,16 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
     if (!newCollegeName.trim()) return;
     setIsAdding(true);
     try {
-      const newCollege = await addCollege(newCollegeName, newCollegeDeadline);
+      const res = await fetch("/api/colleges/add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collegeName: newCollegeName, deadline: newCollegeDeadline })
+      });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Failed to add college");
+      }
+      const newCollege = await res.json();
       setColleges([newCollege, ...colleges]);
       setNewCollegeName("");
       setNewCollegeDeadline("");
@@ -70,11 +78,22 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
   const handleSaveEdit = async () => {
     setIsSaving(true);
     try {
-      await updateCollege(editingCollege.id, {
-        status: editStatus,
-        notes: editNotes,
-        deadline: editDeadline
+      const res = await fetch("/api/colleges/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingCollege.id,
+          updates: {
+            status: editStatus,
+            notes: editNotes,
+            deadline: editDeadline
+          }
+        })
       });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Failed to save updates");
+      }
       // Update local state
       setColleges(colleges.map(c => 
         c.id === editingCollege.id 
@@ -92,7 +111,15 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to remove this college?")) return;
     try {
-      await deleteCollege(id);
+      const res = await fetch("/api/colleges/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Failed to delete college");
+      }
       setColleges(colleges.filter(c => c.id !== id));
       if (editingCollege?.id === id) setEditingCollege(null);
     } catch (error) {

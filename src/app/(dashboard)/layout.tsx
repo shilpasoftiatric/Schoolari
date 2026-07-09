@@ -15,15 +15,20 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Check onboarding status and role
+  // Check onboarding status, role, and subscription status
   const { data: profile } = await supabase
     .from("profiles")
-    .select("onboarding_complete, role")
+    .select("onboarding_complete, role, subscription_status")
     .eq("id", user.id)
     .single();
 
   if (profile?.role === "admin") {
     redirect("/admin/dashboard");
+  }
+
+  const isActive = profile?.subscription_status === "active" || profile?.subscription_status === "trialing";
+  if (!isActive) {
+    redirect("/pricing");
   }
 
   if (profile && !profile.onboarding_complete) {

@@ -12,7 +12,7 @@ export async function updateApplicationStatus(applicationId: string, status: App
 
   const { error } = await supabase
     .from("applications")
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ status: status, updated_at: new Date().toISOString() })
     .eq("id", applicationId)
     .eq("user_id", user.id);
 
@@ -22,6 +22,7 @@ export async function updateApplicationStatus(applicationId: string, status: App
   }
 
   revalidatePath("/tracker");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -43,5 +44,6 @@ export async function deleteApplication(applicationId: string) {
   }
 
   revalidatePath("/tracker");
+  revalidatePath("/dashboard");
   return { success: true };
 }

@@ -25,37 +25,44 @@ const NAV_GROUPS = [
     label: "MAIN",
     items: [
       { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-      { label: "Scholarships", icon: Search, href: "/scholarships" },
-      { label: "Tracker", icon: Trophy, href: "/tracker" },
+      //  { label: "Scholarships", icon: Search, href: "/scholarships" },
+      // {label: "Tracker", icon: Trophy, href: "/tracker" },
     ],
   },
-  {
-    label: "ACADEMIC",
-    items: [
-      { label: "Documents", icon: FolderOpen, href: "/documents" },
-      { label: "Essays", icon: FileEdit, href: "/essays" },
-      { label: "Colleges", icon: Landmark, href: "/colleges" },
-    ],
-  },
+  // {
+  //   label: "ACADEMIC",
+  //   items: [
+  //     { label: "Documents", icon: FolderOpen, href: "/documents" },
+  //     { label: "Essays", icon: FileEdit, href: "/essays" },
+  //     { label: "Colleges", icon: Landmark, href: "/colleges" },
+  //   ],
+  // },
   {
     label: "GROWTH",
     items: [
       { label: "Career", icon: Briefcase, href: "/career" },
-      { label: "Income", icon: DollarSign, href: "/income" },
-      { label: "Coaching", icon: Trophy, href: "/coaching" },
+      // { label: "Income", icon: DollarSign, href: "/income" },
+      // { label: "Coaching", icon: Trophy, href: "/coaching" },
     ],
   },
   {
     label: "ACCOUNT",
     items: [
       { label: "Profile", icon: User, href: "/profile" },
-      { label: "Settings", icon: Settings, href: "/settings" },
+      // { label: "Settings", icon: Settings, href: "/settings" },
     ],
   },
 ];
 
+import { useState, useEffect } from "react";
+
 export default function Sidebar() {
   const pathname = usePathname();
+  const [selectedHref, setSelectedHref] = useState(pathname);
+
+  useEffect(() => {
+    setSelectedHref(pathname);
+  }, [pathname]);
 
   return (
     <div className="flex flex-col h-full w-64 border-r border-slate-200 bg-slate-150 shrink-0">
@@ -75,7 +82,11 @@ export default function Sidebar() {
         {/* Ask Schoolari AI Card */}
         <Link
           href="/ai"
-          className="flex items-center justify-between p-3 rounded-[24px] bg-slate-200 border border-slate-100 hover:bg-slate-100 transition-colors group"
+          onClick={() => setSelectedHref("/ai")}
+          className={cn(
+            "flex items-center justify-between p-3 rounded-[24px] bg-slate-200 border border-slate-100 hover:bg-slate-100 transition-colors group",
+            selectedHref === "/ai" && "bg-slate-100 border-violet-200"
+          )}
         >
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 shadow-md">
@@ -95,30 +106,17 @@ export default function Sidebar() {
               {group.label}
             </h3>
             {group.items.map((item) => {
-              const isActive = pathname === item.href;
-              const isAllowed = ["/dashboard", "/scholarships", "/profile", "/tracker"].includes(item.href);
-              
-              if (!isAllowed) {
-                return (
-                  <div
-                    key={item.href}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-400 opacity-60 cursor-not-allowed"
-                    title="This feature is locked or coming soon"
-                  >
-                    <item.icon className="w-4.5 h-4.5 shrink-0" />
-                    <span className="flex-1">{item.label}</span>
-                  </div>
-                );
-              }
+              const isActive = selectedHref === item.href;
 
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => setSelectedHref(item.href)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group",
                     isActive
-                      ? "bg-violet-50 text-violet-700"
+                      ? "bg-violet-50 text-violet-700 font-bold"
                       : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                   )}
                 >

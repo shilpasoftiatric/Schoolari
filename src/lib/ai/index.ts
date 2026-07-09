@@ -8,10 +8,20 @@ export interface AICallOptions {
 }
 
 export async function callAI({ systemPrompt, userPrompt, provider = 'claude', jsonMode = false }: AICallOptions): Promise<string> {
-  if (provider === 'openai') {
-    return callOpenAI(systemPrompt, userPrompt, jsonMode);
-  } else if (provider === 'claude') {
-    return callClaude(systemPrompt, userPrompt);
+  if (provider === 'claude') {
+    try {
+      return await callClaude(systemPrompt, userPrompt);
+    } catch (err: any) {
+      console.warn(`Claude API failed (${err.message || err}). Falling back to OpenAI...`);
+      return await callOpenAI(systemPrompt, userPrompt, jsonMode);
+    }
+  } else if (provider === 'openai') {
+    try {
+      return await callOpenAI(systemPrompt, userPrompt, jsonMode);
+    } catch (err: any) {
+      console.warn(`OpenAI API failed (${err.message || err}). Falling back to Claude...`);
+      return await callClaude(systemPrompt, userPrompt);
+    }
   }
   throw new Error(`Unsupported AI provider: ${provider}`);
 }

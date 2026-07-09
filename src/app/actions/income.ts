@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { callAI } from "@/lib/ai";
 
 // ─────────────────────────────────────────
 // INCOME GOALS CRUD
@@ -87,15 +88,7 @@ export async function deleteIncomeGoal(id: string) {
 // ─────────────────────────────────────────
 
 export async function generateIncomeIdeas(age: string, skills: string, location: string) {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey || apiKey === "your_openai_api_key_here") {
-    throw new Error("MISSING_API_KEY");
-  }
-
-  const prompt = `
-You are a career and financial advisor for students. The student is ${age} years old, located in a ${location} area, and has the following skills/interests: "${skills}".
-
+  const systemPrompt = `You are a career and financial advisor for students.
 Generate exactly 3 creative, highly actionable "side hustle" ideas that this specific student can start right now to earn money. 
 For each idea, provide a practical title and a 2-3 sentence explanation of exactly how to start, how much they can expect to earn, and what free/cheap tools they need.
 
@@ -110,41 +103,28 @@ Example:
   }
 ]
 
-Do not include markdown blocks or any other text outside the JSON array.
-  `;
+Do not include markdown blocks or any other text outside the JSON array.`;
+
+  const userPrompt = `The student is ${age} years old, located in a ${location} area, and has the following skills/interests: "${skills}".`;
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini", // Use faster, cheaper model for this
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-      }),
+    const content = await callAI({
+      systemPrompt,
+      userPrompt,
+      provider: "claude",
+      jsonMode: true,
     });
 
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(data.error.message);
-    }
-
-    const content = data.choices[0].message.content.trim();
-    
     // Attempt to parse JSON safely
     try {
       // Strip markdown block if it accidentally included it
       const jsonString = content.replace(/```json/g, '').replace(/```/g, '').trim();
       return JSON.parse(jsonString);
     } catch (e) {
-      console.error("Failed to parse OpenAI JSON response", content);
+      console.error("Failed to parse AI JSON response", content);
       throw new Error("Failed to generate ideas. Please try again.");
     }
   } catch (error: any) {
-    throw new Error(error.message || "Failed to communicate with OpenAI");
+    throw new Error(error.message || "Failed to communicate with AI");
   }
 }

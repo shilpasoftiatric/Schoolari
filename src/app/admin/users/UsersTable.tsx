@@ -1,12 +1,22 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Search } from "lucide-react";
-import { updateUserRole } from "@/app/actions/admin";
+import { Search, Plus, X, Loader2 } from "lucide-react";
+import { updateUserRole, createUserMember } from "@/app/actions/admin";
 
 export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
   const [search, setSearch] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  // Create Modal state
+  const [isOpen, setIsOpen] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"admin" | "user">("user");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   const filteredUsers = initialUsers.filter((u) => 
     u.email?.toLowerCase().includes(search.toLowerCase()) || 
@@ -24,9 +34,28 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
     });
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateError("");
+    setIsSubmitting(true);
+    try {
+      await createUserMember(email, firstName, phone, role, password);
+      setIsOpen(false);
+      setFirstName("");
+      setEmail("");
+      setPhone("");
+      setPassword("");
+      setRole("user");
+    } catch (err: any) {
+      setCreateError(err.message || "Failed to create member");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4">
         <div className="relative w-full max-w-sm">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input 
@@ -37,6 +66,12 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition-shadow"
           />
         </div>
+        <button
+          onClick={() => setIsOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-colors shrink-0"
+        >
+          <Plus className="w-4 h-4" /> Add Member
+        </button>
       </div>
 
       <div className="overflow-x-auto">
@@ -96,6 +131,105 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* Add Member Modal */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">Add New Member</h2>
+              <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-slate-100 rounded-full transition-colors">
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+              {createError && (
+                <div className="p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
+                  {createError}
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter full name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
+                <input
+                  type="text"
+                  placeholder="(123) 456-7890"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Password (Optional)</label>
+                <input
+                  type="password"
+                  placeholder="Leave blank for default"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Role</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as "admin" | "user")}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                >
+                  <option value="user">Member / Student</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </div>
+              <p className="text-[10px] text-slate-400 italic">
+                Note: Accounts will be auto-confirmed. If password is left blank, the default is "User@12345".
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Adding...
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

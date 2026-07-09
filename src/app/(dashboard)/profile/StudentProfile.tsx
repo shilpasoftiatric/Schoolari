@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { User, Phone, MapPin, GraduationCap, Award, BookOpen, Target, Sparkles, CheckCircle2, Edit2, Save, X } from "lucide-react";
-import { updateProfile } from "@/app/actions/profile";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -26,7 +25,15 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateProfile(formData);
+      const res = await fetch("/api/profile/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: formData })
+      });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || "Failed to update profile");
+      }
       setIsEditing(false);
       // Ensure the UI updates to reflect saved changes
       Object.assign(profile, formData);

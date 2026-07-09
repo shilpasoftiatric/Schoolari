@@ -29,6 +29,7 @@ export async function createEssay(title: string, topic: string, content: string 
   }
 
   revalidatePath("/essays");
+  revalidatePath("/dashboard");
   return { id: data.id };
 }
 
@@ -51,6 +52,8 @@ export async function updateEssay(id: string, updates: { title?: string; topic?:
     throw new Error(`Failed to save essay: ${error.message}`);
   }
 
+  revalidatePath("/essays");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -71,5 +74,6 @@ export async function deleteEssay(id: string) {
   }
 
   revalidatePath("/essays");
+  revalidatePath("/dashboard");
   redirect("/essays");
 }

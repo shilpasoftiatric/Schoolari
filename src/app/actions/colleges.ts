@@ -38,6 +38,7 @@ export async function addCollege(collegeName: string, deadline?: string) {
   if (error) throw new Error(error.message);
   
   revalidatePath("/colleges");
+  revalidatePath("/dashboard");
   return data;
 }
 
@@ -71,6 +72,7 @@ export async function updateCollege(id: string, updates: any) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/colleges");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 
@@ -89,5 +91,6 @@ export async function deleteCollege(id: string) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/colleges");
+  revalidatePath("/dashboard");
   return { success: true };
 }
