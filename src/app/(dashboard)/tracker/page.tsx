@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { TrackerDashboard } from "./TrackerDashboard";
 
 export const metadata = {
-  title: "Application Tracker | Schoolari",
+  title: "Application Tracker ",
 };
 
 export default async function TrackerPage() {

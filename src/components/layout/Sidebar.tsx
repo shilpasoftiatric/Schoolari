@@ -56,7 +56,17 @@ const NAV_GROUPS = [
 
 import { useState, useEffect } from "react";
 
-export default function Sidebar() {
+interface SidebarProps {
+  siteName?: string;
+  progressData?: {
+    percentage: number;
+    milestone: string;
+    messageTitle: string;
+    messageSubtitle: string;
+  };
+}
+
+export default function Sidebar({ siteName = "Schoolari", progressData }: SidebarProps) {
   const pathname = usePathname();
   const [selectedHref, setSelectedHref] = useState(pathname);
 
@@ -90,10 +100,11 @@ export default function Sidebar() {
         >
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 shadow-md">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <p className="text-sm font-bold text-violet-700 leading-tight">Ask Schoolari AI</p>
+            <div className="relative z-10 space-y-3">
+              <p className="text-sm font-bold text-violet-700 leading-tight">Ask {siteName} AI</p>
               <p className="text-xs font-medium text-slate-400 mt-0.5 leading-tight">Get personalized help</p>
             </div>
           </div>
@@ -135,22 +146,33 @@ export default function Sidebar() {
       </nav>
 
       {/* Motivational Card */}
-      <div className="mx-3 mb-4 p-4 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white shadow-lg shadow-purple-200">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-white/20">
-            <Trophy className="w-5 h-5 text-yellow-300" />
+      {progressData && (
+        <div className="mx-3 mb-4 p-4 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white shadow-lg shadow-purple-200">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-white/20">
+              <Trophy className="w-5 h-5 text-yellow-300" />
+            </div>
+            <div>
+              <p className="text-sm font-bold leading-tight">{progressData.messageTitle}</p>
+              <p className="text-xs text-purple-200 leading-tight">{progressData.messageSubtitle}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-bold leading-tight">You're doing great!</p>
-            <p className="text-xs text-purple-200 leading-tight">Keep up the momentum.</p>
+
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-purple-200">{progressData.milestone}</span>
+            <span className="text-sm font-bold">{progressData.percentage}%</span>
+          </div>
+
+          {/* Progress bar colors swapped: background is highlighted (emerald-400), completed portion is muted (white/20) */}
+          <Progress
+            value={progressData.percentage}
+            className="h-1.5 bg-white/40 [&>div]:bg-amber-400"
+          />
+          <div className="flex justify-end mt-1">
+            <span className="text-[10px] text-purple-200">{100 - progressData.percentage}% Remaining</span>
           </div>
         </div>
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-purple-200">Profile completion</span>
-          <span className="text-sm font-bold">82%</span>
-        </div>
-        <Progress value={82} className="h-1.5 bg-white/20 [&>div]:bg-emerald-400" />
-      </div>
+      )}
     </div>
   );
 }

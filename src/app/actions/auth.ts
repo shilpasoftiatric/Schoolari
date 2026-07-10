@@ -53,21 +53,63 @@ export async function signIn(formData: FormData) {
     return { error: error.message };
   }
 
-  // If this is an admin login attempt, verify their role
-  if (isAdminLogin && data.user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", data.user.id)
-      .single();
+  if (data.user) {
+    // If this is an admin login attempt, verify their role
+    if (isAdminLogin) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
 
-    if (profile?.role !== "admin") {
-      // Not an admin, sign them out and throw error
-      await supabase.auth.signOut();
-      return { error: "Access denied. You do not have administrator privileges." };
+      if (profile?.role !== "admin") {
+        // Not an admin, sign them out and throw error
+        await supabase.auth.signOut();
+        return { error: "Access denied. You do not have administrator privileges." };
+      }
+      
+      redirect("/admin/dashboard");
     }
-    
-    redirect("/admin/dashboard");
+
+    // Daily Login Streak Logic for normal users
+    if (!isAdminLogin) {
+      const todayUtc = new Date().toISOString().split("T")[0];
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_streak, longest_streak, last_login_date")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profile) {
+        let { current_streak = 0, longest_streak = 0, last_login_date } = profile;
+        // Default to 0 if null
+        current_streak = current_streak || 0;
+        longest_streak = longest_streak || 0;
+
+        if (last_login_date !== todayUtc) {
+          const yesterday = new Date();
+          yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+          const yesterdayUtc = yesterday.toISOString().split("T")[0];
+
+          if (last_login_date === yesterdayUtc) {
+            current_streak += 1;
+          } else {
+            current_streak = 1; // Reset streak if missed a day, or first login
+          }
+
+          if (current_streak > longest_streak) {
+            longest_streak = current_streak;
+          }
+
+          // Update the database
+          await supabase.from("profiles").update({ 
+            current_streak, 
+            longest_streak, 
+            last_login_date: todayUtc 
+          }).eq("id", data.user.id);
+        }
+      }
+    }
   }
 
   redirect("/dashboard");

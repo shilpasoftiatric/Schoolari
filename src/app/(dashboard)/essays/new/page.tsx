@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { EssayWorkspace } from "../[id]/EssayWorkspace";
 
 export const metadata = {
-  title: "Schoolari — New Essay",
+  title: "New Essay",
 };
 
 export default async function NewEssayPage() {

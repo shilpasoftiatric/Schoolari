@@ -4,7 +4,7 @@ import { DocumentsVault } from "./DocumentsVault";
 import { FolderOpen } from "lucide-react";
 
 export const metadata = {
-  title: "Schoolari — Documents Vault",
+  title: "Documents Vault",
 };
 
 export default async function DocumentsPage() {

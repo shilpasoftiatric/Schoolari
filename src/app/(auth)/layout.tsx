@@ -1,9 +1,15 @@
-import type { Metadata } from "next";
+import { getSiteSettings } from "@/lib/settings";
 import { GraduationCap } from "lucide-react";
+import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Schoolari — Sign In" };
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+  return { title: `${settings.site_name} — Sign In` };
+}
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const settings = await getSiteSettings();
+
   return (
     <div className="min-h-screen flex">
       {/* Left — Branding Panel */}
@@ -17,7 +23,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/20">
             <GraduationCap className="w-6 h-6 text-white" />
           </div>
-          <span className="text-2xl font-extrabold text-white tracking-tight">Schoolari</span>
+          <span className="text-2xl font-extrabold text-white tracking-tight">{settings.site_name}</span>
         </div>
 
         {/* Hero copy */}
@@ -48,7 +54,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           {/* Testimonial */}
           <div className="bg-white/10 rounded-2xl p-5 backdrop-blur-sm">
             <p className="text-white text-sm leading-relaxed italic">
-              "Schoolari helped me find 3 scholarships I never would have found on my own. I won $5,000 in my first semester!"
+              "{settings.site_name} helped me find 3 scholarships I never would have found on my own. I won $5,000 in my first semester!"
             </p>
             <div className="flex items-center gap-3 mt-4">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xs">
@@ -72,7 +78,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               <GraduationCap className="w-5 h-5 text-primary" />
             </div>
             <span className="text-xl font-extrabold text-slate-900">
-              School<span className="text-primary">ari</span>
+              {settings.site_name}
             </span>
           </div>
           {children}

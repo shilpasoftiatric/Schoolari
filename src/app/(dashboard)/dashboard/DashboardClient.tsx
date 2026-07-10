@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   Flame, ArrowRight, Sparkles, Search, Bookmark, Send, FileEdit,
   FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, GraduationCap,
-  Users, Laptop, Video, Wallet, Trophy, BarChart3, Loader2, FileText
+  Users, Laptop, Video, Wallet, Trophy, BarChart3, Loader2, FileText, X
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import DashboardSkeleton from "@/components/skeletons/DashboardSkeleton";
+import { ScholarshipCard } from "@/components/ui/ScholarshipCard";
+import { searchScholarships } from "@/app/actions/scholarships";
 
 const STATUS_COLORS: Record<string, string> = {
   "In Progress": "bg-blue-100 text-blue-700",
@@ -30,6 +32,33 @@ const iconMap: Record<string, any> = {
   "Essays Drafted": FileEdit,
   "Colleges Saved": GraduationCap
 };
+
+function ScholarshipSearchSkeleton() {
+  return (
+    <div className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col h-full space-y-4 shadow-sm animate-pulse">
+      <div className="flex justify-between items-start gap-4">
+        <div className="w-20 h-6 bg-slate-200 rounded-full shrink-0" />
+        <div className="w-20 h-6 bg-slate-200 rounded-full shrink-0" />
+      </div>
+      <div className="space-y-2 mt-4 flex-1">
+        <div className="h-6 w-3/4 bg-slate-200 rounded-lg" />
+        <div className="h-4 w-full bg-slate-200 rounded-lg mt-4" />
+        <div className="h-4 w-5/6 bg-slate-200 rounded-lg" />
+      </div>
+      <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
+        <div className="space-y-1">
+          <div className="h-3 w-12 bg-slate-200 rounded" />
+          <div className="h-4 w-20 bg-slate-200 rounded" />
+        </div>
+        <div className="space-y-1 items-end flex flex-col">
+          <div className="h-3 w-12 bg-slate-200 rounded" />
+          <div className="h-4 w-20 bg-slate-200 rounded" />
+        </div>
+      </div>
+      <div className="w-full h-12 bg-slate-200 rounded-xl mt-4" />
+    </div>
+  );
+}
 
 function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass, sectionData }: { title: string, icon: any, colorClass: string, borderClass: string, bgClass: string, sectionData: any }) {
   const completedTasks = sectionData?.tasks?.filter((t: any) => t.done).length || 0;
@@ -113,10 +142,53 @@ function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass,
   );
 }
 
-export function DashboardClient({ initialData, firstName }: { initialData: any, firstName: string }) {
+export function DashboardClient({ initialData, firstName, streak = 1 }: { initialData: any, firstName: string, streak?: number }) {
   const [data, setData] = useState<any>(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState("");
+
+  // Search Modal States
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (isSearchModalOpen) {
+      setIsSearching(true);
+      timeoutId = setTimeout(async () => {
+        try {
+          const results = await searchScholarships(searchQuery);
+          setSearchResults(results);
+        } catch (err) {
+          console.error("Failed to search scholarships:", err);
+        } finally {
+          setIsSearching(false);
+        }
+      }, 400); // 400ms debounce
+    }
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, isSearchModalOpen]);
+
+  // Lock scroll when modal is open
+  useEffect(() => {
+    if (isSearchModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isSearchModalOpen]);
+
+  // ESC key listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsSearchModalOpen(false);
+    };
+    if (isSearchModalOpen) window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSearchModalOpen]);
 
   useEffect(() => {
     if (!data) {
@@ -163,7 +235,7 @@ export function DashboardClient({ initialData, firstName }: { initialData: any, 
         </div>
         <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-amber-200 bg-amber-50 text-amber-600 font-semibold text-sm shrink-0">
           <Flame className="w-4 h-4" />
-          Day 1 Streak
+          Day {streak} Streak
         </div>
       </div>
 
@@ -172,7 +244,7 @@ export function DashboardClient({ initialData, firstName }: { initialData: any, 
         <Button onClick={generateDashboard} className="gap-2 bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white shadow-md rounded-xl">
           <Sparkles className="w-4 h-4" /> Refresh AI Dashboard
         </Button>
-        <Button variant="outline" className="gap-2 rounded-xl border-slate-200">
+        <Button variant="outline" onClick={() => setIsSearchModalOpen(true)} className="gap-2 rounded-xl border-slate-200">
           <Search className="w-4 h-4 text-slate-400" /> Find Scholarships
         </Button>
       </div>
@@ -366,6 +438,74 @@ export function DashboardClient({ initialData, firstName }: { initialData: any, 
           </Card>
         )}
       </div>
+
+      {/* ── Scholarship Search Modal ── */}
+      {isSearchModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto custom-scrollbar animate-in fade-in duration-200"
+          onClick={(e) => { if (e.target === e.currentTarget) setIsSearchModalOpen(false); }}
+        >
+          <div className="bg-slate-50 w-full max-w-5xl min-h-[50vh] flex flex-col shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200 mb-[10vh]">
+            <div className="p-6 md:p-8 bg-white border-b border-slate-200 relative shrink-0">
+              <button 
+                onClick={() => setIsSearchModalOpen(false)}
+                className="absolute top-6 right-6 p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <h2 className="text-2xl font-extrabold text-slate-900">Find Scholarships</h2>
+              <p className="text-sm text-slate-500 mt-1 mb-6 max-w-lg">
+                Search thousands of scholarship opportunities based on your interests.
+              </p>
+
+              <div className="relative max-w-3xl">
+                <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input 
+                  autoFocus
+                  type="text"
+                  placeholder="Search scholarships (e.g., STEM, California, Sports)..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-14 pl-12 pr-12 rounded-2xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 text-base font-medium transition-all"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-700 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex-1 p-6 md:p-8 bg-slate-50 overflow-y-auto">
+              {isSearching ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[1, 2, 3, 4].map(i => <ScholarshipSearchSkeleton key={i} />)}
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {searchResults.map(scholarship => (
+                    <ScholarshipCard key={scholarship.id} scholarship={scholarship} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="w-16 h-16 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center mb-4">
+                    <Search className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">No scholarships found</h3>
+                  <p className="text-slate-500 max-w-sm">
+                    {searchQuery ? "Try adjusting your search terms or keywords." : "Start typing to find matching scholarships."}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

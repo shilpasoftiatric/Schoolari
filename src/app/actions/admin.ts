@@ -1,6 +1,6 @@
 "use server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 
 // Utility to verify admin role
 export async function verifyAdmin() {
@@ -29,7 +29,17 @@ export async function updateUserRole(userId: string, newRole: "admin" | "user") 
     .eq("id", userId);
 
   if (error) throw new Error(error.message);
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user && user.id === userId && newRole === "user") {
+    await supabase.auth.signOut();
+    return { shouldRedirect: true };
+  }
+
   revalidatePath("/admin/users");
+  return { success: true };
 }
 
 export async function createScholarship(data: any) {
@@ -119,4 +129,21 @@ export async function createUserMember(email: string, firstName: string, phone: 
 
   revalidatePath("/admin/users");
   return { success: true };
+}
+
+export async function updateSiteSettings(data: { site_name: string; support_email: string; support_phone: string }) {
+  await verifyAdmin();
+  const adminClient = await createAdminClient();
+
+  const { error } = await adminClient
+    .from("site_settings")
+    .update(data)
+    // we assume there's only 1 row, so we can update without ID if we fetch the first one, or we can just update all rows (since there's only 1)
+    .neq("id", "00000000-0000-0000-0000-000000000000"); // hack to update all rows without needing the specific ID
+
+  if (error) throw new Error(error.message);
+
+
+  updateTag("site-settings");
+  revalidatePath("/", "layout");
 }

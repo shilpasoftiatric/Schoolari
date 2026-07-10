@@ -2,7 +2,7 @@ import { getIncomeGoals } from "@/app/actions/income";
 import { IncomeDashboard } from "./IncomeDashboard";
 
 export const metadata = {
-  title: "Schoolari — Income Center",
+  title: "Income Center",
 };
 
 export default async function IncomePage() {

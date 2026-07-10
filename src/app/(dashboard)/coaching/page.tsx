@@ -2,7 +2,7 @@ import { getCoachingMessages } from "@/app/actions/coaching";
 import { CoachingDashboard } from "./CoachingDashboard";
 
 export const metadata = {
-  title: "Schoolari — Coaching Center",
+  title: "Coaching Center",
 };
 
 export default async function CoachingPage() {

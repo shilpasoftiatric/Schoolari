@@ -37,6 +37,9 @@ export interface Database {
           stripe_price_id: string | null;
           subscription_status: string | null;
           ai_dashboard_data: any;
+          current_streak: number;
+          longest_streak: number;
+          last_login_date: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -236,6 +239,26 @@ export interface Database {
           size_bytes?: number;
         };
         Update: Partial<Database["public"]["Tables"]["documents"]["Row"]>;
+        Relationships: any[];
+      };
+      site_settings: {
+        Row: {
+          id: string;
+          site_name: string;
+          support_email: string;
+          support_phone: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Insert: {
+          id?: string;
+          site_name?: string;
+          support_email?: string;
+          support_phone?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["site_settings"]["Row"]>;
         Relationships: any[];
       };
     };

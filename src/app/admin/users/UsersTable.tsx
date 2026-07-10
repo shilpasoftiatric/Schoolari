@@ -27,7 +27,10 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
   const handleRoleChange = (userId: string, newRole: "admin" | "user") => {
     startTransition(async () => {
       try {
-        await updateUserRole(userId, newRole);
+        const result = await updateUserRole(userId, newRole);
+        if (result?.shouldRedirect) {
+          window.location.href = "/login";
+        }
       } catch (err: any) {
         alert(err.message || "Failed to update role");
       }

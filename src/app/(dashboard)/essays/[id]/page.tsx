@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { EssayWorkspace } from "./EssayWorkspace";
 
 export const metadata = {
-  title: "Schoolari — Essay Editor",
+  title: "Essay Editor",
 };
 
 export default async function EssayEditorPage({ params }: { params: Promise<{ id: string }> }) {

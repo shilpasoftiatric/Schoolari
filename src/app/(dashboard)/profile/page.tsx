@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { StudentProfile } from "./StudentProfile";
 
 export const metadata = {
-  title: "Schoolari — My Profile",
+  title: "My Profile",
 };
 
 export default async function ProfilePage() {

@@ -2,7 +2,7 @@ import { getSavedColleges } from "@/app/actions/colleges";
 import { CollegeDashboard } from "./CollegeDashboard";
 
 export const metadata = {
-  title: "Schoolari — College Planning",
+  title: "College Planning",
 };
 
 export default async function CollegesPage() {

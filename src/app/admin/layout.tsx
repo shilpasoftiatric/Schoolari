@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, LogOut } from "lucide-react";
 import { AdminNav } from "./AdminNav";
+import { signOut } from "@/app/actions/auth";
+import { Button } from "@/components/ui/button";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -23,7 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="fixed inset-0 flex bg-slate-50">
       {/* Admin Sidebar */}
       <div className="w-64 border-r border-slate-200 bg-white shrink-0 flex flex-col">
         <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-100">
@@ -36,10 +38,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminNav />
       </div>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-6 md:p-8">
-        {children}
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="h-16 flex items-center justify-end px-6 md:px-8">
+          <form action={signOut}>
+            <Button type="submit" className="gap-2 font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm h-9">
+              <LogOut className="w-4 h-4" />
+              Logout
+            </Button>
+          </form>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

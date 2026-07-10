@@ -1,7 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
+import { getSiteSettings } from "@/lib/settings";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
+import { getStudentDashboardData } from "@/services/data-fetcher";
+import { 
+  calculateWorkflowStates, 
+  calculateOverallProgress, 
+  getNextMilestone, 
+  getMotivationalMessage 
+} from "@/services/task-engine";
 
 export default async function DashboardLayout({
   children,
@@ -15,12 +23,9 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // Check onboarding status, role, and subscription status
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("onboarding_complete, role, subscription_status")
-    .eq("id", user.id)
-    .single();
+  // Use the cached data fetcher
+  const dbData = await getStudentDashboardData(user.id);
+  const profile = dbData.profile;
 
   if (profile?.role === "admin") {
     redirect("/admin/dashboard");
@@ -35,10 +40,25 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
+  // Calculate Progress
+  const states = calculateWorkflowStates(dbData);
+  const progressScore = calculateOverallProgress(states, profile);
+  const milestone = getNextMilestone(states, progressScore);
+  const motivationalMessage = getMotivationalMessage(progressScore);
+
+  const progressData = {
+    percentage: progressScore,
+    milestone,
+    messageTitle: motivationalMessage.title,
+    messageSubtitle: motivationalMessage.subtitle
+  };
+
+  const settings = await getSiteSettings();
+
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="fixed inset-0 flex overflow-hidden bg-slate-50">
       <div className="hidden lg:flex h-full">
-        <Sidebar />
+        <Sidebar siteName={settings.site_name} progressData={progressData} />
       </div>
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Topbar />

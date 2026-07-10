@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { CareerDashboard } from "./CareerDashboard";
 
 export const metadata = {
-  title: "Schoolari — Career Center",
+  title: "Career Center",
 };
 
 export default async function CareerPage() {
@@ -21,7 +21,7 @@ export default async function CareerPage() {
   const { data: documents } = await supabase
     .from("documents")
     .select("*")
-    .eq("user_id", user?.id)
+    .eq("user_id", user?.id || "")
     .eq("type", "resume")
     .order("created_at", { ascending: false });
 

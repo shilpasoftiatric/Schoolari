@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createEssay } from "@/app/actions/essays";
 
 export const metadata = {
-  title: "Schoolari — Essay Workspace",
+  title: "Essay Workspace",
 };
 
 export default async function EssaysDashboardPage() {

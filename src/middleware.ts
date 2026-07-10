@@ -43,6 +43,25 @@ export async function middleware(request: NextRequest) {
       url.pathname = "/admin/login";
       return NextResponse.redirect(url);
     }
+  } else if (pathname.startsWith("/dashboard")) {
+    // Session Expiration Policy: 
+    // Ensure the session was initiated on the CURRENT calendar day (UTC).
+    // If last_sign_in_at is not today, the session is invalid for the new day.
+    const lastSignIn = user.last_sign_in_at ? new Date(user.last_sign_in_at) : null;
+    const today = new Date();
+    
+    if (lastSignIn) {
+      const lastSignInStr = lastSignIn.toISOString().split("T")[0];
+      const todayStr = today.toISOString().split("T")[0];
+      
+      if (lastSignInStr !== todayStr) {
+        // Session has crossed into a new calendar day. Force re-authentication.
+        await supabase.auth.signOut();
+        const url = request.nextUrl.clone();
+        url.pathname = "/login";
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   // Redirect authenticated users away from auth pages

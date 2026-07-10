@@ -16,6 +16,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
   const [sortBy, setSortBy] = useState("name");
   const [isPending, startTransition] = useTransition();
   const [modalState, setModalState] = useState<{ isOpen: boolean, type: "create" | "edit", scholarship: any | null }>({ isOpen: false, type: "create", scholarship: null });
+  const [isAllStates, setIsAllStates] = useState(true);
 
   // Filter & Sort
   const filteredSorted = useMemo(() => {
@@ -70,6 +71,13 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
       eligible_majors: formData.get("eligibleMajors") || "",
       min_gpa_required: formData.get("minGpaRequired") ? Number(formData.get("minGpaRequired")) : null,
       special_eligibility: formData.get("specialEligibility") || "",
+      eligible_states: formData.get("stateEligibilityAll") === "on" ? "All" : formData.getAll("eligibleStates").join(", "),
+      grade_levels: formData.getAll("gradeLevels").map(s => s.toString()),
+      essay_required: formData.get("essayRequired") === "on",
+      citizenship_requirement: formData.get("citizenshipRequirement") as string,
+      organization_name: formData.get("organizationName") as string,
+      award_frequency: formData.get("awardFrequency") as string,
+      number_of_awards: formData.get("numberOfAwards") ? Number(formData.get("numberOfAwards")) : null,
     };
 
     startTransition(async () => {
@@ -111,7 +119,10 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
             <option value="award">Award amount</option>
           </select>
         </div>
-        <Button onClick={() => setModalState({ isOpen: true, type: "create", scholarship: null })} className="w-full md:w-auto bg-slate-900 text-white font-bold h-10 rounded-xl gap-2 shadow-sm">
+        <Button onClick={() => {
+          setModalState({ isOpen: true, type: "create", scholarship: null });
+          setIsAllStates(true);
+        }} className="w-full md:w-auto bg-slate-900 text-white font-bold h-10 rounded-xl gap-2 shadow-sm">
           <Plus className="w-4 h-4" /> Add Scholarship
         </Button>
       </div>
@@ -166,7 +177,10 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-center gap-2">
                         <button 
-                          onClick={() => setModalState({ isOpen: true, type: "edit", scholarship: item })}
+                          onClick={() => {
+                            setModalState({ isOpen: true, type: "edit", scholarship: item });
+                            setIsAllStates(item.eligible_states?.toLowerCase().includes("all") ?? true);
+                          }}
                           className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition-colors"
                         >
                           <Edit className="w-4 h-4" />
@@ -223,17 +237,6 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                     <Input name="name" defaultValue={modalState.scholarship?.name} required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700">Category</label>
-                    <select name="category" defaultValue={modalState.scholarship?.category || "General"} required className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-                      <option value="Merit-Based">Merit-Based</option>
-                      <option value="Need-Based">Need-Based</option>
-                      <option value="Athletic">Athletic</option>
-                      <option value="General">General</option>
-                      <option value="Creative">Creative</option>
-                      <option value="Diversity">Diversity</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Apply URL</label>
                     <Input name="link" defaultValue={modalState.scholarship?.link} required type="url" />
                   </div>
@@ -280,6 +283,131 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                     placeholder="e.g. first-generation, low-income"
                     className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">State Eligibility (Optional)</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        name="stateEligibilityAll"
+                        checked={isAllStates} 
+                        onChange={(e) => setIsAllStates(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                    </label>
+                    <span className="text-sm font-semibold text-slate-700">Available in all U.S. States</span>
+                  </div>
+                  
+                  {!isAllStates && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-700">Select Eligible States</label>
+                      <select 
+                        name="eligibleStates" 
+                        multiple
+                        defaultValue={modalState.scholarship?.eligible_states ? modalState.scholarship.eligible_states.split(", ") : []}
+                        className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary h-32"
+                      >
+                        {[
+                          "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "Florida", "Georgia",
+                          "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland",
+                          "Massachusetts", "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey",
+                          "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina",
+                          "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"
+                        ].map(state => (
+                          <option key={state} value={state}>{state}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-slate-500">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Grade Level (Optional)</h3>
+                <div className="flex flex-row flex-wrap gap-4">
+                  {["High School", "Undergraduate", "Graduate"].map(level => (
+                    <label key={level} className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        name="gradeLevels" 
+                        value={level} 
+                        defaultChecked={modalState.scholarship?.grade_levels?.includes(level)}
+                        className="w-4 h-4 text-violet-600 bg-slate-100 border-slate-300 rounded focus:ring-violet-500 focus:ring-2"
+                      />
+                      <span className="text-sm font-semibold text-slate-700">{level}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Essay Required</h3>
+                    <div className="flex items-center gap-3">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          name="essayRequired"
+                          defaultChecked={modalState.scholarship?.essay_required || false}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                      </label>
+                      <span className="text-sm font-semibold text-slate-700">Essay Required</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Citizenship Requirement</h3>
+                    <select name="citizenshipRequirement" defaultValue={modalState.scholarship?.citizenship_requirement || "Any Citizenship"} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                      <option value="Any Citizenship">Any Citizenship</option>
+                      <option value="U.S. Citizens Only">U.S. Citizens Only</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Optional Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">Category</label>
+                    <select name="category" defaultValue={modalState.scholarship?.category || "None"} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                      <option value="None">None</option>
+                      <option value="Sports">Sports</option>
+                      <option value="Arts And Design">Arts And Design</option>
+                      <option value="Business">Business</option>
+                      <option value="Community Service">Community Service</option>
+                      <option value="Student Government">Student Government</option>
+                      <option value="STEM">STEM</option>
+                      <option value="Religious Organizations">Religious Organizations</option>
+                      <option value="Education">Education</option>
+                      <option value="Health & medicie">Health & medicie</option>
+                      <option value="Social-Science">Social-Science</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">Organization Offering Scholarship</label>
+                    <Input name="organizationName" defaultValue={modalState.scholarship?.organization_name} placeholder="Enter organization name" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">Award Frequency</label>
+                    <select name="awardFrequency" defaultValue={modalState.scholarship?.award_frequency || "Not Specified"} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                      <option value="Not Specified">Not Specified</option>
+                      <option value="One Time">One Time</option>
+                      <option value="Renewable">Renewable</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">Number of Awards</label>
+                    <Input name="numberOfAwards" type="number" min="1" defaultValue={modalState.scholarship?.number_of_awards} placeholder="Example: 25" />
+                  </div>
                 </div>
               </div>
 

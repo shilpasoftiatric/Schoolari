@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { LogOut, Users, GraduationCap, ToggleRight, ToggleLeft, ChevronRight, UserCog, Settings } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select("first_name")
-    .eq("id", user?.id)
+    .eq("id", user?.id || "")
     .single();
 
   const displayName = profile?.first_name || user?.email?.split("@")[0] || "Admin";
@@ -44,16 +44,17 @@ export default async function AdminDashboardPage() {
   });
 
   // Fetch Stats
+  const adminSupabase = await createAdminClient();
   const [
     { count: totalUsers },
     { count: totalScholarships },
     { count: activeScholarships },
     { count: inactiveScholarships }
   ] = await Promise.all([
-    supabase.from("profiles").select("*", { count: "exact", head: true }),
-    supabase.from("scholarships").select("*", { count: "exact", head: true }),
-    supabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", true),
-    supabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", false)
+    adminSupabase.from("profiles").select("*", { count: "exact", head: true }),
+    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }),
+    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", true),
+    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", false)
   ]);
 
   return (
@@ -66,42 +67,35 @@ export default async function AdminDashboardPage() {
           </h1>
           <p className="text-slate-500 mt-1">{todayLabel}</p>
         </div>
-        
-        <form action={signOut}>
-          <Button type="submit" className="gap-2 font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md">
-            <LogOut className="w-4 h-4" />
-            Logout
-          </Button>
-        </form>
       </div>
 
       {/* Stats Grid */}
       <div className="space-y-4">
         <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Overview</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard 
-            label="Total users" 
-            value={totalUsers || 0} 
-            icon={Users} 
-            colorClass="bg-blue-50 text-blue-600" 
+          <StatCard
+            label="Total users"
+            value={totalUsers || 0}
+            icon={Users}
+            colorClass="bg-blue-50 text-blue-600"
           />
-          <StatCard 
-            label="Total scholarships" 
-            value={totalScholarships || 0} 
-            icon={GraduationCap} 
-            colorClass="bg-indigo-50 text-indigo-600" 
+          <StatCard
+            label="Total scholarships"
+            value={totalScholarships || 0}
+            icon={GraduationCap}
+            colorClass="bg-indigo-50 text-indigo-600"
           />
-          <StatCard 
-            label="Active scholarships" 
-            value={activeScholarships || 0} 
-            icon={ToggleRight} 
-            colorClass="bg-emerald-50 text-emerald-600" 
+          <StatCard
+            label="Active scholarships"
+            value={activeScholarships || 0}
+            icon={ToggleRight}
+            colorClass="bg-emerald-50 text-emerald-600"
           />
-          <StatCard 
-            label="Inactive scholarships" 
-            value={inactiveScholarships || 0} 
-            icon={ToggleLeft} 
-            colorClass="bg-slate-100 text-slate-500" 
+          <StatCard
+            label="Inactive scholarships"
+            value={inactiveScholarships || 0}
+            icon={ToggleLeft}
+            colorClass="bg-slate-100 text-slate-500"
           />
         </div>
       </div>
@@ -110,11 +104,11 @@ export default async function AdminDashboardPage() {
       <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-100 shadow-sm">
         <h2 className="text-xl font-bold text-slate-900">Quick actions</h2>
         <p className="text-sm text-slate-500 mt-1 mb-6">Jump to any section instantly</p>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {QUICK_ACTIONS.map((action) => (
-            <Link 
-              key={action.to} 
+            <Link
+              key={action.to}
               href={action.to}
               className="group flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-violet-200 hover:shadow-md transition-all"
             >

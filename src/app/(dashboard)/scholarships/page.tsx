@@ -3,7 +3,7 @@ import { ScholarshipsList } from "./ScholarshipsList";
 import { Sparkles } from "lucide-react";
 
 export const metadata = {
-  title: "Schoolari — Scholarships",
+  title: "Scholarships",
 };
 
 export default async function StudentScholarshipsPage() {

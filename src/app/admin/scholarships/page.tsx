@@ -1,13 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { ScholarshipsTable } from "./ScholarshipsTable";
 import { GraduationCap } from "lucide-react";
 
 export default async function AdminScholarshipsPage() {
   const supabase = await createClient();
+  const adminSupabase = await createAdminClient();
 
-  // We can use the regular client here to fetch because scholarships are readable by anyone
-  // or we can use adminClient. Both work, but regular client is fine for reading.
-  const { data: scholarships, error } = await supabase
+  // We use adminClient here to fetch because RLS might hide inactive scholarships from regular users.
+  const { data: scholarships, error } = await adminSupabase
     .from("scholarships")
     .select("*")
     .order("created_at", { ascending: false });

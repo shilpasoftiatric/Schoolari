@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, GraduationCap, Settings } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOut } from "@/app/actions/auth";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -44,6 +45,7 @@ export function AdminNav() {
           </Link>
         );
       })}
+
     </nav>
   );
 }
