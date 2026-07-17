@@ -48,28 +48,9 @@ export default function SignupPage() {
       if (result?.error) {
         setError(result.error);
       } else if (result?.success) {
-        setSuccess(result.message ?? "Check your email to confirm your account!");
+        window.location.href = result.redirectUrl || "/login";
       }
     });
-  }
-
-  if (success) {
-    return (
-      <div className="space-y-6 text-center">
-        <div className="flex justify-center">
-          <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">
-            <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-          </div>
-        </div>
-        <div>
-          <h2 className="text-2xl font-extrabold text-slate-900">Check your inbox!</h2>
-          <p className="text-slate-500 mt-2 text-sm max-w-xs mx-auto">{success}</p>
-        </div>
-        <Link href="/login">
-          <Button variant="outline" className="rounded-xl">Back to Sign In</Button>
-        </Link>
-      </div>
-    );
   }
 
   return (
@@ -117,21 +98,7 @@ export default function SignupPage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Name */}
-        <div className="space-y-1.5">
-          <Label htmlFor="first_name" className="text-sm font-semibold text-slate-700">First name</Label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              id="first_name"
-              name="first_name"
-              type="text"
-              placeholder="Your first name"
-              required
-              className="pl-10 h-11 rounded-xl border-slate-200 bg-white focus-visible:ring-primary"
-            />
-          </div>
-        </div>
+
 
         {/* Phone */}
         <div className="space-y-1.5">

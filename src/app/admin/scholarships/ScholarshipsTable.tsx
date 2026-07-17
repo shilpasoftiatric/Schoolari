@@ -15,6 +15,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [isPending, startTransition] = useTransition();
+  const [saveError, setSaveError] = useState("");
   const [modalState, setModalState] = useState<{ isOpen: boolean, type: "create" | "edit", scholarship: any | null }>({ isOpen: false, type: "create", scholarship: null });
   const [isAllStates, setIsAllStates] = useState(true);
 
@@ -68,9 +69,8 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
       deadline: formData.get("deadline"),
       category: formData.get("category"),
       description: formData.get("description"),
-      eligible_majors: formData.get("eligibleMajors") || "",
+      eligible_majors: formData.getAll("eligibleMajors").join(", "),
       min_gpa_required: formData.get("minGpaRequired") ? Number(formData.get("minGpaRequired")) : null,
-      special_eligibility: formData.get("specialEligibility") || "",
       eligible_states: formData.get("stateEligibilityAll") === "on" ? "All" : formData.getAll("eligibleStates").join(", "),
       grade_levels: formData.getAll("gradeLevels").map(s => s.toString()),
       essay_required: formData.get("essayRequired") === "on",
@@ -81,6 +81,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
     };
 
     startTransition(async () => {
+      setSaveError("");
       try {
         if (modalState.type === "edit" && modalState.scholarship) {
           await updateScholarship(modalState.scholarship.id, payload);
@@ -88,8 +89,9 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
           await createScholarship(payload);
         }
         setModalState({ isOpen: false, type: "create", scholarship: null });
+        setSaveError("");
       } catch (err: any) {
-        alert(err.message);
+        setSaveError(err.message || "An unknown error occurred. Please check all fields and try again.");
       }
     });
   };
@@ -220,7 +222,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                 {modalState.type === "edit" ? "Edit Scholarship" : "Add Scholarship"}
               </h2>
               <button 
-                onClick={() => setModalState({ isOpen: false, type: "create", scholarship: null })}
+                onClick={() => { setModalState({ isOpen: false, type: "create", scholarship: null }); setSaveError(""); }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 ✕
@@ -228,6 +230,13 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
             </div>
             
             <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Inline Error Display */}
+              {saveError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl text-sm font-semibold flex items-start gap-2">
+                  <span className="mt-0.5 shrink-0">⚠️</span>
+                  <span>{saveError}</span>
+                </div>
+              )}
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Required Information</h3>
                 
@@ -262,27 +271,32 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                 </div>
               </div>
 
-              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="space-y-4 pt-4 border-t border-slate-100">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Optional (AI Matching)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Eligible Majors</label>
-                    <Input name="eligibleMajors" defaultValue={modalState.scholarship?.eligible_majors} placeholder="e.g. Computer Science, Engineering" />
+                    <select
+                      name="eligibleMajors"
+                      multiple
+                      defaultValue={modalState.scholarship?.eligible_majors ? modalState.scholarship.eligible_majors.split(", ") : []}
+                      className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary h-40"
+                    >
+                      {[
+                        "Business Administration","Computer Science","Nursing","Psychology","Biology",
+                        "Criminal Justice","Education","Engineering","Communications","Accounting",
+                        "Marketing","Finance","Political Science","Graphic Design","Information Technology",
+                        "Health Sciences","Social Work","English","Architecture","Other","Undecided","Any Major"
+                      ].map(major => (
+                        <option key={major} value={major}>{major}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-500">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Minimum GPA</label>
                     <Input name="minGpaRequired" type="number" step="0.1" max="5.0" defaultValue={modalState.scholarship?.min_gpa_required} placeholder="e.g. 3.0" />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Special Eligibility</label>
-                  <textarea 
-                    name="specialEligibility" 
-                    defaultValue={modalState.scholarship?.special_eligibility}
-                    rows={2}
-                    placeholder="e.g. first-generation, low-income"
-                    className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                  />
                 </div>
               </div>
 
@@ -378,18 +392,16 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Category</label>
-                    <select name="category" defaultValue={modalState.scholarship?.category || "None"} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-                      <option value="None">None</option>
-                      <option value="Sports">Sports</option>
-                      <option value="Arts And Design">Arts And Design</option>
+                    <select name="category" defaultValue={modalState.scholarship?.category || "General"} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                      <option value="General">General</option>
+                      <option value="Arts and Design">Arts and Design</option>
                       <option value="Business">Business</option>
-                      <option value="Community Service">Community Service</option>
-                      <option value="Student Government">Student Government</option>
-                      <option value="STEM">STEM</option>
-                      <option value="Religious Organizations">Religious Organizations</option>
                       <option value="Education">Education</option>
-                      <option value="Health & medicie">Health & medicie</option>
-                      <option value="Social-Science">Social-Science</option>
+                      <option value="Health and Medicine">Health and Medicine</option>
+                      <option value="Humanities">Humanities</option>
+                      <option value="Social Sciences">Social Sciences</option>
+                      <option value="STEM">STEM</option>
+                      <option value="Other">Other</option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -398,10 +410,10 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Award Frequency</label>
-                    <select name="awardFrequency" defaultValue={modalState.scholarship?.award_frequency || "Not Specified"} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
-                      <option value="Not Specified">Not Specified</option>
-                      <option value="One Time">One Time</option>
-                      <option value="Renewable">Renewable</option>
+                    <select name="awardFrequency" defaultValue={modalState.scholarship?.award_frequency || ""} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
+                      <option value="">Not Specified</option>
+                      <option value="one_time">One Time</option>
+                      <option value="renewable">Renewable</option>
                     </select>
                   </div>
                   <div className="space-y-2">

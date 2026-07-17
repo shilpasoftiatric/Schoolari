@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callAI } from '@/lib/ai';
 import { compileDashboard, calculateWorkflowStates, isDashboardStateEqual } from '@/services/task-engine';
+import { getStudentDashboardData } from '@/services/data-fetcher';
 
 const SYSTEM_PROMPT = `You are the Schoolari AI, an expert scholarship and college admissions counselor.
 Your job is to take a student's profile and their actual database progress metadata, and generate a highly personalized action plan.
@@ -78,10 +79,10 @@ Respond STRICTLY in the following JSON format, with no markdown formatting or ex
 function getFallbackData(profile: any, progressStats: any) {
   const career = profile.career_interests?.[0] || 'College';
   const state = profile.state || 'National';
-  
+
   return {
     scholarships: {
-      tasks: progressStats.hasTranscript 
+      tasks: progressStats.hasTranscript
         ? [{ title: "Attach transcript to scholarship applications", done: false }]
         : [{ title: "Upload your high school transcript to Vault", done: false }],
       deadlines: [
@@ -149,36 +150,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-    }
-
     let force = false;
     try {
       const body = await req.json();
       force = body.force;
-    } catch (e) {}
+    } catch (e) { }
 
-    // Fetch actual user progress metadata scoped to the user
-    const [docsRes, essaysRes, collegesRes, appsRes, resumeRes] = await Promise.all([
-      supabase.from("documents").select("type").eq("user_id", user.id),
-      supabase.from("essays").select("status").eq("user_id", user.id),
-      supabase.from("saved_colleges").select("status, college_name, deadline").eq("user_id", user.id),
-      supabase.from("applications").select("status, scholarships(deadline, name)").eq("user_id", user.id),
-      supabase.from("resumes").select("*").eq("user_id", user.id).maybeSingle()
-    ]);
+    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId } = await getStudentDashboardData(user.id);
 
-    const docs = docsRes.data || [];
-    const essays = essaysRes.data || [];
-    const savedColleges = collegesRes.data || [];
-    const apps = appsRes.data || [];
-    const resume = resumeRes.data || null;
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
 
     const progressStats = {
       hasTranscript: docs.some(d => d.type === "transcript"),
@@ -204,7 +186,7 @@ export async function POST(req: Request) {
 
     const currentState = {
       ...states,
-      firstName: profile.first_name || ""
+      firstName: profile.student_first_name || ""
     };
 
     const cachedData = profile.ai_dashboard_data;
@@ -241,10 +223,10 @@ ${JSON.stringify(progressStats, null, 2)}
       const responseText = await callAI({
         systemPrompt: SYSTEM_PROMPT,
         userPrompt: userPrompt,
-        provider: 'openai', 
+        provider: 'openai',
         jsonMode: true
       });
-      
+
       generatedJson = JSON.parse(responseText);
     } catch (err: any) {
       console.error('Error fetching from AI:', err.message);
@@ -269,7 +251,7 @@ ${JSON.stringify(progressStats, null, 2)}
         "Essays Drafted": String(progressStats.essaysCount),
         "Colleges Saved": String(progressStats.savedCollegesCount),
       };
-      
+
       generatedJson.stats = generatedJson.stats.map((s: any) => {
         if (statsMap[s.label] !== undefined) {
           return { ...s, value: statsMap[s.label] };
@@ -282,7 +264,7 @@ ${JSON.stringify(progressStats, null, 2)}
     await supabase
       .from('profiles')
       .update({ ai_dashboard_data: generatedJson })
-      .eq('id', user.id);
+      .eq('id', masterId);
 
     return NextResponse.json(generatedJson);
   } catch (error: any) {

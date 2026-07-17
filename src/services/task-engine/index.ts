@@ -49,7 +49,7 @@ export function compileDashboard(dbData: {
   return {
     _state: {
       ...states,
-      firstName: dbData.profile.first_name || ""
+      firstName: dbData.profile.student_first_name || ""
     },
     scholarships: {
       tasks: scholarshipsTasks,

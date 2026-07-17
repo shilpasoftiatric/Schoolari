@@ -31,15 +31,6 @@ export default async function DashboardLayout({
     redirect("/admin/dashboard");
   }
 
-  const isActive = profile?.subscription_status === "active" || profile?.subscription_status === "trialing";
-  if (!isActive) {
-    redirect("/pricing");
-  }
-
-  if (profile && !profile.onboarding_complete) {
-    redirect("/onboarding");
-  }
-
   // Calculate Progress
   const states = calculateWorkflowStates(dbData);
   const progressScore = calculateOverallProgress(states, profile);

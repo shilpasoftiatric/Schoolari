@@ -19,9 +19,9 @@ function StatCard({ label, value, icon: Icon, colorClass }: { label: string, val
 }
 
 const QUICK_ACTIONS = [
-  { to: "/admin/users", label: "Members", sub: "Directory & roles", icon: Users },
-  { to: "/admin/scholarships", label: "Scholarships", sub: "Records & status", icon: GraduationCap },
-  { to: "/admin/settings", label: "Settings", sub: "Site & contact", icon: Settings },
+  { to: "/users", label: "Members", sub: "Directory & roles", icon: Users },
+  { to: "/scholarships", label: "Scholarships", sub: "Records & status", icon: GraduationCap },
+  { to: "/settings", label: "Settings", sub: "Site & contact", icon: Settings },
 ];
 
 export default async function AdminDashboardPage() {

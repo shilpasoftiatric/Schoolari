@@ -8,21 +8,36 @@ export const metadata = {
 
 export default async function StudentScholarshipsPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // Fetch only active scholarships and sort by featured first, then deadline
-  const { data: scholarships, error } = await supabase
-    .from("scholarships")
-    .select("*")
-    .eq("is_active", true)
-    .order("featured", { ascending: false })
-    .order("deadline", { ascending: true });
+  // Fetch active scholarships + user's existing applications in parallel
+  const [scholarshipsRes, applicationsRes] = await Promise.all([
+    supabase
+      .from("scholarships")
+      .select("*")
+      .eq("is_active", true)
+      .order("featured", { ascending: false })
+      .order("deadline", { ascending: true }),
+    user
+      ? supabase
+          .from("applications")
+          .select("scholarship_id, status")
+          .eq("user_id", user.id)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
-  if (error) {
+  if (scholarshipsRes.error) {
     return (
       <div className="p-8 text-red-500 bg-red-50 rounded-xl">
-        Failed to load scholarships: {error.message}
+        Failed to load scholarships: {scholarshipsRes.error.message}
       </div>
     );
+  }
+
+  // Build a map of scholarshipId → application status for O(1) lookups
+  const applicationStatusMap: Record<string, string> = {};
+  for (const app of applicationsRes.data ?? []) {
+    applicationStatusMap[app.scholarship_id] = app.status;
   }
 
   return (
@@ -39,7 +54,10 @@ export default async function StudentScholarshipsPage() {
         </p>
       </div>
 
-      <ScholarshipsList initialScholarships={scholarships || []} />
+      <ScholarshipsList
+        initialScholarships={scholarshipsRes.data ?? []}
+        applicationStatusMap={applicationStatusMap}
+      />
     </div>
   );
 }

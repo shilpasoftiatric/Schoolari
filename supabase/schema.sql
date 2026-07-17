@@ -13,10 +13,50 @@ create table public.profiles (
   id              uuid primary key references auth.users(id) on delete cascade,
   first_name      text default '',
   phone           text default '',
+  
+  -- Card 1: Parent & Student Info
+  student_first_name text default '',
+  student_last_name  text default '',
+  student_email      text default '',
+  student_phone      text default '',
+  parent_first_name  text default '',
+  parent_last_name   text default '',
+  parent_email       text default '',
+  parent_phone       text default '',
+  high_school_name   text default '',
+  
   account_type    text check (account_type in ('student', 'parent')) default 'student',
   role            text check (role in ('user', 'admin')) default 'user',
   state           text default '',
   grade_level     text default '',
+  
+  -- Card 2: Academic Journey
+  unweighted_gpa           text default '',
+  weighted_gpa             text default '',
+  expected_graduation_year text default '',
+  applied_to_college       text default '',
+  enrolled_in_college      text default '',
+  intended_major           text[] default '{}',
+  preferred_college_type   text[] default '{}',
+  top_3_schools            text[] default '{}',
+  sat_score_range          text default '',
+  act_score_range          text default '',
+  
+  -- Card 3: Your Story
+  first_generation_college_student text default '',
+  military_family            text default '',
+  languages_spoken           text[] default '{}',
+  leadership_experience      text[] default '{}',
+  volunteer_experience       text[] default '{}',
+  extracurricular_activities text[] default '{}',
+  career_interest            text[] default '{}',
+  ethnicity                  text[] default '{}',
+  gender                     text default '',
+
+  -- Card 4: Goals
+  schoolari_goals            text[] default '{}',
+  
+  -- Legacy / Deprecated Fields
   gpa_range       text default '',
   fields_of_study text[] default '{}',
   background_tags text[] default '{}',
@@ -26,16 +66,22 @@ create table public.profiles (
   onboarding_complete boolean default false,
   onboarding_step int default 1,
   sms_opt_in      boolean default true,
+  college_recommendations_cache jsonb default null,
   created_at      timestamptz default now(),
-  updated_at      timestamptz default now()
+  updated_at      timestamptz default now(),
+  linked_student_id uuid references public.profiles(id) on delete cascade
 );
 
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id)
-  values (new.id);
+  insert into public.profiles (id, linked_student_id, account_type)
+  values (
+    new.id,
+    (new.raw_user_meta_data->>'linked_student_id')::uuid,
+    coalesce(new.raw_user_meta_data->>'account_type', 'student')
+  );
   return new;
 end;
 $$ language plpgsql security definer;
@@ -102,6 +148,21 @@ create table public.tasks (
 );
 
 -- ─────────────────────────────────────────
+-- REMINDERS (CRON + Calendar)
+-- ─────────────────────────────────────────
+create table public.reminders (
+  id          uuid primary key default uuid_generate_v4(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  title       text not null,
+  due_date    timestamptz not null,
+  reminded_at timestamptz default null,
+  entity_type text check (entity_type in ('scholarship', 'college', 'task')) default 'task',
+  entity_id   uuid,
+  created_at  timestamptz default now(),
+  updated_at  timestamptz default now()
+);
+
+-- ─────────────────────────────────────────
 -- ESSAYS
 -- ─────────────────────────────────────────
 create table public.essays (
@@ -140,22 +201,27 @@ alter table public.tasks        enable row level security;
 alter table public.essays       enable row level security;
 alter table public.documents    enable row level security;
 alter table public.scholarships enable row level security;
+alter table public.reminders    enable row level security;
 
--- Profiles: user can read/update their own
-create policy "Users can view own profile."   on public.profiles for select using (auth.uid() = id);
-create policy "Users can update own profile." on public.profiles for update using (auth.uid() = id);
+-- Profiles: user can read/update their own or their linked student's profile
+create policy "Users can view own profile."   on public.profiles for select using (auth.uid() = id or auth.uid() = linked_student_id);
+create policy "Users can update own profile." on public.profiles for update using (auth.uid() = id or auth.uid() = linked_student_id);
 
 -- Applications: user can CRUD their own
-create policy "Users can manage own applications." on public.applications for all using (auth.uid() = user_id);
+create policy "Users can manage own applications." on public.applications for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
 
 -- Tasks: user can CRUD their own
-create policy "Users can manage own tasks." on public.tasks for all using (auth.uid() = user_id);
+create policy "Users can manage own tasks." on public.tasks for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
+
+-- Reminders: user can CRUD their own
+create policy "Users can manage own reminders." on public.reminders for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
 
 -- Essays: user can CRUD their own
-create policy "Users can manage own essays." on public.essays for all using (auth.uid() = user_id);
+create policy "Users can manage own essays." on public.essays for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
 
 -- Documents: user can CRUD their own
-create policy "Users can manage own documents." on public.documents for all using (auth.uid() = user_id);
+create policy "Users can manage own documents." on public.documents for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
+
 
 -- Scholarships: everyone can read, only admins can write (handled via service role key)
 create policy "Anyone can view active scholarships." on public.scholarships for select using (is_active = true);
@@ -170,14 +236,14 @@ create table public.saved_colleges (
   user_id       uuid not null references public.profiles(id) on delete cascade,
   college_name  text not null,
   deadline      date,
-  status        text check (status in ('researching', 'applied', 'waitlisted', 'accepted', 'rejected')) default 'researching',
+  status        text check (status in ('researching', 'compare', 'application_started', 'applied', 'waiting_decision', 'waitlisted', 'accepted', 'rejected', 'completed')) default 'researching',
   notes         text default '',
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );
 
 alter table public.saved_colleges enable row level security;
-create policy "Users can manage own saved colleges." on public.saved_colleges for all using (auth.uid() = user_id);
+create policy "Users can manage own saved colleges." on public.saved_colleges for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
 
 -- 2. RESUMES (Career Center)
 -- Note: 'career_interests' must be added to profiles if it doesn't exist.
@@ -193,7 +259,7 @@ create table public.resumes (
 );
 
 alter table public.resumes enable row level security;
-create policy "Users can manage own resume." on public.resumes for all using (auth.uid() = user_id);
+create policy "Users can manage own resume." on public.resumes for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
 
 -- 3. INCOME GOALS (Income Center)
 create table public.income_goals (
@@ -207,7 +273,7 @@ create table public.income_goals (
 );
 
 alter table public.income_goals enable row level security;
-create policy "Users can manage own income goals." on public.income_goals for all using (auth.uid() = user_id);
+create policy "Users can manage own income goals." on public.income_goals for all using (auth.uid() = user_id or auth.uid() = (select linked_student_id from public.profiles where id = auth.uid()));
 
 -- 4. COACHING MESSAGES (Coaching Center)
 create table public.coaching_messages (

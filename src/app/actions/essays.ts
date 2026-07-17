@@ -41,7 +41,7 @@ export async function updateEssay(id: string, updates: { title?: string; topic?:
 
   const { error } = await supabase
     .from("essays")
-    .update({ 
+    .update({
       ...updates,
       updated_at: new Date().toISOString()
     })

@@ -14,6 +14,37 @@ export interface Database {
           id: string;
           first_name: string;
           phone: string;
+          student_first_name: string;
+          student_last_name: string;
+          student_email: string;
+          student_phone: string;
+          parent_first_name: string;
+          parent_last_name: string;
+          parent_email: string;
+          parent_phone: string;
+          high_school_name: string;
+          unweighted_gpa: string;
+          weighted_gpa: string;
+          expected_graduation_year: string;
+          applied_to_college: string;
+          enrolled_in_college: string;
+          intended_major: string[];
+          preferred_college_type: string[];
+          top_3_schools: string[];
+          sat_score_range: string;
+          act_score_range: string;
+          first_generation_college_student: string;
+          military_family: string;
+          languages_spoken: string[];
+          leadership_experience: string[];
+          volunteer_experience: string[];
+          extracurricular_activities: string[];
+          career_interest: string[];
+          ethnicity: string[];
+          gender: string;
+          schoolari_goals: string[];
+          college_recommendations_cache: any;
+          linked_student_id: string | null;
           account_type: "student" | "parent";
           role: "user" | "admin";
           state: string;
@@ -241,6 +272,32 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["documents"]["Row"]>;
         Relationships: any[];
       };
+      reminders: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          due_date: string;
+          reminded_at: string | null;
+          entity_type: string;
+          entity_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          due_date: string;
+          reminded_at?: string | null;
+          entity_type?: string;
+          entity_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["reminders"]["Row"]>;
+        Relationships: any[];
+      };
       site_settings: {
         Row: {
           id: string;
@@ -259,6 +316,22 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["site_settings"]["Row"]>;
+        Relationships: any[];
+      };
+      user_roles: {
+        Row: {
+          id: string;
+          user_id: string;
+          role: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          role: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["user_roles"]["Row"]>;
         Relationships: any[];
       };
     };

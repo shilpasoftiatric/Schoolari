@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/app/actions/auth";
 
 const NAV_ITEMS = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/users", label: "Users / Members", icon: Users },
-  { href: "/admin/scholarships", label: "Scholarships", icon: GraduationCap },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/users", label: "Users / Members", icon: Users },
+  { href: "/scholarships", label: "Scholarships", icon: GraduationCap },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AdminNav() {

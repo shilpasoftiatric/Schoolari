@@ -23,10 +23,5 @@ export default async function OnboardingLayout({
     redirect("/admin/dashboard");
   }
 
-  const isActive = profile?.subscription_status === "active" || profile?.subscription_status === "trialing";
-  if (!isActive) {
-    redirect("/pricing");
-  }
-
   return <>{children}</>;
 }

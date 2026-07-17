@@ -42,13 +42,52 @@ export async function updateUserRole(userId: string, newRole: "admin" | "user") 
   return { success: true };
 }
 
+// Maps award_frequency display values to DB enum values
+const AWARD_FREQUENCY_MAP: Record<string, string> = {
+  "Not Specified": "",
+  "One Time": "one_time",
+  "Renewable": "renewable",
+  // pass-through for already-correct values
+  "": "",
+  "one_time": "one_time",
+  "renewable": "renewable",
+};
+
+function sanitizeScholarshipPayload(data: any) {
+  const sanitized: any = { ...data };
+
+  // Fix column name mismatch: form sends citizenship_requirement, DB column is citizenship_req
+  if ("citizenship_requirement" in sanitized) {
+    sanitized.citizenship_req = sanitized.citizenship_requirement;
+    delete sanitized.citizenship_requirement;
+  }
+
+  // Fix award_frequency enum values
+  if (sanitized.award_frequency !== undefined) {
+    sanitized.award_frequency = AWARD_FREQUENCY_MAP[sanitized.award_frequency] ?? "";
+  }
+
+  // Fix type: number_of_awards is a text column, form sends Number
+  if (sanitized.number_of_awards !== null && sanitized.number_of_awards !== undefined) {
+    sanitized.number_of_awards = String(sanitized.number_of_awards);
+  }
+
+  // Remove fields not in the DB schema
+  delete sanitized.specialEligibility;
+  delete sanitized.special_eligibility;
+
+  return sanitized;
+}
+
 export async function createScholarship(data: any) {
   await verifyAdmin();
   const adminClient = await createAdminClient();
 
+  const sanitized = sanitizeScholarshipPayload(data);
+
   const { error } = await adminClient
     .from("scholarships")
-    .insert([data]);
+    .insert([sanitized]);
 
   if (error) throw new Error(error.message);
   revalidatePath("/admin/scholarships");
@@ -58,9 +97,11 @@ export async function updateScholarship(id: string, data: any) {
   await verifyAdmin();
   const adminClient = await createAdminClient();
 
+  const sanitized = sanitizeScholarshipPayload(data);
+
   const { error } = await adminClient
     .from("scholarships")
-    .update(data)
+    .update(sanitized)
     .eq("id", id);
 
   if (error) throw new Error(error.message);

@@ -3,6 +3,36 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+// Detect if AWS credentials are configured
+const hasAWSCredentials = () =>
+  !!(
+    process.env.AWS_ACCESS_KEY_ID &&
+    process.env.AWS_SECRET_ACCESS_KEY &&
+    process.env.AWS_REGION &&
+    process.env.AWS_S3_BUCKET_NAME
+  );
+
+async function uploadToS3(buffer: Buffer, filePath: string, contentType: string): Promise<string> {
+  const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+  const s3 = new S3Client({
+    region: process.env.AWS_REGION!,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    },
+  });
+  const key = `vault/${filePath}`;
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET_NAME!,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    })
+  );
+  return `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+}
+
 export async function uploadDocumentAction(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -12,42 +42,11 @@ export async function uploadDocumentAction(formData: FormData) {
   const file = formData.get("file") as File;
   if (!file) throw new Error("No file provided");
 
-  const adminClient = await createAdminClient();
+  if (file.size > 10 * 1024 * 1024) throw new Error("File too large. Maximum is 10MB.");
 
-  // 1. Ensure the 'vault' bucket exists (so the user doesn't have to create it manually!)
-  const { data: buckets } = await adminClient.storage.listBuckets();
-  if (!buckets?.find(b => b.name === "vault")) {
-    await adminClient.storage.createBucket("vault", { public: true });
-  }
-
-  // 2. Upload file to Storage using the Admin Client (bypasses RLS so no policies needed)
-  const fileExt = file.name.split('.').pop();
-  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-  const filePath = `${user.id}/${fileName}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-
-  const { error: uploadError } = await adminClient.storage
-    .from("vault")
-    .upload(filePath, buffer, {
-      contentType: file.type,
-      upsert: true
-    });
-
-  if (uploadError) {
-    throw new Error(`Storage upload failed: ${uploadError.message}`);
-  }
-
-  // 3. Get the public URL
-  const { data: { publicUrl } } = adminClient.storage
-    .from("vault")
-    .getPublicUrl(filePath);
-
-  // 4. Resolve category (prefer explicitly passed type parameter)
+  type DocumentType = "resume" | "transcript" | "report_card" | "recommendation_letter" | "essay" | "certificate" | "award" | "other";
   const requestedType = formData.get("type") as string;
-  let type = requestedType || "other";
-  
+  let type: DocumentType = (requestedType as DocumentType) || "other";
   if (!requestedType) {
     const nameLower = file.name.toLowerCase();
     if (nameLower.includes("transcript")) type = "transcript";
@@ -57,28 +56,47 @@ export async function uploadDocumentAction(formData: FormData) {
     else if (nameLower.includes("report")) type = "report_card";
   }
 
-  // 5. Save metadata to the database
-  const { error: dbError } = await adminClient
-    .from("documents")
-    .insert([
-      {
-        user_id: user.id,
-        name: file.name,
-        type: type,
-        file_url: publicUrl,
-        size_bytes: file.size,
-      }
-    ]);
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+  const filePath = `${user.id}/${fileName}`;
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  let publicUrl: string;
+  let storageProvider: "s3" | "supabase";
+
+  if (hasAWSCredentials()) {
+    // ✅ Upload to AWS S3
+    publicUrl = await uploadToS3(buffer, filePath, file.type);
+    storageProvider = "s3";
+  } else {
+    // 🔄 Fallback: Supabase vault bucket
+    const adminClient = await createAdminClient();
+    const { data: buckets } = await adminClient.storage.listBuckets();
+    if (!buckets?.find((b) => b.name === "vault")) {
+      await adminClient.storage.createBucket("vault", { public: true });
+    }
+    const { error: uploadError } = await adminClient.storage
+      .from("vault")
+      .upload(filePath, buffer, { contentType: file.type, upsert: true });
+    if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+    const { data: { publicUrl: supaUrl } } = adminClient.storage.from("vault").getPublicUrl(filePath);
+    publicUrl = supaUrl;
+    storageProvider = "supabase";
+  }
+
+  const adminClient = await createAdminClient();
+  const { error: dbError } = await adminClient.from("documents").insert([
+    { user_id: user.id, name: file.name, type, file_url: publicUrl, size_bytes: file.size },
+  ]);
 
   if (dbError) {
-    // Cleanup physical file if db insert fails
-    await adminClient.storage.from("vault").remove([filePath]);
     throw new Error(`Database insert failed: ${dbError.message}`);
   }
 
   revalidatePath("/documents");
   revalidatePath("/dashboard");
-  return { success: true };
+  return { success: true, storage: storageProvider };
 }
 
 export async function deleteDocument(id: string, fileUrl: string) {
@@ -89,30 +107,42 @@ export async function deleteDocument(id: string, fileUrl: string) {
 
   const adminClient = await createAdminClient();
 
-  // 1. Delete physical file from Storage bucket "vault"
-  const vaultIndex = fileUrl.indexOf("/vault/");
-  if (vaultIndex !== -1) {
-    const filePath = fileUrl.substring(vaultIndex + 7);
-    
-    const { error: storageError } = await adminClient.storage
-      .from("vault")
-      .remove([filePath]);
-      
-    if (storageError) {
-      console.error("Warning: Failed to delete physical file from storage", storageError);
+  if (hasAWSCredentials() && fileUrl.includes(".amazonaws.com/")) {
+    // Delete from S3
+    try {
+      const { S3Client, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+      const s3 = new S3Client({
+        region: process.env.AWS_REGION!,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        },
+      });
+      const url = new URL(fileUrl);
+      const key = url.pathname.slice(1);
+      await s3.send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET_NAME!, Key: key }));
+    } catch (err) {
+      console.error("Warning: Failed to delete file from S3", err);
+    }
+  } else {
+    // Delete from Supabase vault
+    const vaultIndex = fileUrl.indexOf("/vault/");
+    if (vaultIndex !== -1) {
+      const filePath = fileUrl.substring(vaultIndex + 7);
+      const { error: storageError } = await adminClient.storage.from("vault").remove([filePath]);
+      if (storageError) {
+        console.error("Warning: Failed to delete physical file from storage", storageError);
+      }
     }
   }
 
-  // 2. Delete metadata row from database
   const { error: dbError } = await adminClient
     .from("documents")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id); 
+    .eq("user_id", user.id);
 
-  if (dbError) {
-    throw new Error(dbError.message);
-  }
+  if (dbError) throw new Error(dbError.message);
 
   revalidatePath("/documents");
   revalidatePath("/dashboard");

@@ -121,14 +121,7 @@ export default function LoginPage() {
         <p className="text-center text-sm text-slate-500">
           Don't have an account?{" "}
           <Link href="/signup" className="text-primary font-semibold hover:underline">
-            Create one free
-          </Link>
-        </p>
-
-        <p className="text-center text-sm text-slate-500">
-          Administrator?{" "}
-          <Link href="/admin/login" className="text-primary font-semibold hover:underline">
-            Admin sign in
+            Create An Account
           </Link>
         </p>
       </div>

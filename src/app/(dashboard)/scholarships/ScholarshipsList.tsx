@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScholarshipCard } from "@/components/ui/ScholarshipCard";
 
-export function ScholarshipsList({ initialScholarships }: { initialScholarships: any[] }) {
+export function ScholarshipsList({
+  initialScholarships,
+  applicationStatusMap = {},
+}: {
+  initialScholarships: any[];
+  applicationStatusMap?: Record<string, string>;
+}) {
   const [search, setSearch] = useState("");
   
   // Hardcoded categories as requested
@@ -178,7 +184,11 @@ export function ScholarshipsList({ initialScholarships }: { initialScholarships:
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filtered.map((scholarship) => (
-              <ScholarshipCard key={scholarship.id} scholarship={scholarship} />
+              <ScholarshipCard
+                key={scholarship.id}
+                scholarship={scholarship}
+                userActionStatus={applicationStatusMap[scholarship.id] ?? null}
+              />
             ))}
           </div>
         )}

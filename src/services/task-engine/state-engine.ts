@@ -61,6 +61,7 @@ export function calculateWorkflowStates(dbData: {
     const hasWonOrLost = statuses.includes("Won") || statuses.includes("Lost");
     const hasSubmitted = statuses.includes("Submitted");
     const hasInProgress = statuses.includes("In Progress");
+    const hasNotStarted = statuses.includes("Not Started");
 
     if (hasWonOrLost) {
       scholarship = 'COMPLETED';
@@ -72,6 +73,9 @@ export function calculateWorkflowStates(dbData: {
       } else {
         scholarship = 'DOCUMENTS_PENDING';
       }
+    } else if (hasNotStarted) {
+      // "I Will Apply" clicked — user intends to apply
+      scholarship = 'SAVED';
     } else {
       scholarship = 'SAVED';
     }
@@ -81,18 +85,21 @@ export function calculateWorkflowStates(dbData: {
   let college: CollegeState = 'NOT_SELECTED';
   if (savedColleges.length > 0) {
     const statuses = savedColleges.map(c => c.status);
-    const hasDecided = statuses.includes("accepted") || statuses.includes("rejected");
-    const hasWaitlisted = statuses.includes("waitlisted");
+    const hasDecided = statuses.includes("accepted") || statuses.includes("rejected") || statuses.includes("completed");
+    const hasWaiting = statuses.includes("waiting_decision") || statuses.includes("waitlisted");
     const hasApplied = statuses.includes("applied");
+    const hasStarted = statuses.includes("application_started");
 
     if (hasDecided) {
       college = 'COMPLETED';
-    } else if (hasWaitlisted) {
+    } else if (hasWaiting) {
       college = 'WAITING_RESULT';
     } else if (hasApplied) {
       college = 'APPLICATION_SUBMITTED';
+    } else if (hasStarted) {
+      college = 'APPLICATION_STARTED';
     } else {
-      // researching
+      // researching or saved
       if (savedColleges.length > 1) {
         college = 'COMPARING';
       } else {

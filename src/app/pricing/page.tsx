@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
 import Swal from "sweetalert2";
-import { signOut } from "@/app/actions/auth";
+
 
 const TIERS = [
   {
@@ -97,33 +97,11 @@ function PricingContent() {
     }
   };
 
-  const handleLogoutClick = () => {
-    Swal.fire({
-      title: "Log Out?",
-      text: "Would you like to sign out and return to the login screen?",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Yes, sign out",
-      cancelButtonText: "Stay here",
-      confirmButtonColor: "#f43f5e",
-      cancelButtonColor: "#94a3b8"
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        await signOut();
-      }
-    });
-  };
+
 
   return (
     <div className="w-full max-w-7xl mx-auto -my-6 sm:px-6 lg:px-8 py-8">
-      <div className="flex justify-start mb-6">
-        <button
-          onClick={handleLogoutClick}
-          className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-1.5 bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl shadow-sm"
-        >
-          ← Log Out & Back to Login
-        </button>
-      </div>
+
 
       <div className="text-center max-w-3xl mx-auto mb-10">
         <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">Choose Your Plan</h2>

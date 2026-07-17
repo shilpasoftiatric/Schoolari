@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import {
   Flame, ArrowRight, Sparkles, Search, Bookmark, Send, FileEdit,
   FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, GraduationCap,
-  Users, Laptop, Video, Wallet, Trophy, BarChart3, Loader2, FileText, X
+  Users, Laptop, Video, Wallet, Trophy, BarChart3, Loader2, FileText, X,
+  PlusCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,73 @@ const iconMap: Record<string, any> = {
   "Essays Drafted": FileEdit,
   "Colleges Saved": GraduationCap
 };
+
+/* ──────────────────────────────────────────────────────────── */
+/* Goals Widget                                                   */
+/* ──────────────────────────────────────────────────────────── */
+
+const ALL_GOALS = [
+  { label: "Finding scholarships", emoji: "🏆", href: "/scholarships" },
+  { label: "Writing essays", emoji: "✍️", href: "/essays" },
+  { label: "Choosing colleges", emoji: "🎓", href: "/colleges" },
+  { label: "Building a resume", emoji: "📄", href: "/resume" },
+  { label: "Finding internships or jobs", emoji: "💼", href: "/jobs" },
+  { label: "Earning money now", emoji: "💰", href: "/income" },
+];
+
+function GoalsWidget({ userGoals }: { userGoals: string[] }) {
+  const normalizedGoals = (userGoals || []).map(g => g.toLowerCase().trim());
+
+  const isActive = (label: string) =>
+    normalizedGoals.some(g => label.toLowerCase().includes(g.split(" ")[0].toLowerCase()) || g.includes(label.toLowerCase().split(" ")[0]));
+
+  return (
+    <Card className="shadow-sm border-slate-100">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
+          <Flag className="w-4 h-4 text-amber-500" /> My Schoolari Goals
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {ALL_GOALS.map(({ label, emoji, href }) => {
+            const active = isActive(label);
+            return (
+              <div
+                key={label}
+                className={`rounded-2xl border p-4 flex flex-col gap-3 transition-all ${
+                  active
+                    ? "bg-gradient-to-br from-violet-50 to-indigo-50 border-violet-200 shadow-sm"
+                    : "bg-slate-50 border-slate-200 opacity-60"
+                }`}
+              >
+                <span className="text-2xl">{emoji}</span>
+                <p className={`text-sm font-bold leading-tight ${ active ? "text-violet-800" : "text-slate-500" }`}>
+                  {label}
+                </p>
+                {active ? (
+                  <a
+                    href={href}
+                    className="mt-auto flex items-center gap-1 text-xs font-bold text-violet-600 hover:text-violet-800 transition-colors"
+                  >
+                    Go <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                ) : (
+                  <a
+                    href="/profile"
+                    className="mt-auto flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" /> Add Goal
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function ScholarshipSearchSkeleton() {
   return (
@@ -142,7 +210,7 @@ function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass,
   );
 }
 
-export function DashboardClient({ initialData, firstName, streak = 1 }: { initialData: any, firstName: string, streak?: number }) {
+export function DashboardClient({ initialData, firstName, streak = 1, userGoals = [] }: { initialData: any, firstName: string, streak?: number, userGoals?: string[] }) {
   const [data, setData] = useState<any>(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState("");
@@ -374,6 +442,9 @@ export function DashboardClient({ initialData, firstName, streak = 1 }: { initia
         </Card>
       )}
 
+      {/* ── Row 5+: Goals Widget ── */}
+      <GoalsWidget userGoals={userGoals} />
+
       {/* ── Row 5: AI Suggested Resources (Colleges, Essay Prompts, Resume Tips) ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Suggested Colleges */}
@@ -488,7 +559,7 @@ export function DashboardClient({ initialData, firstName, streak = 1 }: { initia
               ) : searchResults.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {searchResults.map(scholarship => (
-                    <ScholarshipCard key={scholarship.id} scholarship={scholarship} />
+                    <ScholarshipCard key={scholarship.id} scholarship={scholarship} userActionStatus={null} />
                   ))}
                 </div>
               ) : (

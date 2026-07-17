@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
+import { getMemberUrl } from "@/lib/config";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("Missing STRIPE_SECRET_KEY");
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-02-24.acacia",
+  apiVersion: "2026-06-24.dahlia",
 });
 
 const supabaseAdmin = createClient<Database>(
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("session_id");
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || requestOrigin(req);
+  const appUrl = getMemberUrl();
 
   if (!sessionId) {
     return NextResponse.redirect(`${appUrl}/pricing?error=No session ID provided`);
@@ -50,8 +51,10 @@ export async function GET(req: NextRequest) {
           })
           .eq("id", userId);
       }
-      
-      // Redirect successfully to onboarding
+
+      // Redirect successfully to onboarding using a standard redirect
+      // Now that appUrl correctly includes the subdomain (e.g. members.localhost), 
+      // the browser will stay on the same origin and send the auth cookies properly.
       return NextResponse.redirect(`${appUrl}/onboarding?payment_success=true`);
     } else {
       // Payment failed or incomplete
@@ -59,12 +62,6 @@ export async function GET(req: NextRequest) {
     }
   } catch (error) {
     console.error("Verification error:", error);
-    return NextResponse.redirect(`${appUrl}/pricing?error=Verification failed`);
+    return NextResponse.redirect(`${appUrl}/pricing?error=Verification_failed`);
   }
-}
-
-function requestOrigin(req: NextRequest) {
-  const forwardedProto = req.headers.get("x-forwarded-proto") || "http";
-  const host = req.headers.get("host") || "localhost:3000";
-  return `${forwardedProto}://${host}`;
 }
