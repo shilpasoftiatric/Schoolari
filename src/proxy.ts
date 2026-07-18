@@ -232,10 +232,16 @@ export async function proxy(request: NextRequest) {
           }
         );
         
-        await supabaseAdmin.from("profiles").upsert({
+        const { error: healError } = await supabaseAdmin.from("profiles").upsert({
           id: user.id,
           account_type: 'student', // default fallback
         }, { onConflict: 'id' });
+
+        if (healError) {
+          console.error(`[Middleware] FATAL: Failed to auto-heal profile for ${user.id}:`, healError);
+        } else {
+          console.log(`[Middleware] Successfully auto-healed profile for ${user.id}`);
+        }
 
         if (
           pathname.startsWith("/dashboard") || 
