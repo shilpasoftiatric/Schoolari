@@ -217,6 +217,18 @@ export async function proxy(request: NextRequest) {
           }
           return NextResponse.redirect(url);
         }
+      } else {
+        console.log(`[Middleware] Profile missing for ${user.id}. Forcing to /pricing.`);
+        if (
+          pathname.startsWith("/dashboard") || 
+          pathname.startsWith("/onboarding") ||
+          pathname === "/login" || 
+          pathname === "/signup"
+        ) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/pricing";
+          return NextResponse.redirect(url);
+        }
       }
     }
 
