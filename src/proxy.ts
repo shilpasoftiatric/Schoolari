@@ -100,7 +100,19 @@ export async function proxy(request: NextRequest) {
       pathname === "/login" ||
       pathname === "/signup"
     ) {
-      const { data: profile } = await supabase
+      // Create an admin client to bypass RLS and cache issues
+      const supabaseAdmin = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          cookies: {
+            getAll() { return []; },
+            setAll() {},
+          },
+        }
+      );
+
+      const { data: profile } = await supabaseAdmin
         .from("profiles")
         .select("id, account_type, subscription_status, onboarding_complete, linked_student_id")
         .eq("id", user.id)
@@ -111,18 +123,6 @@ export async function proxy(request: NextRequest) {
         if (profile) {
           let familySubscriptionStatus = profile.subscription_status;
           let familyOnboardingComplete = profile.onboarding_complete;
-
-          // Create an admin client to bypass RLS for fetching the linked profiles
-          const supabaseAdmin = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            {
-              cookies: {
-                getAll() { return []; },
-                setAll() {},
-              },
-            }
-          );
 
           // If the user is a student, see if their parent paid
           if (profile.account_type === 'student') {
