@@ -218,7 +218,25 @@ export async function proxy(request: NextRequest) {
           return NextResponse.redirect(url);
         }
       } else {
-        console.log(`[Middleware] Profile missing for ${user.id}. Forcing to /pricing.`);
+        console.log(`[Middleware] Profile missing for ${user.id}. Creating default profile...`);
+        
+        // Auto-heal by creating the profile if it doesn't exist
+        const supabaseAdmin = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+          {
+            cookies: {
+              getAll() { return []; },
+              setAll() {},
+            },
+          }
+        );
+        
+        await supabaseAdmin.from("profiles").upsert({
+          id: user.id,
+          account_type: 'student', // default fallback
+        }, { onConflict: 'id' });
+
         if (
           pathname.startsWith("/dashboard") || 
           pathname.startsWith("/onboarding") ||
