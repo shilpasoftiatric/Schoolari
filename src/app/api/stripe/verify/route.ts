@@ -43,13 +43,13 @@ export async function GET(req: NextRequest) {
         // Force synchronous update in database so middleware lets them through
         await supabaseAdmin
           .from("profiles")
-          .update({
+          .upsert({
+            id: userId,
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
             stripe_price_id: priceId,
             subscription_status: subscription.status, // Should be "active" or "trialing"
-          })
-          .eq("id", userId);
+          }, { onConflict: 'id' });
       }
 
       // Redirect successfully to onboarding using a standard redirect

@@ -80,13 +80,13 @@ export async function POST(req: NextRequest) {
         const adminClient = getSupabaseAdmin();
         const { error } = await adminClient
           .from("profiles")
-          .update({
+          .upsert({
+            id: userId,
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
             stripe_price_id: priceId,
             subscription_status: subscription.status, // e.g. "active"
-          })
-          .eq("id", userId);
+          }, { onConflict: 'id' });
 
         if (error) {
           console.error("Failed to update user profile with subscription:", error);
