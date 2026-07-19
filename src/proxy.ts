@@ -111,19 +111,21 @@ export async function proxy(request: NextRequest) {
           },
           global: {
             fetch: (url, options) => {
-              return fetch(url, { ...options, cache: 'no-store' });
+              const headers = new Headers(options?.headers);
+              headers.set('x-middleware-cache-buster', Date.now().toString());
+              return fetch(url, { ...options, headers, cache: 'no-store' });
             }
           }
         }
       );
 
-      const { data: profile } = await supabaseAdmin
+      const { data: profile, error: profileError } = await supabaseAdmin
         .from("profiles")
         .select("id, account_type, subscription_status, onboarding_complete, linked_student_id")
         .eq("id", user.id)
         .single();
 
-        console.log(`[Middleware] Fetched profile for ${user.id}:`, profile);
+        console.log(`[Middleware] Fetched profile for ${user.id}:`, profile, "Error:", profileError);
 
         if (profile) {
           let familySubscriptionStatus = profile.subscription_status;
