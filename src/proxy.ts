@@ -109,6 +109,11 @@ export async function proxy(request: NextRequest) {
             getAll() { return []; },
             setAll() {},
           },
+          global: {
+            fetch: (url, options) => {
+              return fetch(url, { ...options, cache: 'no-store' });
+            }
+          }
         }
       );
 
@@ -219,18 +224,6 @@ export async function proxy(request: NextRequest) {
         }
       } else {
         console.log(`[Middleware] Profile missing for ${user.id}. Creating default profile...`);
-        
-        // Auto-heal by creating the profile if it doesn't exist
-        const supabaseAdmin = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          {
-            cookies: {
-              getAll() { return []; },
-              setAll() {},
-            },
-          }
-        );
         
         const { error: healError } = await supabaseAdmin.from("profiles").upsert({
           id: user.id,
