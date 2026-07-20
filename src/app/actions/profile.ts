@@ -77,7 +77,7 @@ export async function saveOnboardingStep(step: number, data: any) {
               account_type: 'student',
               linked_student_id: null,
             },
-            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/members/update-password`
+            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
           }
         });
 
@@ -93,7 +93,7 @@ export async function saveOnboardingStep(step: number, data: any) {
           await supabaseAdmin.from("profiles").update({ linked_student_id: targetId }).eq("id", user.id);
 
           // Send custom invite right away using the generated magic link
-          const inviteLink = newAuthUser.properties?.action_link || `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
+          const inviteLink = newAuthUser.properties?.action_link || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
           sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", inviteLink, "student").catch(console.error);
         }
       }
@@ -160,7 +160,7 @@ export async function saveOnboardingStep(step: number, data: any) {
               account_type: "parent",
               linked_student_id: targetId,
             },
-            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/members/update-password`
+            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
           }
         });
 
@@ -168,7 +168,7 @@ export async function saveOnboardingStep(step: number, data: any) {
           // If the user already exists, createError will populate
           console.log("Parent account already exists or error creating:", createError.message);
         } else if (newAuthUser?.user) {
-          const inviteLink = newAuthUser.properties?.action_link || `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
+          const inviteLink = newAuthUser.properties?.action_link || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
           sendInviteEmail(parentEmail, parentFirstName || "", studentFirstName || "", inviteLink, "parent").catch(console.error);
         }
       }
