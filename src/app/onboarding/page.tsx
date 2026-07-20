@@ -120,18 +120,10 @@ export default function OnboardingPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<{ name: string; type: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadType, setUploadType] = useState<string>("other");
+  const [uploadType, setUploadType] = useState<"transcript" | "report_card" | "recommendation_letter" | "essay" | "resume" | "certificate" | "award" | "other">("other");
 
   useEffect(() => {
     if (searchParams.get("payment_success") === "true") {
-      Swal.fire({
-        title: "Payment Successful!",
-        text: "Welcome to Schoolari! Let's get your profile set up.",
-        icon: "success",
-        confirmButtonColor: "#8b5cf6",
-        timer: 3000,
-        timerProgressBar: true,
-      });
       window.history.replaceState(null, "", "/onboarding");
     }
   }, [searchParams]);
@@ -649,7 +641,7 @@ export default function OnboardingPage() {
 
                 <div className="space-y-3">
                   <Label className="text-sm font-bold text-slate-700">Document Type</Label>
-                  <select value={uploadType} onChange={(e) => setUploadType(e.target.value)} className="flex h-12 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-violet-600">
+                  <select value={uploadType} onChange={(e) => setUploadType(e.target.value as "transcript" | "report_card" | "recommendation_letter" | "essay" | "resume" | "certificate" | "award" | "other")} className="flex h-12 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-violet-600">
                     <option value="transcript">Transcript</option>
                     <option value="resume">Resume</option>
                     <option value="recommendation_letter">Recommendation Letters</option>

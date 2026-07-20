@@ -270,7 +270,7 @@ export async function getProfile() {
   return data;
 }
 
-import { syncContact } from "@/lib/constant-contact";
+import { syncContact, CONSTANT_CONTACT_PARENT_LIST, CONSTANT_CONTACT_STUDENT_LIST } from "@/lib/constant-contact";
 
 export async function updateProfile(updates: any) {
   const supabase = await createClient();
@@ -332,8 +332,8 @@ export async function updateProfile(updates: any) {
   }
 
   // Sync to Constant Contact after successful update (fire and forget)
-  const parentsListId = process.env.CONSTANT_CONTACT_PARENTS_LIST_ID;
-  const studentsListId = process.env.CONSTANT_CONTACT_STUDENTS_LIST_ID;
+  const parentsListId = CONSTANT_CONTACT_PARENT_LIST;
+  const studentsListId = CONSTANT_CONTACT_STUDENT_LIST;
 
   if (safeUpdates.student_email && studentsListId) {
     syncContact(

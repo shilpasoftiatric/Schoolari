@@ -58,7 +58,7 @@ export async function syncContact(email: string, firstName: string, lastName: st
 
   try {
     // 1. Check if contact exists
-    const searchRes = await fetch(`https://api.cc.email/v3/contacts?email=${encodeURIComponent(email)}`, {
+    const searchRes = await fetch(`https://api.cc.email/v3/contacts?email=${encodeURIComponent(email)}&include=list_memberships`, {
       headers,
     });
 
