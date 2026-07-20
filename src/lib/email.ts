@@ -59,6 +59,11 @@ export const sendInviteEmail = async (
 
     const raw = makeRawEmail(to, subject, html);
 
+    console.log("==========================================");
+    console.log(`INVITE LINK FOR ${to}:`);
+    console.log(inviteLink);
+    console.log("==========================================");
+
     const result = await gmail.users.messages.send({
       userId: "me",
       requestBody: {

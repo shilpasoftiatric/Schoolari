@@ -38,7 +38,7 @@ const NAV_GROUPS = [
   {
     label: "ACADEMIC",
     items: [
-      { label: "Documents", icon: FolderOpen, href: "/documents", disabled: true },
+      { label: "Documents", icon: FolderOpen, href: "/documents", disabled: false },
       { label: "Essays", icon: FileEdit, href: "/essays", disabled: true },
       { label: "Resume Builder", icon: FileText, href: "/resume", disabled: true },
     ],

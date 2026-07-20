@@ -91,6 +91,7 @@ export interface Database {
           eligible_majors: string;
           min_gpa_required: number | null;
           eligible_states: string;
+          state_eligibility_all: boolean;
           special_eligibility: string;
           grade_levels: string[];
           essay_required: boolean;

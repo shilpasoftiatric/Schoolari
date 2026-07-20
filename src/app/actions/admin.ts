@@ -188,3 +188,23 @@ export async function updateSiteSettings(data: { site_name: string; support_emai
   updateTag("site-settings");
   revalidatePath("/", "layout");
 }
+
+export async function triggerApifyScraper() {
+  await verifyAdmin();
+  const token = process.env.APIFY_API_TOKEN;
+  if (!token) throw new Error("Missing APIFY_API_TOKEN in environment variables");
+  
+  const runUrl = `https://api.apify.com/v2/acts/commanding_hotdog~scholarship-finder-scraper/runs?token=${token}`;
+  const res = await fetch(runUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ search: "general", maxItems: 50 })
+  });
+
+  const data = await res.json();
+  if (!data.data || !data.data.id) {
+    throw new Error(data.error?.message || "Failed to trigger Apify scraper");
+  }
+
+  return { success: true, runId: data.data.id };
+}

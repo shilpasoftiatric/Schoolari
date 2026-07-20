@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { Search, Plus, Edit, Trash2, Power, Star } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Power, Star, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
   createScholarship, 
   updateScholarship, 
   deleteScholarship, 
-  toggleScholarshipStatus 
+  toggleScholarshipStatus,
+  triggerApifyScraper
 } from "@/app/actions/admin";
 
 export function ScholarshipsTable({ initialScholarships }: { initialScholarships: any[] }) {
@@ -18,6 +19,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
   const [saveError, setSaveError] = useState("");
   const [modalState, setModalState] = useState<{ isOpen: boolean, type: "create" | "edit", scholarship: any | null }>({ isOpen: false, type: "create", scholarship: null });
   const [isAllStates, setIsAllStates] = useState(true);
+  const [isScraping, setIsScraping] = useState(false);
 
   // Filter & Sort
   const filteredSorted = useMemo(() => {
@@ -96,6 +98,18 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
     });
   };
 
+  const handleScrape = async () => {
+    setIsScraping(true);
+    try {
+      await triggerApifyScraper();
+      alert("Scraping started! The database will be populated automatically when it finishes (usually in a few minutes).");
+    } catch (err: any) {
+      alert(err.message || "Failed to start scraping.");
+    } finally {
+      setIsScraping(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Controls */}
@@ -121,12 +135,22 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
             <option value="award">Award amount</option>
           </select>
         </div>
-        <Button onClick={() => {
-          setModalState({ isOpen: true, type: "create", scholarship: null });
-          setIsAllStates(true);
-        }} className="w-full md:w-auto bg-slate-900 text-white font-bold h-10 rounded-xl gap-2 shadow-sm">
-          <Plus className="w-4 h-4" /> Add Scholarship
-        </Button>
+        <div className="flex w-full md:w-auto items-center gap-2">
+          <Button 
+            onClick={handleScrape} 
+            disabled={isScraping}
+            className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 rounded-xl gap-2 shadow-sm"
+          >
+            <RefreshCcw className={`w-4 h-4 ${isScraping ? "animate-spin" : ""}`} /> 
+            {isScraping ? "Starting..." : "Auto-Fetch Scholarships"}
+          </Button>
+          <Button onClick={() => {
+            setModalState({ isOpen: true, type: "create", scholarship: null });
+            setIsAllStates(true);
+          }} className="w-full md:w-auto bg-slate-900 text-white font-bold h-10 rounded-xl gap-2 shadow-sm">
+            <Plus className="w-4 h-4" /> Add Scholarship
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
