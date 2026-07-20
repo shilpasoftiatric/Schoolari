@@ -72,7 +72,7 @@ export async function syncContact(email: string, firstName: string, lastName: st
     if (existingContact) {
       // 2. Update existing contact
       const updateData = {
-        email_address: { email_address: email },
+        email_address: { address: email },
         first_name: firstName || existingContact.first_name || "",
         last_name: lastName || existingContact.last_name || "",
         update_source: "Account",
@@ -94,7 +94,7 @@ export async function syncContact(email: string, firstName: string, lastName: st
     } else {
       // 3. Create new contact
       const createData = {
-        email_address: { email_address: email },
+        email_address: { address: email },
         first_name: firstName || "",
         last_name: lastName || "",
         create_source: "Account",
