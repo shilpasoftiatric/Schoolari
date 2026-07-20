@@ -704,7 +704,7 @@ export default function OnboardingPage() {
                 </Button>
               )}
               <div className="flex gap-3 flex-1 sm:justify-end">
-                {step > 1 && isParentAccount && (
+                {(step === 5 || (step > 1 && isParentAccount)) && (
                   <Button
                     type="button"
                     variant="ghost"
