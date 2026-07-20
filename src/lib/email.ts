@@ -67,10 +67,10 @@ export const sendInviteEmail = async (
     });
 
     console.log("Invite email sent successfully via Gmail API:", result.data.id);
-    return result;
-  } catch (error) {
+    return { success: true as const };
+  } catch (error: any) {
     console.error("Failed to send invite email:", error);
-    throw error;
+    return { success: false as const, error: error?.message ?? "Unknown email error" };
   }
 };
 

@@ -77,11 +77,11 @@ export async function saveOnboardingStep(step: number, data: any) {
               account_type: 'student',
               linked_student_id: null,
             },
-            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
+            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/members/update-password`
           }
         });
 
-        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
+        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
 
         if (createError) {
           if (data.student_email === user.email) {
@@ -93,7 +93,7 @@ export async function saveOnboardingStep(step: number, data: any) {
               type: 'recovery',
               email: data.student_email,
               options: {
-                redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
+                redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/members/update-password`
               }
             });
             
@@ -181,11 +181,11 @@ export async function saveOnboardingStep(step: number, data: any) {
               account_type: "parent",
               linked_student_id: targetId,
             },
-            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
+            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/members/update-password`
           }
         });
 
-        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
+        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
 
         if (createError && createError.message.includes("already registered")) {
           console.log("Parent account already exists, generating recovery link instead.");

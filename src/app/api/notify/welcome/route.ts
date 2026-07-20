@@ -133,7 +133,7 @@ export async function POST(req: Request) {
           type: "invite",
           email: inviteeEmail,
           options: {
-            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`,
+            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/members/update-password`,
             data: {
               linked_student_id: user.id,
               account_type: inviteeRole,
