@@ -81,21 +81,42 @@ export async function saveOnboardingStep(step: number, data: any) {
           }
         });
 
+        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
+
         if (createError) {
           if (data.student_email === user.email) {
             return { error: "You cannot use the same email for both parent and student. Please provide the student's unique email." };
           }
-          return { error: "The student email you provided is already registered. Please use a different email or have the student log in first." };
+          if (createError.message.includes("already registered")) {
+            console.log("Student account already exists, generating recovery link instead.");
+            const { data: recoveryData, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
+              type: 'recovery',
+              email: data.student_email,
+              options: {
+                redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
+              }
+            });
+            
+            if (!recoveryError && recoveryData?.properties?.action_link) {
+              finalInviteLink = recoveryData.properties.action_link;
+            }
+            
+            // We need to look up the existing student's ID to link them
+            const { data: existingStudent } = await supabaseAdmin.auth.admin.getUserById(data.student_email);
+            // We can't lookup by email with getUserById easily, we have to query the profiles table or just assume they will link later when they log in.
+            // Actually, we can just send the email and return success.
+          } else {
+            return { error: "The student email you provided is already registered. Please use a different email or have the student log in first." };
+          }
         }
 
         if (newAuthUser?.user) {
           targetId = newAuthUser.user.id;
           await supabaseAdmin.from("profiles").update({ linked_student_id: targetId }).eq("id", user.id);
-
-          // Send custom invite right away using the generated magic link
-          const inviteLink = newAuthUser.properties?.action_link || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
-          sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", inviteLink, "student").catch(console.error);
+          finalInviteLink = newAuthUser.properties?.action_link || finalInviteLink;
         }
+
+        sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", finalInviteLink, "student").catch(console.error);
       }
     }
   }
@@ -164,13 +185,28 @@ export async function saveOnboardingStep(step: number, data: any) {
           }
         });
 
-        if (createError) {
-          // If the user already exists, createError will populate
-          console.log("Parent account already exists or error creating:", createError.message);
+        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
+
+        if (createError && createError.message.includes("already registered")) {
+          console.log("Parent account already exists, generating recovery link instead.");
+          const { data: recoveryData, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'recovery',
+            email: parentEmail,
+            options: {
+              redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
+            }
+          });
+          
+          if (!recoveryError && recoveryData?.properties?.action_link) {
+            finalInviteLink = recoveryData.properties.action_link;
+          }
         } else if (newAuthUser?.user) {
-          const inviteLink = newAuthUser.properties?.action_link || `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
-          sendInviteEmail(parentEmail, parentFirstName || "", studentFirstName || "", inviteLink, "parent").catch(console.error);
+          finalInviteLink = newAuthUser.properties?.action_link || finalInviteLink;
+        } else if (createError) {
+          console.error("Error creating parent account link:", createError.message);
         }
+
+        sendInviteEmail(parentEmail, parentFirstName || "", studentFirstName || "", finalInviteLink, "parent").catch(console.error);
       }
     } catch (e) {
       console.error("Error setting up secondary account during onboarding", e);

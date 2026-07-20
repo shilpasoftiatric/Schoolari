@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
-import { getMemberUrl } from "@/lib/config";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("Missing STRIPE_SECRET_KEY");
@@ -21,7 +20,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("session_id");
 
-  const appUrl = getMemberUrl();
+  // Keep the user on the same domain they verified from (e.g. localhost:3000 instead of members.localhost:3000)
+  // This ensures they don't lose their auth cookies during local development.
+  const appUrl = new URL(req.url).origin;
 
   if (!sessionId) {
     return NextResponse.redirect(`${appUrl}/pricing?error=No session ID provided`);

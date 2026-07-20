@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    // Setup success/cancel URLs
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || requestOrigin(req);
+    // Prefer the request origin so the user is returned to the EXACT domain they started from (e.g., localhost vs member.localhost)
+    const appUrl = requestOrigin(req) || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const successUrl = `${appUrl}/api/stripe/verify?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${appUrl}/pricing?canceled=true`;
 
