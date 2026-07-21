@@ -155,8 +155,8 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${user.role === 'admin'
-                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
                       }`}>
                       {user.role === 'admin' ? 'Admin' : 'Member'}
                     </span>

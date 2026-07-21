@@ -1,28 +1,12 @@
 "use server";
 
 import twilio from "twilio";
-import { createAdminClient } from "@/lib/supabase/server";
+import { verifyAdmin } from "@/app/actions/admin";
 import { formatPhoneE164 } from "@/lib/phone";
 
 export async function sendAdminSms(toPhone: string, message: string) {
   try {
-    const supabase = await createAdminClient();
-    
-    // Auth check
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return { error: "Unauthorized. You must be logged in." };
-    }
-
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .single();
-    
-    if (roleData?.role !== "admin") {
-      return { error: "Unauthorized. Admin privileges required." };
-    }
+    await verifyAdmin();
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -39,8 +23,8 @@ export async function sendAdminSms(toPhone: string, message: string) {
 
     const client = twilio(accountSid, authToken);
 
-    const finalMessage = message.includes("Reply STOP") 
-      ? message 
+    const finalMessage = message.includes("Reply STOP")
+      ? message
       : `${message}\n\nReply STOP to unsubscribe.`;
 
     const twilioRes = await client.messages.create({
