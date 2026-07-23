@@ -189,7 +189,6 @@ export async function saveOnboardingStep(step: number, data: any) {
         });
 
         console.log("GENERATING LINK FOR PARENT", { APP_URL, envUrl: process.env.NEXT_PUBLIC_APP_URL, redirectTo: `${APP_URL}/members/update-password` });
-        require('fs').appendFileSync('debug-url.log', `\nPARENT LINK: ${APP_URL}/members/update-password\nRaw Result: ${JSON.stringify(newAuthUser)}\n`);
 
         let finalInviteLink = `${APP_URL}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
 
