@@ -21,7 +21,8 @@ import {
   FileText,
   HelpCircle,
   Users,
-  MessageSquare
+  MessageSquare,
+  Menu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -47,7 +48,7 @@ const NAV_GROUPS = [
     label: "CAREER & GROWTH",
     items: [
       { label: "Jobs & Internships", icon: Briefcase, href: "/jobs", disabled: true },
-      { label: "Earn Income", icon: DollarSign, href: "/income", disabled: true },
+      { label: "Earn Income", icon: DollarSign, href: "/income", disabled: false },
       { label: "College Coach", icon: GraduationCap, href: "/coaching", disabled: true },
     ],
   },
@@ -82,54 +83,73 @@ interface SidebarProps {
 export default function Sidebar({ siteName = "Schoolari", progressData }: SidebarProps) {
   const pathname = usePathname();
   const [selectedHref, setSelectedHref] = useState(pathname);
-  const [isCardCollapsed, setIsCardCollapsed] = useState(false);
+  const [isCardCollapsed, setIsCardCollapsed] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     setSelectedHref(pathname);
   }, [pathname]);
 
   return (
-    <div className="flex flex-col h-full w-64 border-r border-slate-200 bg-slate-150 shrink-0">
-      {/* Logo */}
-      <Link href="/dashboard" className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-200 hover:bg-slate-50 transition-colors">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-violet-100">
-          <GraduationCap className="w-5 h-5 text-violet-600" />
-        </div>
-        <span className="text-xl font-extrabold tracking-tight text-slate-900">
-          School<span className="text-violet-600">ari</span>
-        </span>
-      </Link>
+    <div className={cn("flex flex-col h-full border-r border-slate-200 bg-slate-150 shrink-0 transition-all duration-300 ease-in-out relative", isSidebarCollapsed ? "w-20" : "w-64")}>
+      {/* Header / Logo Area */}
+      <div className={cn("flex items-center border-b border-slate-200 hover:bg-slate-50 transition-colors h-[76px]", isSidebarCollapsed ? "justify-center gap-1.5" : "justify-between pl-5 pr-2")}>
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <div className="flex items-center justify-center w-9 h-9 shrink-0 rounded-xl bg-violet-100">
+            <GraduationCap className="w-5 h-5 text-violet-600" />
+          </div>
+          {!isSidebarCollapsed && (
+            <span className="text-xl font-extrabold tracking-tight text-slate-900 truncate">
+              School<span className="text-violet-600">ari</span>
+            </span>
+          )}
+        </Link>
+        <button
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className={cn("text-slate-500 hover:text-slate-900 rounded-lg transition-colors", isSidebarCollapsed ? "p-1" : "p-2")}
+        >
+          {isSidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-6">
+      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-violet-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-violet-300">
 
         {/* Ask Schoolari AI Card */}
         <Link
           href="/ai"
           onClick={() => setSelectedHref("/ai")}
+          title="Ask Schoolari AI"
           className={cn(
-            "flex items-center justify-between p-2 rounded-[24px] bg-slate-200 border border-slate-100 hover:bg-slate-100 transition-colors group",
+            "flex items-center justify-between rounded-[24px] bg-slate-200 border border-slate-100 hover:bg-slate-100 transition-colors group",
+            isSidebarCollapsed ? "px-2 py-0 justify-center" : "p-2",
             selectedHref === "/ai" && "bg-slate-100 border-violet-200"
           )}
         >
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-11 h-11 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 shadow-md">
+          <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center w-full" : "gap-3")}>
+            <div className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 shadow-md relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/20 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
-              <Sparkles className="w-5 h-5 text-white" />
+              <Sparkles className="w-5 h-5 text-white relative z-10" />
             </div>
-            <div className="relative z-10 space-y-3">
-              <p className="text-sm font-bold text-violet-700 leading-tight">Ask {siteName} AI</p>
-              <p className="text-xs font-medium text-slate-400 mt-0.5 leading-tight">Get personalized help</p>
-            </div>
+            {!isSidebarCollapsed && (
+              <div className="relative z-10 space-y-1 overflow-hidden">
+                <p className="text-sm font-bold text-violet-700 leading-tight truncate">Ask {siteName} AI</p>
+                <p className="text-[10px] font-medium text-slate-400 mt-0.5 leading-tight truncate">Get personalized help</p>
+              </div>
+            )}
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors" />
+          {!isSidebarCollapsed && (
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-400 transition-colors shrink-0" />
+          )}
         </Link>
 
         {NAV_GROUPS.map((group) => (
           <div key={group.label} className="space-y-1">
-            <h3 className="px-3 text-xs font-bold tracking-wider text-slate-400 mb-2">
-              {group.label}
-            </h3>
+            {!isSidebarCollapsed && (
+              <h3 className="px-3 text-xs font-bold tracking-wider text-slate-400 mb-2 truncate">
+                {group.label}
+              </h3>
+            )}
             {group.items.map((item) => {
               const isActive = selectedHref === item.href;
 
@@ -145,12 +165,14 @@ export default function Sidebar({ siteName = "Schoolari", progressData }: Sideba
                     setSelectedHref(item.href);
                   }}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group",
+                    "flex items-center rounded-xl text-sm font-semibold transition-all group",
+                    isSidebarCollapsed ? "justify-center py-2.5 px-0 mx-2" : "gap-3 px-3 py-2.5",
                     item.disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : "",
                     isActive && !item.disabled
                       ? "bg-violet-50 text-violet-700 font-bold"
                       : !item.disabled ? "text-slate-500 hover:bg-slate-50 hover:text-slate-800" : "text-slate-400"
                   )}
+                  title={isSidebarCollapsed ? item.label : undefined}
                 >
                   <item.icon
                     className={cn(
@@ -158,7 +180,7 @@ export default function Sidebar({ siteName = "Schoolari", progressData }: Sideba
                       isActive && !item.disabled ? "text-violet-600" : "text-slate-400 group-hover:text-slate-600"
                     )}
                   />
-                  <span className="flex-1">{item.label}</span>
+                  {!isSidebarCollapsed && <span className="flex-1 truncate">{item.label}</span>}
                 </Link>
               );
             })}
@@ -167,8 +189,8 @@ export default function Sidebar({ siteName = "Schoolari", progressData }: Sideba
       </nav>
 
       {/* Motivational Card */}
-      {progressData && (
-        <div className="mx-3 mb-4 p-4 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white shadow-lg shadow-purple-200 relative">
+      {!isSidebarCollapsed && progressData && (
+        <div className="mx-3 mb-4 p-4 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white shadow-lg shadow-purple-200 relative shrink-0">
           <button
             onClick={() => setIsCardCollapsed(!isCardCollapsed)}
             className="absolute top-4 right-4 p-1 hover:bg-white/10 rounded-lg transition-colors"
@@ -181,8 +203,12 @@ export default function Sidebar({ siteName = "Schoolari", progressData }: Sideba
           </button>
 
           {isCardCollapsed ? (
-            <div className="flex items-center gap-3 pr-8">
-              <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/20 shrink-0">
+            <div
+              className="flex items-center gap-3 pr-8 cursor-pointer group"
+              onClick={() => setIsCardCollapsed(false)}
+              role="button"
+            >
+              <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/20 shrink-0 group-hover:bg-white/30 transition-colors">
                 <Trophy className="w-4 h-4 text-yellow-300" />
               </div>
               <div className="flex-1">
@@ -192,7 +218,7 @@ export default function Sidebar({ siteName = "Schoolari", progressData }: Sideba
                 </div>
                 <Progress
                   value={progressData.percentage}
-                  className="h-1.5 bg-white/40 [&>div]:bg-amber-400"
+                  className="h-1.5 [&_[data-slot=progress-track]]:bg-purple-400/30 [&_[data-slot=progress-indicator]]:bg-blue-400"
                 />
               </div>
             </div>
@@ -215,7 +241,7 @@ export default function Sidebar({ siteName = "Schoolari", progressData }: Sideba
 
               <Progress
                 value={progressData.percentage}
-                className="h-1.5 bg-white/40 [&>div]:bg-amber-400"
+                className="h-1.5 [&_[data-slot=progress-track]]:bg-purple-400/30 [&_[data-slot=progress-indicator]]:bg-blue-400"
               />
               <div className="flex justify-end mt-1">
                 <span className="text-[10px] text-purple-200">{100 - progressData.percentage}% Remaining</span>

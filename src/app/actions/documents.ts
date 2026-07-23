@@ -86,9 +86,9 @@ export async function uploadDocumentAction(formData: FormData) {
   }
 
   const adminClient = await createAdminClient();
-  const { error: dbError } = await adminClient.from("documents").insert([
+  const { data: insertedData, error: dbError } = await adminClient.from("documents").insert([
     { user_id: user.id, name: file.name, type, file_url: publicUrl, size_bytes: file.size },
-  ]);
+  ]).select().single();
 
   if (dbError) {
     throw new Error(`Database insert failed: ${dbError.message}`);
@@ -96,7 +96,7 @@ export async function uploadDocumentAction(formData: FormData) {
 
   revalidatePath("/documents");
   revalidatePath("/dashboard");
-  return { success: true, storage: storageProvider };
+  return { success: true, storage: storageProvider, document: insertedData };
 }
 
 export async function deleteDocument(id: string, fileUrl: string) {

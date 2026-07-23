@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { saveOnboardingStep, getProfile } from "@/app/actions/profile";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, Check, ArrowRight, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -336,15 +336,15 @@ export default function OnboardingPage() {
               <CheckCircle2 className="w-10 h-10 text-emerald-500" />
             </div>
           </div>
-          <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Your dashboard is ready!</h2>
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Welcome to Schoolari!</h2>
           <p className="text-slate-500 mb-6">
-            Nice work, {form.student_first_name || "there"}. We've customized your widgets and goals based on your profile.
+            {form.student_first_name || "Student"}, your account is ready. We've personalized your experience based on your profile so you can access the tools, resources, and guidance that matter most to your goals.
           </p>
           <Button
             onClick={() => router.push("/dashboard")}
             className="w-full h-12 rounded-xl text-base font-bold bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 shadow-lg shadow-purple-200"
           >
-            Go to Dashboard <ArrowRight className="w-4 h-4 ml-2" />
+            Continue <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
       </div>
@@ -431,7 +431,7 @@ export default function OnboardingPage() {
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Student's Cell Phone</Label>
-                    <Input value={form.student_phone} onChange={(e) => setForm({ ...form, student_phone: e.target.value })} disabled={form.account_type === 'student'} className={form.account_type === 'student' ? "h-12 rounded-xl bg-slate-100 text-slate-500 cursor-not-allowed" : "h-12 rounded-xl"} placeholder="+1 (555) 555-5555" />
+                    <PhoneInput value={form.student_phone} onChange={(val) => setForm({ ...form, student_phone: val })} disabled={form.account_type === 'student'} className={form.account_type === 'student' ? "bg-slate-100 cursor-not-allowed" : ""} />
                   </div>
                 </div>
 
@@ -452,7 +452,7 @@ export default function OnboardingPage() {
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Parent's Cell Phone</Label>
-                    <Input value={form.parent_phone} onChange={(e) => setForm({ ...form, parent_phone: e.target.value })} disabled={form.account_type === 'parent'} className={form.account_type === 'parent' ? "h-12 rounded-xl bg-slate-100 text-slate-500 cursor-not-allowed" : "h-12 rounded-xl"} placeholder="+1 (555) 555-5555" />
+                    <PhoneInput value={form.parent_phone} onChange={(val) => setForm({ ...form, parent_phone: val })} disabled={form.account_type === 'parent'} className={form.account_type === 'parent' ? "bg-slate-100 cursor-not-allowed" : ""} />
                   </div>
                 </div>
 

@@ -73,13 +73,18 @@ export const getStudentDashboardData = cache(async (userId: string) => {
     supabaseAdmin.from("resumes").select("id").eq("user_id", masterId).maybeSingle()
   ]);
 
+  // Global Dashboard Tasks
+  const { data: globalTasks } = await supabaseAdmin.from("tasks").select("*").eq("user_id", masterId).order("created_at", { ascending: false });
+
   return {
     profile: masterProfile,
+    userProfile: userProfile,
     documents: docsRes.data || [],
     essays: essaysRes.data || [],
     savedColleges: collegesRes.data || [],
     applications: appsRes.data || [],
     resume: resumeRes.data || null,
+    globalTasks: globalTasks || [],
     masterId
   };
 });

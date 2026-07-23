@@ -13,13 +13,13 @@ export default async function OnboardingLayout({
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
+  const { data: userProfile } = await supabase
     .from("profiles")
     .select("subscription_status, role")
     .eq("id", user.id)
     .single();
 
-  if (profile?.role === "admin") {
+  if (userProfile?.role === "admin") {
     redirect("/admin/dashboard");
   }
 

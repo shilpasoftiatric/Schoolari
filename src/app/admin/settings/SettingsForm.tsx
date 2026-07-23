@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { updateSiteSettings } from "@/app/actions/admin";
 import type { SiteSettings } from "@/lib/settings";
 import { Save, Loader2, Globe, Mail, Phone } from "lucide-react";
+import { PhoneInput } from "@/components/ui/input";
 
 export function SettingsForm({ initialSettings }: { initialSettings: SiteSettings }) {
   const [isPending, startTransition] = useTransition();
@@ -64,12 +65,10 @@ export function SettingsForm({ initialSettings }: { initialSettings: SiteSetting
           <label className="block text-sm font-semibold text-slate-700 mb-1">
             <span className="flex items-center gap-2"><Phone className="w-4 h-4 text-slate-400" /> Support Phone</span>
           </label>
-          <input
-            type="text"
+          <PhoneInput
             required
             value={supportPhone}
-            onChange={(e) => setSupportPhone(e.target.value)}
-            className="w-full px-4 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors"
+            onChange={setSupportPhone}
           />
         </div>
       </div>

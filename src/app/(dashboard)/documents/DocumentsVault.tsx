@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { UploadCloud, FileText, FileBadge, File, FileImage, Trash2, Download, Loader2, Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 const DOCUMENT_TYPES = [
   { value: "transcript", label: "Transcript" },
@@ -17,11 +18,17 @@ const DOCUMENT_TYPES = [
 ];
 
 export function DocumentsVault({ initialDocuments, userId }: { initialDocuments: any[], userId: string }) {
+  const router = useRouter();
+  const [localDocuments, setLocalDocuments] = useState<any[]>(initialDocuments);
   const [isPending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
   const [uploadType, setUploadType] = useState("transcript");
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setLocalDocuments(initialDocuments);
+  }, [initialDocuments]);
 
   const handleUpload = async (file: File) => {
     if (!file) return;
@@ -40,10 +47,16 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
         method: "POST",
         body: formData
       });
+      const errJson = await res.json();
       if (!res.ok) {
-        const errJson = await res.json();
         throw new Error(errJson.error || "Failed to upload document");
       }
+
+      if (errJson.document) {
+        setLocalDocuments(prev => [errJson.document, ...prev]);
+      }
+
+      router.refresh();
 
     } catch (err: any) {
       alert(err.message || "Failed to upload document");
@@ -62,6 +75,11 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
 
   const handleDelete = (id: string, fileUrl: string) => {
     if (!confirm("Are you sure you want to permanently delete this document?")) return;
+    
+    // Optimistic UI update
+    const previousDocs = [...localDocuments];
+    setLocalDocuments(prev => prev.filter(doc => doc.id !== id));
+
     startTransition(async () => {
       try {
         const res = await fetch("/api/documents/delete", {
@@ -73,7 +91,10 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
           const errJson = await res.json();
           throw new Error(errJson.error || "Failed to delete document");
         }
+
+        router.refresh();
       } catch (err: any) {
+        setLocalDocuments(previousDocs); // Revert on failure
         alert(err.message);
       }
     });
@@ -157,12 +178,12 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {initialDocuments.length === 0 ? (
+        {localDocuments.length === 0 ? (
           <div className="col-span-full py-12 text-center border border-slate-100 rounded-3xl bg-white shadow-sm">
             <p className="text-slate-500">Your vault is empty. Upload your first document above.</p>
           </div>
         ) : (
-          initialDocuments.map((doc) => (
+          localDocuments.map((doc) => (
             <div key={doc.id} className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 flex flex-col h-full relative overflow-hidden">
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">

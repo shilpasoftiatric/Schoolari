@@ -7,6 +7,9 @@ import { syncOnboardingContacts } from "@/lib/constant-contact";
 import { sendWelcomeSMS } from "@/lib/twilio";
 import { sendInviteEmail } from "@/lib/email";
 
+// Hardcoded fallback to members.localhost:3000 to match Supabase Site URL
+const APP_URL = process.env.NODE_ENV === 'production' ? "https://members.schoolari.com" : "http://members.localhost:3000";
+
 export async function saveOnboardingStep(step: number, data: any) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -77,11 +80,11 @@ export async function saveOnboardingStep(step: number, data: any) {
               account_type: 'student',
               linked_student_id: null,
             },
-            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/members/update-password`
+            redirectTo: `${APP_URL}/members/update-password`
           }
         });
 
-        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
+        let finalInviteLink = `${APP_URL}/signup?invited=true&email=${encodeURIComponent(data.student_email)}`;
 
         if (createError) {
           if (data.student_email === user.email) {
@@ -93,7 +96,7 @@ export async function saveOnboardingStep(step: number, data: any) {
               type: 'recovery',
               email: data.student_email,
               options: {
-                redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/members/update-password`
+                redirectTo: `${APP_URL}/members/update-password`
               }
             });
             
@@ -181,11 +184,14 @@ export async function saveOnboardingStep(step: number, data: any) {
               account_type: "parent",
               linked_student_id: targetId,
             },
-            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/members/update-password`
+            redirectTo: `${APP_URL}/members/update-password`
           }
         });
 
-        let finalInviteLink = `${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
+        console.log("GENERATING LINK FOR PARENT", { APP_URL, envUrl: process.env.NEXT_PUBLIC_APP_URL, redirectTo: `${APP_URL}/members/update-password` });
+        require('fs').appendFileSync('debug-url.log', `\nPARENT LINK: ${APP_URL}/members/update-password\nRaw Result: ${JSON.stringify(newAuthUser)}\n`);
+
+        let finalInviteLink = `${APP_URL}/signup?invited=true&email=${encodeURIComponent(parentEmail)}`;
 
         if (createError && createError.message.includes("already registered")) {
           console.log("Parent account already exists, generating recovery link instead.");
@@ -193,7 +199,7 @@ export async function saveOnboardingStep(step: number, data: any) {
             type: 'recovery',
             email: parentEmail,
             options: {
-              redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/members/update-password`
+              redirectTo: `${APP_URL}/members/update-password`
             }
           });
           
@@ -248,7 +254,7 @@ export async function getProfile() {
   if (data) {
     if (data.account_type === 'student') {
       if (!data.student_email) data.student_email = user.email || "";
-      if (!data.student_phone) data.student_phone = data.phone || "";
+      if (!data.student_phone) data.student_phone = user.user_metadata?.phone || user.phone || data.phone || "";
       
       // If student is not onboarding complete, enforce the required steps
       if (!data.onboarding_complete) {
@@ -263,7 +269,7 @@ export async function getProfile() {
     }
     if (data.account_type === 'parent') {
       if (!data.parent_email) data.parent_email = user.email || "";
-      if (!data.parent_phone) data.parent_phone = data.phone || "";
+      if (!data.parent_phone) data.parent_phone = user.user_metadata?.phone || user.phone || data.phone || "";
     }
   }
 

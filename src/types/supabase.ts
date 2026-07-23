@@ -335,6 +335,99 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["user_roles"]["Row"]>;
         Relationships: any[];
       };
+      earn_categories: {
+        Row: {
+          id: string;
+          name: string;
+          description: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          name: string;
+          description?: string;
+          sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["earn_categories"]["Row"]>;
+        Relationships: any[];
+      };
+      earn_videos: {
+        Row: {
+          id: string;
+          category_id: string;
+          title: string;
+          description: string;
+          video_type: "youtube" | "mp4";
+          youtube_url: string;
+          mp4_url: string;
+          mp4_storage_path: string | null;
+          thumbnail_url: string | null;
+          difficulty: "beginner" | "intermediate" | "advanced";
+          watch_time_mins: number | null;
+          is_published: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          category_id: string;
+          title: string;
+          description?: string;
+          video_type: "youtube" | "mp4";
+          youtube_url?: string;
+          mp4_url?: string;
+          mp4_storage_path?: string | null;
+          thumbnail_url?: string | null;
+          difficulty?: "beginner" | "intermediate" | "advanced";
+          watch_time_mins?: number | null;
+          is_published?: boolean;
+          sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["earn_videos"]["Row"]>;
+        Relationships: any[];
+      };
+      earn_video_action_items: {
+        Row: {
+          id: string;
+          video_id: string;
+          title: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          video_id: string;
+          title: string;
+          sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["earn_video_action_items"]["Row"]>;
+        Relationships: any[];
+      };
+      student_video_progress: {
+        Row: {
+          id: string;
+          user_id: string;
+          video_id: string;
+          status: "not_started" | "in_progress" | "completed";
+          last_watched_at: string;
+          completed_at: string | null;
+          last_position_seconds: number;
+          progress_percentage: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          video_id: string;
+          status?: "not_started" | "in_progress" | "completed";
+          last_watched_at?: string;
+          completed_at?: string | null;
+          last_position_seconds?: number;
+          progress_percentage?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["student_video_progress"]["Row"]>;
+        Relationships: any[];
+      };
     };
     Views: {
       [_ in never]: never;

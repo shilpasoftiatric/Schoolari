@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { signUp } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Mail, Lock, User, Phone, ArrowRight,
@@ -21,6 +21,7 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [accountType, setAccountType] = useState<AccountType>("student");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
 
   const passwordStrength = (() => {
     if (password.length === 0) return 0;
@@ -103,17 +104,13 @@ export default function SignupPage() {
         {/* Phone */}
         <div className="space-y-1.5">
           <Label htmlFor="phone" className="text-sm font-semibold text-slate-700">Phone number</Label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              id="phone"
-              name="phone"
-              type="tel"
-              placeholder="+1 (555) 000-0000"
-              required
-              className="pl-10 h-11 rounded-xl border-slate-200 bg-white focus-visible:ring-primary"
-            />
-          </div>
+          <PhoneInput
+            id="phone"
+            name="phone"
+            value={phone}
+            onChange={setPhone}
+            required
+          />
         </div>
 
         {/* Email */}

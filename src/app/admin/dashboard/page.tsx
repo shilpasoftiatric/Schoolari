@@ -19,14 +19,29 @@ function StatCard({ label, value, icon: Icon, colorClass }: { label: string, val
 }
 
 const QUICK_ACTIONS = [
-  { to: "/users", label: "Members", sub: "Directory & roles", icon: Users },
-  { to: "/scholarships", label: "Scholarships", sub: "Records & status", icon: GraduationCap },
-  { to: "/settings", label: "Settings", sub: "Site & contact", icon: Settings },
+  { to: "/admin/users", label: "Members", sub: "Directory & roles", icon: Users },
+  { to: "/admin/scholarships", label: "Scholarships", sub: "Records & status", icon: GraduationCap },
+  { to: "/admin/settings", label: "Settings", sub: "Site & contact", icon: Settings },
 ];
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const adminSupabase = await createAdminClient();
+
+  // Fire user fetch and ALL count fetches concurrently to save time
+  const [
+    { data: { user } },
+    { count: totalUsers },
+    { count: totalScholarships },
+    { count: activeScholarships },
+    { count: inactiveScholarships }
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    adminSupabase.from("profiles").select("*", { count: "exact", head: true }),
+    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }),
+    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", true),
+    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", false)
+  ]);
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -42,20 +57,6 @@ export default async function AdminDashboardPage() {
     month: "long",
     day: "numeric",
   });
-
-  // Fetch Stats
-  const adminSupabase = await createAdminClient();
-  const [
-    { count: totalUsers },
-    { count: totalScholarships },
-    { count: activeScholarships },
-    { count: inactiveScholarships }
-  ] = await Promise.all([
-    adminSupabase.from("profiles").select("*", { count: "exact", head: true }),
-    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }),
-    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", true),
-    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", false)
-  ]);
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">

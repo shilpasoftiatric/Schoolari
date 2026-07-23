@@ -42,6 +42,7 @@ export default async function DashboardPage() {
       firstName={firstName}
       streak={profile?.current_streak || 1}
       userGoals={profile?.schoolari_goals || []}
+      globalTasks={dbData.globalTasks || []}
     />
   );
 }

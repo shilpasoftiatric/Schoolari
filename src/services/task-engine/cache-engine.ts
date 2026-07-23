@@ -1,7 +1,7 @@
 import { WorkflowStates } from "./workflow-rules";
 
 export function isDashboardStateEqual(
-  currentState: WorkflowStates & { firstName: string },
+  currentState: WorkflowStates & { firstName: string, completedActionItemsCount?: number },
   cachedState: any
 ): boolean {
   if (!cachedState) return false;
@@ -12,6 +12,7 @@ export function isDashboardStateEqual(
     currentState.scholarship === cachedState.scholarship &&
     currentState.college === cachedState.college &&
     currentState.resume === cachedState.resume &&
-    currentState.firstName === cachedState.firstName
+    currentState.firstName === cachedState.firstName &&
+    currentState.completedActionItemsCount === cachedState.completedActionItemsCount
   );
 }

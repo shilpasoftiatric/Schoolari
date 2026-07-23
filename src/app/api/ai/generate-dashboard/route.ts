@@ -156,7 +156,7 @@ export async function POST(req: Request) {
       force = body.force;
     } catch (e) { }
 
-    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId } = await getStudentDashboardData(user.id);
+    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId, completedActionItems } = await getStudentDashboardData(user.id);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -186,7 +186,8 @@ export async function POST(req: Request) {
 
     const currentState = {
       ...states,
-      firstName: profile.student_first_name || ""
+      firstName: profile.student_first_name || "",
+      completedActionItemsCount: completedActionItems?.length || 0
     };
 
     const cachedData = profile.ai_dashboard_data;
@@ -205,7 +206,8 @@ export async function POST(req: Request) {
       savedColleges,
       applications: apps,
       resume,
-      profile
+      profile,
+      completedActionItems
     });
 
     let generatedJson = null;

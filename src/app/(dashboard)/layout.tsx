@@ -26,8 +26,9 @@ export default async function DashboardLayout({
   // Use the cached data fetcher
   const dbData = await getStudentDashboardData(user.id);
   const profile = dbData.profile;
+  const userProfile = dbData.userProfile;
 
-  if (profile?.role === "admin") {
+  if (userProfile?.role === "admin") {
     redirect("/admin/dashboard");
   }
 

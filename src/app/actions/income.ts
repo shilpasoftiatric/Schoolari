@@ -128,3 +128,120 @@ Do not include markdown blocks or any other text outside the JSON array.`;
     throw new Error(error.message || "Failed to communicate with AI");
   }
 }
+
+// ─────────────────────────────────────────
+// EARN WHILE YOU LEARN — Video Progress
+// ─────────────────────────────────────────
+
+export async function markVideoInProgress(videoId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+  
+  const { data: profile } = await supabase.from("profiles").select("linked_student_id").eq("id", user.id).single();
+  const masterId = profile?.linked_student_id || user.id;
+
+  const { data: existing } = await supabase
+    .from("student_video_progress")
+    .select("id")
+    .eq("user_id", masterId)
+    .eq("video_id", videoId)
+    .single();
+
+  if (!existing) {
+    await supabase.from("student_video_progress").insert([{
+      user_id: masterId,
+      video_id: videoId,
+      status: "in_progress"
+    }]);
+    revalidatePath("/income");
+    revalidatePath(`/income/watch/${videoId}`);
+  }
+}
+
+export async function saveVideoPlaybackState(videoId: string, seconds: number, percentage: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+  
+  const { data: profile } = await supabase.from("profiles").select("linked_student_id").eq("id", user.id).single();
+  const masterId = profile?.linked_student_id || user.id;
+
+  const { data: existing } = await supabase
+    .from("student_video_progress")
+    .select("id, status")
+    .eq("user_id", masterId)
+    .eq("video_id", videoId)
+    .single();
+
+  if (existing) {
+    // Only update if not already completed (or we can just update it anyway)
+    if (existing.status !== "completed") {
+      await supabase.from("student_video_progress").update({
+        last_position_seconds: seconds,
+        progress_percentage: percentage,
+        status: "in_progress"
+      }).eq("id", existing.id);
+    }
+  } else {
+    await supabase.from("student_video_progress").insert([{
+      user_id: masterId,
+      video_id: videoId,
+      status: "in_progress",
+      last_position_seconds: seconds,
+      progress_percentage: percentage
+    }]);
+  }
+}
+
+export async function markVideoComplete(videoId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+  
+  const { data: profile } = await supabase.from("profiles").select("linked_student_id").eq("id", user.id).single();
+  const masterId = profile?.linked_student_id || user.id;
+
+  const { data: existing } = await supabase
+    .from("student_video_progress")
+    .select("id")
+    .eq("user_id", masterId)
+    .eq("video_id", videoId)
+    .single();
+
+  if (existing) {
+    await supabase.from("student_video_progress").update({
+      status: "completed",
+      progress_percentage: 100,
+      completed_at: new Date().toISOString()
+    }).eq("id", existing.id);
+  } else {
+    await supabase.from("student_video_progress").insert([{
+      user_id: masterId,
+      video_id: videoId,
+      status: "completed",
+      progress_percentage: 100,
+      completed_at: new Date().toISOString()
+    }]);
+  }
+
+  // Insert Action Items into global Dashboard Task Engine
+  const { data: actionItems } = await supabase
+    .from("earn_video_action_items")
+    .select("title")
+    .eq("video_id", videoId)
+    .order("sort_order", { ascending: true });
+
+  if (actionItems && actionItems.length > 0) {
+    const newTasks = actionItems.map((item) => ({
+      user_id: masterId,
+      title: item.title,
+      description: "From Earn While You Learn",
+      status: "pending" as const,
+      type: "weekly" as const
+    }));
+    await supabase.from("tasks").insert(newTasks);
+  }
+  revalidatePath("/income");
+  revalidatePath(`/income/watch/${videoId}`);
+}

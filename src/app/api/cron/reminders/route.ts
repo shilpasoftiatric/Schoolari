@@ -118,6 +118,57 @@ export async function GET(req: Request) {
       }
     }
 
+    // 5. Earn While You Learn 7-Day Inactivity Reminder
+    const { data: videoProgress, error: videoError } = await supabase
+      .from("student_video_progress")
+      .select("user_id, last_watched_at")
+      .order("last_watched_at", { ascending: false });
+
+    if (!videoError && videoProgress) {
+      // Group by user to find their most recent watch time
+      const userLastWatched = new Map<string, string>();
+      for (const p of videoProgress) {
+        if (!userLastWatched.has(p.user_id)) {
+          userLastWatched.set(p.user_id, p.last_watched_at);
+        }
+      }
+
+      // Check for exactly 7 days of inactivity (between 7 and 8 days)
+      const now = new Date().getTime();
+      for (const [userId, lastWatched] of userLastWatched.entries()) {
+        const daysSince = (now - new Date(lastWatched).getTime()) / (1000 * 60 * 60 * 24);
+        
+        if (daysSince >= 7 && daysSince < 8) {
+          // Fetch profile to get contact info
+          const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+          if (profile) {
+            const msgText = `Schoolari: It's been a week since your last Earn While You Learn video! Check out the next video in your path and unlock more income opportunities. Reply STOP to unsubscribe.`;
+            const msgHtml = `<p>Hi ${profile.student_first_name || 'there'},</p><p>It's been a week since your last <strong>Earn While You Learn</strong> video! Check out the next video in your path and unlock more income opportunities.</p><p>Log in to your Dashboard to continue.</p>`;
+
+            // Try SMS
+            const phones = [profile.student_phone, profile.parent_phone, profile.phone].filter(Boolean);
+            const uniquePhones = Array.from(new Set(phones));
+            for (const phone of uniquePhones) {
+              const e164 = formatPhoneE164(phone as string);
+              if (e164) {
+                try {
+                  await client.messages.create({ body: msgText, from: twilioPhone, to: e164 });
+                  sentCount++;
+                } catch (e) { failCount++; }
+              }
+            }
+
+            // Try Email
+            const emails = [profile.student_email, profile.parent_email, profile.email].filter(Boolean);
+            const uniqueEmails = Array.from(new Set(emails));
+            for (const email of uniqueEmails) {
+              await sendAlertEmail(email as string, `Ready for your next video?`, msgHtml);
+            }
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       sent: sentCount,

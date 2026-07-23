@@ -74,9 +74,14 @@ export async function signIn(formData: FormData) {
       const todayUtc = new Date().toISOString().split("T")[0];
       const { data: profile } = await supabase
         .from("profiles")
-        .select("current_streak, longest_streak, last_login_date")
+        .select("role, current_streak, longest_streak, last_login_date")
         .eq("id", data.user.id)
         .single();
+
+      if (profile?.role === "admin") {
+        await supabase.auth.signOut();
+        return { error: "This is the member portal. Please use the admin login page." };
+      }
 
       if (profile) {
         let { current_streak = 0, longest_streak = 0, last_login_date } = profile;

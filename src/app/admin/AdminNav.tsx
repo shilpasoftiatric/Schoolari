@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, GraduationCap, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Settings, PlaySquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/actions/auth";
 
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users / Members", icon: Users },
   { href: "/admin/scholarships", label: "Scholarships", icon: GraduationCap },
+  { href: "/admin/income", label: "Earn While You Learn", icon: PlaySquare },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

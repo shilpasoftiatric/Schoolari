@@ -1,12 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Flame, ArrowRight, Sparkles, Search, Bookmark, Send, FileEdit,
-  FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, GraduationCap,
-  Users, Laptop, Video, Wallet, Trophy, BarChart3, Loader2, FileText, X,
-  PlusCircle
-} from "lucide-react";
+import Link from "next/link";
+import { Search, Trophy, Bookmark, FileEdit, GraduationCap, ArrowRight, Lightbulb, Bell, Banknote, ListTodo, Flame, Send, FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, Users, Laptop, Video, Wallet, BarChart3, Loader2, FileText, X, PlusCircle, ChevronRight, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -27,7 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // Map string icon names to Lucide components
 const iconMap: Record<string, any> = {
-  Bookmark, Send, FileEdit, FolderOpen, Users, Laptop, Video, Wallet, Sparkles, Trophy,
+  Bookmark, Send, FileEdit, FolderOpen, Users, Laptop, Video, Wallet, Sparkles: Lightbulb, Trophy,
   "Scholarships Matched": Bookmark,
   "Applied Scholarship Applications": CheckCircle2,
   "Essays Drafted": FileEdit,
@@ -67,14 +63,13 @@ function GoalsWidget({ userGoals }: { userGoals: string[] }) {
             return (
               <div
                 key={label}
-                className={`rounded-2xl border p-4 flex flex-col gap-3 transition-all ${
-                  active
+                className={`rounded-2xl border p-4 flex flex-col gap-3 transition-all ${active
                     ? "bg-gradient-to-br from-violet-50 to-indigo-50 border-violet-200 shadow-sm"
                     : "bg-slate-50 border-slate-200 opacity-60"
-                }`}
+                  }`}
               >
                 <span className="text-2xl">{emoji}</span>
-                <p className={`text-sm font-bold leading-tight ${ active ? "text-violet-800" : "text-slate-500" }`}>
+                <p className={`text-sm font-bold leading-tight ${active ? "text-violet-800" : "text-slate-500"}`}>
                   {label}
                 </p>
                 {active ? (
@@ -147,7 +142,6 @@ function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass,
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 pt-4 flex-1">
-        {/* Today's Priority */}
         <div className="space-y-3">
           <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Today's Priority (Max 3)</h4>
           <div className="space-y-2">
@@ -170,7 +164,6 @@ function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass,
           </div>
         </div>
 
-        {/* Upcoming Deadlines */}
         <div className="space-y-3">
           <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Upcoming Deadlines</h4>
           <div className="space-y-2">
@@ -189,7 +182,6 @@ function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass,
           </div>
         </div>
 
-        {/* This Week's Goals */}
         <div className="space-y-3">
           <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">This Week's Goals (Max 5)</h4>
           <div className="space-y-2">
@@ -210,12 +202,11 @@ function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass,
   );
 }
 
-export function DashboardClient({ initialData, firstName, streak = 1, userGoals = [] }: { initialData: any, firstName: string, streak?: number, userGoals?: string[] }) {
+export function DashboardClient({ initialData, firstName, streak = 1, userGoals = [], globalTasks = [] }: { initialData: any, firstName: string, streak?: number, userGoals?: string[], globalTasks?: any[] }) {
   const [data, setData] = useState<any>(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState("");
 
-  // Search Modal States
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -234,12 +225,11 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
         } finally {
           setIsSearching(false);
         }
-      }, 400); // 400ms debounce
+      }, 400); 
     }
     return () => clearTimeout(timeoutId);
   }, [searchQuery, isSearchModalOpen]);
 
-  // Lock scroll when modal is open
   useEffect(() => {
     if (isSearchModalOpen) {
       document.body.style.overflow = "hidden";
@@ -249,7 +239,6 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
     return () => { document.body.style.overflow = ""; };
   }, [isSearchModalOpen]);
 
-  // ESC key listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsSearchModalOpen(false);
@@ -293,11 +282,10 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
 
   return (
     <div className="space-y-8 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 flex items-center gap-2">
-            Good evening, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{firstName}</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{firstName}&apos;s</span> Dashboard
           </h1>
           <p className="text-slate-500 mt-1 text-sm italic">"Every scholarship application is a step closer to your dream."</p>
         </div>
@@ -307,17 +295,15 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
         </div>
       </div>
 
-      {/* ── Quick Actions ── */}
       <div className="flex flex-wrap gap-3">
         <Button onClick={generateDashboard} className="gap-2 bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white shadow-md rounded-xl">
-          <Sparkles className="w-4 h-4" /> Refresh AI Dashboard
+          <Lightbulb className="w-4 h-4" /> Refresh AI Dashboard
         </Button>
         <Button variant="outline" onClick={() => setIsSearchModalOpen(true)} className="gap-2 rounded-xl border-slate-200">
           <Search className="w-4 h-4 text-slate-400" /> Find Scholarships
         </Button>
       </div>
 
-      {/* ── Row 1: Progress Overview (Always Visible) ── */}
       <Card className="shadow-sm border-slate-100">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">Progress Overview</CardTitle>
@@ -343,35 +329,35 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
         </CardContent>
       </Card>
 
-      {/* ── Row 2: Three Content Sections Grid (Scholarships, Essays, Colleges) ── */}
+
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <DashboardSection 
-          title="Scholarships" 
-          icon={Bookmark} 
-          colorClass="text-emerald-600" 
-          borderClass="border-emerald-100" 
-          bgClass="bg-emerald-50/50" 
-          sectionData={data.scholarships} 
+        <DashboardSection
+          title="Scholarships"
+          icon={Bookmark}
+          colorClass="text-emerald-600"
+          borderClass="border-emerald-100"
+          bgClass="bg-emerald-50/50"
+          sectionData={data.scholarships}
         />
-        <DashboardSection 
-          title="Essays" 
-          icon={FileEdit} 
-          colorClass="text-violet-600" 
-          borderClass="border-violet-100" 
-          bgClass="bg-violet-50/50" 
-          sectionData={data.essays} 
+        <DashboardSection
+          title="Essays"
+          icon={FileEdit}
+          colorClass="text-violet-600"
+          borderClass="border-violet-100"
+          bgClass="bg-violet-50/50"
+          sectionData={data.essays}
         />
-        <DashboardSection 
-          title="Colleges" 
-          icon={GraduationCap} 
-          colorClass="text-blue-600" 
-          borderClass="border-blue-100" 
-          bgClass="bg-blue-50/50" 
-          sectionData={data.colleges} 
+        <DashboardSection
+          title="Colleges"
+          icon={GraduationCap}
+          colorClass="text-blue-600"
+          borderClass="border-blue-100"
+          bgClass="bg-blue-50/50"
+          sectionData={data.colleges}
         />
       </div>
 
-      {/* ── Row 3: Matched Scholarships (Scholarship Tracker - Always Visible) ── */}
       <Card className="shadow-sm border-slate-100">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-bold text-slate-800">Scholarship Tracker</CardTitle>
@@ -419,37 +405,14 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
         </CardContent>
       </Card>
 
-      {/* ── Row 4: Ways to Earn (AI Income Ideas - Always Visible) ── */}
-      {data.income_ideas && data.income_ideas.length > 0 && (
-        <Card className="shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
-              <Wallet className="w-4 h-4 text-emerald-500" /> Ways to Earn
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-            {data.income_ideas.map((idea: any, i: number) => (
-              <div key={i} className="flex flex-col gap-1.5 bg-white/70 p-4 rounded-2xl backdrop-blur-sm border border-emerald-100/50 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-sm font-bold text-slate-800">{idea.title || idea.label}</span>
-                </div>
-                <span className="text-xs text-slate-600 leading-relaxed">{idea.description || "Actionable startup side hustle customized to your skillset."}</span>
-              </div>
-            ))}
-          </CardContent>
-          <Wallet className="absolute -bottom-4 -right-4 w-24 h-24 text-emerald-200 opacity-60" />
-        </Card>
-      )}
-
       {/* ── Row 5+: Goals Widget ── */}
       <GoalsWidget userGoals={userGoals} />
 
       {/* ── Row 5: AI Suggested Resources (Colleges, Essay Prompts, Resume Tips) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         {/* Suggested Colleges */}
         {data.suggested_colleges && data.suggested_colleges.length > 0 && (
-          <Card className="shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100">
+          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100 flex flex-col">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
                 <GraduationCap className="w-4 h-4 text-blue-500" />Suggested Colleges
@@ -472,7 +435,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
 
         {/* Essay Prompts */}
         {data.essay_prompts && data.essay_prompts.length > 0 && (
-          <Card className="shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100">
+          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100 flex flex-col">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
                 <FileEdit className="w-4 h-4 text-violet-500" />Essay Prompts
@@ -489,10 +452,12 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
             <FileEdit className="absolute -bottom-4 -right-4 w-24 h-24 text-violet-200 opacity-60" />
           </Card>
         )}
+      </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 items-stretch">
         {/* Resume Tips */}
         {data.resume_tips && data.resume_tips.length > 0 && (
-          <Card className="shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100">
+          <Card className="h-fit shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100 flex flex-col">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
                 <FileText className="w-4 h-4 text-amber-500" />Resume Tips
@@ -508,23 +473,81 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
             <FileText className="absolute -bottom-4 -right-4 w-24 h-24 text-amber-200 opacity-60" />
           </Card>
         )}
+
+        {/* ── Row 6: Ways to Earn (Earn While You Learn) ── */}
+        {((data.income_ideas && data.income_ideas.length > 0) || (globalTasks && globalTasks.length > 0)) && (
+          <Card className="h-full shadow-sm border-emerald-100 bg-emerald-50/20 relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 flex flex-col">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2 font-bold text-emerald-800">
+                <Banknote className="w-5 h-5 text-emerald-600" />
+                Ways to Earn
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative z-10 space-y-6">
+                {/* Video Action Items */}
+                {globalTasks && globalTasks.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-extrabold text-emerald-600/70 uppercase tracking-wider">Video Action Items</h4>
+                    <div className="space-y-3">
+                      {globalTasks.map((task: any, i: number) => (
+                        <div key={i} className="flex gap-4 p-4 rounded-xl border border-emerald-100 bg-white/60 backdrop-blur-sm hover:bg-emerald-50/80 transition-colors shadow-sm items-start">
+                          <div className="mt-0.5">
+                            {task.status === "completed" ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                            ) : (
+                              <Circle className="w-5 h-5 text-slate-300 shrink-0" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className={cn("font-bold text-sm mb-1", task.status === "completed" ? "text-slate-400 line-through" : "text-slate-800")}>{task.title}</h4>
+                            <p className="text-xs text-slate-500 leading-relaxed">{task.description || "Action item assigned from completed video module."}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Income Ideas */}
+                {data.income_ideas && data.income_ideas.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="text-[10px] font-extrabold text-emerald-600/70 uppercase tracking-wider">Side Hustle Ideas</h4>
+                    <div className="space-y-3">
+                      {data.income_ideas.map((idea: any, i: number) => (
+                        <div key={i} className="flex gap-4 p-4 rounded-xl border border-emerald-100 bg-white/60 backdrop-blur-sm hover:bg-emerald-50/80 transition-colors shadow-sm">
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Lightbulb className="w-4 h-4 text-emerald-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-800 text-sm mb-1">{idea.title}</h4>
+                            <p className="text-xs text-slate-500 leading-relaxed">{idea.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+            </CardContent>
+            <Banknote className="absolute -bottom-4 -right-4 w-24 h-24 text-emerald-200 opacity-60" />
+          </Card>
+        )}
       </div>
 
       {/* ── Scholarship Search Modal ── */}
       {isSearchModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto custom-scrollbar animate-in fade-in duration-200"
           onClick={(e) => { if (e.target === e.currentTarget) setIsSearchModalOpen(false); }}
         >
           <div className="bg-slate-50 w-full max-w-5xl min-h-[50vh] flex flex-col shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200 mb-[10vh]">
             <div className="p-6 md:p-8 bg-white border-b border-slate-200 relative shrink-0">
-              <button 
+              <button
                 onClick={() => setIsSearchModalOpen(false)}
                 className="absolute top-6 right-6 p-2 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
-              
+
               <h2 className="text-2xl font-extrabold text-slate-900">Find Scholarships</h2>
               <p className="text-sm text-slate-500 mt-1 mb-6 max-w-lg">
                 Search thousands of scholarship opportunities based on your interests.
@@ -532,16 +555,16 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
 
               <div className="relative max-w-3xl">
                 <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                <input 
+                <input
                   autoFocus
                   type="text"
-                  placeholder="Search scholarships (e.g., STEM, California, Sports)..." 
+                  placeholder="Search scholarships (e.g., STEM, California, Sports)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full h-14 pl-12 pr-12 rounded-2xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 text-base font-medium transition-all"
                 />
                 {searchQuery && (
-                  <button 
+                  <button
                     onClick={() => setSearchQuery("")}
                     className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-700 transition-colors"
                   >
@@ -550,7 +573,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
                 )}
               </div>
             </div>
-            
+
             <div className="flex-1 p-6 md:p-8 bg-slate-50 overflow-y-auto">
               {isSearching ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
