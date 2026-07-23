@@ -8,7 +8,7 @@ export { calculateWorkflowStates } from "./state-engine";
 export { generatePrioritiesAndGoals } from "./priority-engine";
 export { generateWeeklyGoals } from "./goal-engine";
 export { generateUpcomingDeadlines } from "./deadline-engine";
-export { isDashboardStateEqual } from "./cache-engine";
+export { isDashboardStateEqual, getTodayDateString } from "./cache-engine";
 export { calculateOverallProgress, getNextMilestone, getMotivationalMessage } from "./progress-engine";
 
 export function compileDashboard(dbData: {

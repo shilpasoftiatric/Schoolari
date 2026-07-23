@@ -11,7 +11,7 @@ const TIERS = [
   {
     name: "Starter",
     price: "$29",
-    description: "The get started tier — low barrier to entry",
+    description: "Basic College Prep Solutions",
     fearSolved: `"My kid doesn't know where to even start."`,
     features: [
       "AI Scholarship Search + Tracker — finds scholarships, tracks deadlines, sends reminders",
@@ -24,7 +24,7 @@ const TIERS = [
   {
     name: "Scholar",
     price: "$49",
-    description: "Most popular — highest conversion",
+    description: "Most popular — Full Solution Service",
     fearSolved: `"My kid needs help writing essays and I can't afford a $200/hr counselor."`,
     features: [
       "Everything in Starter",
@@ -39,13 +39,13 @@ const TIERS = [
   {
     name: "Elite",
     price: "$99",
-    description: "For parents who want someone actively helping their kid",
+    description: "For parents who want someone actively helping their Student",
     fearSolved: `"I need to know someone is actually watching over my kid's progress."`,
     features: [
       "Everything in Scholar",
       "Coach / Mentor Access — weekly check-ins, guidance, accountability from a real person",
       "Direct Messaging — student can ask questions, get feedback on essays and applications",
-      "Done-with-you support — VA reviews applications and gives personalized feedback"
+      "Done-with-you support — Coach reviews applications and gives personalized feedback"
     ],
     priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE,
   }
@@ -114,11 +114,10 @@ function PricingContent() {
         {TIERS.map((tier) => (
           <div
             key={tier.name}
-            className={`group relative flex flex-col p-6 sm:p-8 rounded-3xl bg-white border transition-all duration-300 ease-out hover:-translate-y-2 ${
-              tier.isPopular 
-                ? "border-primary shadow-xl shadow-primary/10 ring-1 ring-primary/20 scale-100 md:scale-105 z-10 hover:shadow-2xl hover:shadow-primary/20" 
-                : "border-slate-200 shadow-sm hover:shadow-xl hover:border-primary/30 hover:z-20"
-            }`}
+            className={`group relative flex flex-col p-6 sm:p-8 rounded-3xl bg-white border transition-all duration-300 ease-out hover:-translate-y-2 ${tier.isPopular
+              ? "border-primary shadow-xl shadow-primary/10 ring-1 ring-primary/20 scale-100 md:scale-105 z-10 hover:shadow-2xl hover:shadow-primary/20"
+              : "border-slate-200 shadow-sm hover:shadow-xl hover:border-primary/30 hover:z-20"
+              }`}
           >
             {tier.isPopular && (
               <div className="absolute top-0 inset-x-0 flex justify-center -translate-y-1/2">
@@ -127,17 +126,17 @@ function PricingContent() {
                 </span>
               </div>
             )}
-            
+
             <div className="mb-6 transition-transform duration-300 group-hover:translate-x-1">
               <h3 className="text-2xl font-bold text-slate-900">{tier.name}</h3>
               <p className="mt-2 text-sm text-slate-500">{tier.description}</p>
             </div>
-            
+
             <div className="mb-6 flex items-baseline text-5xl font-extrabold text-slate-900">
               {tier.price}
               <span className="ml-1 text-xl font-medium text-slate-500">/mo</span>
             </div>
-            
+
             <div className="mb-6 p-3 bg-amber-50 border border-amber-100 rounded-xl text-sm italic text-amber-800 transition-colors duration-300 group-hover:bg-amber-100/50">
               {tier.fearSolved}
             </div>
@@ -155,11 +154,10 @@ function PricingContent() {
               <Button
                 onClick={() => handleSubscribe(tier.priceId)}
                 disabled={loadingPriceId === tier.priceId}
-                className={`w-full h-12 rounded-xl text-base font-bold transition-all duration-300 active:scale-95 ${
-                  tier.isPopular 
-                    ? "bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg hover:shadow-primary/30" 
-                    : "bg-slate-900 hover:bg-slate-800 text-white shadow-sm hover:shadow-md hover:shadow-slate-900/20"
-                }`}
+                className={`w-full h-12 rounded-xl text-base font-bold transition-all duration-300 active:scale-95 ${tier.isPopular
+                  ? "bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg hover:shadow-primary/30"
+                  : "bg-slate-900 hover:bg-slate-800 text-white shadow-sm hover:shadow-md hover:shadow-slate-900/20"
+                  }`}
               >
                 {loadingPriceId === tier.priceId ? "Redirecting..." : "Get Started"}
               </Button>

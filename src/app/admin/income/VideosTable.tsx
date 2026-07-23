@@ -379,8 +379,8 @@ export function VideosTable({
             <tbody className="divide-y divide-slate-100">
               {filtered.map((v, idx) => {
                 const thumb = v.video_type === "youtube"
-                  ? getYouTubeThumbnail(v.youtube_url)
-                  : null;
+                  ? (v.thumbnail_url || getYouTubeThumbnail(v.youtube_url))
+                  : v.thumbnail_url;
                 const diff = DIFFICULTY_LABELS[v.difficulty];
                 const sameCategory = filtered.filter(x => x.category_id === v.category_id);
                 const catIdx = sameCategory.findIndex(x => x.id === v.id);

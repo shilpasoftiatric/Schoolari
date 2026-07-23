@@ -29,26 +29,16 @@ const ENROLLED_OPTIONS = ["Yes", "No"];
 
 const INTENDED_MAJORS = ["Business Administration", "Computer Science", "Nursing", "Psychology", "Biology", "Criminal Justice", "Education", "Engineering", "Communications", "Accounting", "Marketing", "Finance", "Political Science", "Graphic Design", "Information Technology", "Health Sciences", "Social Work", "English", "Architecture", "Other", "Undecided"];
 const PREFERRED_COLLEGE_TYPES = ["Public", "Private", "HBCU", "Community College", "Trade School", "Military", "No Preference"];
-const EXTRACURRICULAR_OPTIONS = ["Athletics & Sports", "Academics & STEM", "Arts & Creative Expression", "Leadership", "Community Service", "School Organizations", "Career & Workforce Development", "Entrepreneurship", "Civic & Government Engagement", "Faith & Cultural Organizations", "Employment & Family Responsibilities", "Personal Projects & Special Interests"];
-const CAREER_INTERESTS_OPTIONS = ["Business & Entrepreneurship", "Computer Science & Technology", "Engineering", "Healthcare", "Education", "Law", "Government & Public Service", "Arts, Media & Design", "Finance & Accounting", "Science & Research", "Skilled Trades & Construction", "Agriculture & Environmental Science", "Hospitality & Tourism", "Marketing & Communications", "Sports & Recreation", "Military & Public Safety", "Transportation & Logistics", "Architecture & Urban Planning", "Social & Human Services", "Aviation & Aerospace", "Other", "Undecided"];
-const ETHNICITY_OPTIONS = ["Hispanic/Latino", "African American", "Asian American", "Native American", "White", "Other", "Prefer not to say"];
+const EXTRACURRICULAR_OPTIONS = ["Athletics & Sports", "Academics & STEM", "Arts & Creative Expression", "Leadership", "Community Service", "School Organizations", "Career & Workforce Development", "Entrepreneurship", "Civic & Government Engagement", "Faith & Cultural Organizations", "Employment & Family Responsibilities", "Personal Projects & Special Interests", "Other"];
+const CAREER_INTERESTS_OPTIONS = ["Business & Entrepreneurship", "Computer Science & Technology", "Engineering", "Healthcare", "Education", "Law", "Government & Public Service", "Arts, Media & Design", "Finance & Accounting", "Science & Research", "Skilled Trades & Construction", "Agriculture & Environmental Science", "Hospitality & Tourism", "Marketing & Communications", "Sports & Recreation", "Military & Public Safety", "Transportation & Logistics", "Architecture & Urban Planning", "Social & Human Services", "Aviation & Aerospace", "Undecided", "Other"];
+const ETHNICITY_OPTIONS = ["American Indian or Alaska Native", "Asian", "Black or African American", "Hispanic or Latino", "Middle Eastern or North African", "Native Hawaiian or Other Pacific Islander", "White", "Multiracial / Two or More Races", "Other", "Prefer not to say"];
 const GENDER_OPTIONS = ["Male", "Female", "Non-binary", "Prefer not to say"];
-
-const PRIORITIES_OPTIONS = [
-  "Finding scholarships",
-  "Writing essays",
-  "Choosing colleges",
-  "Building a resume",
-  "Finding internships or jobs",
-  "Earning money now"
-];
 
 const STEPS = [
   { id: 1, name: "Let's Get to Know You" },
   { id: 2, name: "Your Academic Journey" },
   { id: 3, name: "Your Story" },
-  { id: 4, name: "Your Goals" },
-  { id: 5, name: "Success Vault" },
+  { id: 4, name: "Success Vault" },
 ];
 
 const toggleArrayValue = (arr: string[], value: string) =>
@@ -116,11 +106,16 @@ export default function OnboardingPage() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [isParentAccount, setIsParentAccount] = useState(false);
 
+  // Custom text for "Other" selections
+  const [customExtracurricular, setCustomExtracurricular] = useState("");
+  const [customCareerInterest, setCustomCareerInterest] = useState("");
+
   // Storage upload states
   const [uploading, setUploading] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<{ name: string; type: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadType, setUploadType] = useState<"transcript" | "report_card" | "recommendation_letter" | "essay" | "resume" | "certificate" | "award" | "other">("other");
+  const [customDocName, setCustomDocName] = useState("");
 
   useEffect(() => {
     if (searchParams.get("payment_success") === "true") {
@@ -169,6 +164,32 @@ export default function OnboardingPage() {
         }
         setStep(profile.onboarding_step || 1);
         setIsParentAccount(profile.account_type === "parent");
+
+        // Map custom "Other" values back to the UI state
+        const knownExtra = new Set(EXTRACURRICULAR_OPTIONS);
+        let loadedExtras = profile.extracurricular_activities || [];
+        let foundCustomExtra = "";
+        loadedExtras = loadedExtras.map((x: string) => {
+          if (!knownExtra.has(x) && x !== "Other") {
+            foundCustomExtra = x;
+            return "Other";
+          }
+          return x;
+        });
+        setCustomExtracurricular(foundCustomExtra);
+
+        const knownCareer = new Set(CAREER_INTERESTS_OPTIONS);
+        let loadedCareers = profile.career_interest || [];
+        let foundCustomCareer = "";
+        loadedCareers = loadedCareers.map((x: string) => {
+          if (!knownCareer.has(x) && x !== "Other") {
+            foundCustomCareer = x;
+            return "Other";
+          }
+          return x;
+        });
+        setCustomCareerInterest(foundCustomCareer);
+
         setForm((prev) => ({
           ...prev,
           account_type: profile.account_type || "",
@@ -191,13 +212,12 @@ export default function OnboardingPage() {
           enrolled_in_college: profile.enrolled_in_college || "",
           intended_major: profile.intended_major || [],
           preferred_college_type: profile.preferred_college_type || [],
-          top_3_schools: profile.top_3_schools?.length ? profile.top_3_schools : ["", "", ""],
+          top_3_schools: profile.top_3_schools?.length === 3 ? profile.top_3_schools : ["", "", ""],
 
-          extracurricular_activities: profile.extracurricular_activities || [],
-          career_interest: profile.career_interest || [],
+          extracurricular_activities: loadedExtras,
+          career_interest: loadedCareers,
           ethnicity: profile.ethnicity || [],
           gender: profile.gender || "",
-
           schoolari_goals: profile.schoolari_goals || [],
         }));
       }
@@ -230,15 +250,17 @@ export default function OnboardingPage() {
         .from('documents')
         .getPublicUrl(filePath);
 
+      const displayName = customDocName.trim() || file.name;
+
       await supabase.from('documents').insert({
         user_id: userData.user.id,
-        name: file.name,
+        name: displayName,
         type: uploadType,
         file_url: publicUrlData.publicUrl,
         size_bytes: file.size
       });
 
-      setUploadedDocs([...uploadedDocs, { name: file.name, type: uploadType }]);
+      setUploadedDocs([...uploadedDocs, { name: displayName, type: uploadType }]);
       Swal.fire({
         toast: true,
         position: 'top-end',
@@ -252,6 +274,7 @@ export default function OnboardingPage() {
       Swal.fire('Upload Error', err.message, 'error');
     } finally {
       setUploading(false);
+      setCustomDocName("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -271,26 +294,35 @@ export default function OnboardingPage() {
       }
     }
 
-    if (currentStep === 4 && form.schoolari_goals.length === 0) {
-      setError("Please select at least one goal."); return;
-    }
-
     startTransition(async () => {
-      const payload: any = { ...form };
-      if (currentStep === 5) {
+      let payload: any = { ...form };
+      if (currentStep === 4) {
         payload.onboarding_complete = true;
       }
 
       // Filter out empty top_3_schools
       payload.top_3_schools = form.top_3_schools.filter(Boolean);
 
-      const nextStep = currentStep === 5 ? 5 : currentStep + 1;
+      // Inject custom text for "Other" selections when saving
+      if (payload.extracurricular_activities.includes("Other") && customExtracurricular.trim() !== "") {
+        payload.extracurricular_activities = payload.extracurricular_activities.map((x: string) => x === "Other" ? customExtracurricular.trim() : x);
+      } else if (payload.extracurricular_activities.includes("Other")) {
+        payload.extracurricular_activities = payload.extracurricular_activities.filter((x: string) => x !== "Other");
+      }
+
+      if (payload.career_interest.includes("Other") && customCareerInterest.trim() !== "") {
+        payload.career_interest = payload.career_interest.map((x: string) => x === "Other" ? customCareerInterest.trim() : x);
+      } else if (payload.career_interest.includes("Other")) {
+        payload.career_interest = payload.career_interest.filter((x: string) => x !== "Other");
+      }
+
+      const nextStep = currentStep === 4 ? 4 : currentStep + 1;
       const result = await saveOnboardingStep(nextStep, payload);
 
       if (result.error) {
         setError(result.error);
       } else {
-        if (currentStep === 5) {
+        if (currentStep === 4) {
           setDone(true);
         } else {
           setStep(nextStep);
@@ -301,20 +333,15 @@ export default function OnboardingPage() {
   };
 
   const handleSkip = () => {
+    setError("");
     startTransition(async () => {
-      const nextStep = step === 5 ? 5 : step + 1;
+      const payload: any = { ...form, onboarding_complete: true };
+      const result = await saveOnboardingStep(4, payload);
 
-      if (step === 5) {
-        const result = await saveOnboardingStep(5, { parent_skipped_to_end: true });
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setDone(true);
-        }
+      if (result.error) {
+        setError(result.error);
       } else {
-        // Do not validate, do not call saveOnboardingStep, just increment the UI state locally
-        setStep(nextStep);
-        window.scrollTo(0, 0);
+        setDone(true);
       }
     });
   };
@@ -336,9 +363,9 @@ export default function OnboardingPage() {
               <CheckCircle2 className="w-10 h-10 text-emerald-500" />
             </div>
           </div>
-          <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Welcome to Schoolari!</h2>
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-2">YOUR SCHOOLARI AI DASHBOARD IS READY!</h2>
           <p className="text-slate-500 mb-6">
-            {form.student_first_name || "Student"}, your account is ready. We've personalized your experience based on your profile so you can access the tools, resources, and guidance that matter most to your goals.
+            {form.student_first_name || "Student"}, your account is ready. We've personalized your experience based on your profile so you can access all the AI tools, resources, and guidance that matter most for your goals and aspirations.
           </p>
           <Button
             onClick={() => router.push("/dashboard")}
@@ -401,8 +428,15 @@ export default function OnboardingPage() {
           <div className="mb-8">
             <h2 className="text-3xl font-extrabold text-slate-900">{STEPS.find(s => s.id === step)?.name}</h2>
             {isParentAccount && step === 2 && (
-              <div className="mt-4 p-4 bg-violet-50 border border-violet-100 rounded-xl text-violet-700 text-sm font-medium">
-                Parents: The rest of this onboarding is optional. You may skip to the dashboard or fill this out on behalf of your student.
+              <div className="mt-4 px-4 py-3 bg-violet-50 border border-violet-100 rounded-xl text-violet-700 text-sm font-medium flex flex-col justify-between items-start">
+                <p className="flex-1">Parents: You may skip this portion and have your student complete their profile. Your student will receive an email to create their account and start their journey to success with Schoolari.</p>
+                <Button
+                  onClick={handleSkip}
+                  disabled={isPending}
+                  className="mt-4 self-end bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm font-bold whitespace-nowrap transition-colors"
+                >
+                  {isPending ? "Skipping..." : "Skip & Allow Student to Complete"}
+                </Button>
               </div>
             )}
           </div>
@@ -419,11 +453,11 @@ export default function OnboardingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Student's First Name</Label>
-                    <Input value={form.student_first_name} onChange={(e) => setForm({ ...form, student_first_name: e.target.value })} className="h-12 rounded-xl" placeholder="John" />
+                    <Input value={form.student_first_name} onChange={(e) => setForm({ ...form, student_first_name: e.target.value })} className="h-12 rounded-xl" placeholder="e.g. John" />
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Student's Last Name</Label>
-                    <Input value={form.student_last_name} onChange={(e) => setForm({ ...form, student_last_name: e.target.value })} className="h-12 rounded-xl" placeholder="Doe" />
+                    <Input value={form.student_last_name} onChange={(e) => setForm({ ...form, student_last_name: e.target.value })} className="h-12 rounded-xl" placeholder="e.g. Doe" />
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Student's Email Address</Label>
@@ -440,11 +474,11 @@ export default function OnboardingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Parent's First Name</Label>
-                    <Input value={form.parent_first_name} onChange={(e) => setForm({ ...form, parent_first_name: e.target.value })} className="h-12 rounded-xl" placeholder="Jane" />
+                    <Input value={form.parent_first_name} onChange={(e) => setForm({ ...form, parent_first_name: e.target.value })} className="h-12 rounded-xl" placeholder="e.g. jane" />
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Parent's Last Name</Label>
-                    <Input value={form.parent_last_name} onChange={(e) => setForm({ ...form, parent_last_name: e.target.value })} className="h-12 rounded-xl" placeholder="Doe" />
+                    <Input value={form.parent_last_name} onChange={(e) => setForm({ ...form, parent_last_name: e.target.value })} className="h-12 rounded-xl" placeholder="e.g. Doe" />
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-bold text-slate-700">Parent's Email Address</Label>
@@ -570,6 +604,17 @@ export default function OnboardingPage() {
                     onChange={(val) => setForm({ ...form, extracurricular_activities: val })}
                     placeholder="Select activities..."
                   />
+                  {form.extracurricular_activities.includes("Other") && (
+                    <div className="mt-3">
+                      <Label className="text-sm font-bold text-slate-700">Please specify other activity</Label>
+                      <Input
+                        value={customExtracurricular}
+                        onChange={(e) => setCustomExtracurricular(e.target.value)}
+                        className="h-12 rounded-xl mt-1"
+                        placeholder="Type your Other extracurricular activity..."
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -580,6 +625,17 @@ export default function OnboardingPage() {
                     onChange={(val) => setForm({ ...form, career_interest: val })}
                     placeholder="Select interests..."
                   />
+                  {form.career_interest.includes("Other") && (
+                    <div className="mt-3">
+                      <Label className="text-sm font-bold text-slate-700">Please specify other career interest</Label>
+                      <Input
+                        value={customCareerInterest}
+                        onChange={(e) => setCustomCareerInterest(e.target.value)}
+                        className="h-12 rounded-xl mt-1"
+                        placeholder="Type your Other career interest..."
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -613,30 +669,20 @@ export default function OnboardingPage() {
             )}
 
             {step === 4 && (
-              <div className="space-y-3">
-                <Label className="text-sm font-bold text-slate-700 mb-4 block">Select your goals (multi-select)</Label>
-                <div className="flex flex-col gap-3">
-                  {PRIORITIES_OPTIONS.map((option) => {
-                    const isActive = form.schoolari_goals.includes(option);
-                    return (
-                      <button key={option} onClick={() => setForm({ ...form, schoolari_goals: toggleArrayValue(form.schoolari_goals, option) })}
-                        className={cn("flex items-center px-5 py-4 text-left text-sm font-medium rounded-xl border transition-all", isActive ? "border-violet-600 bg-violet-50 text-violet-900 ring-1 ring-violet-600" : "border-slate-200 text-slate-700 hover:bg-slate-50")}
-                      >
-                        <div className={cn("w-5 h-5 rounded border mr-4 flex items-center justify-center", isActive ? "bg-violet-600 border-violet-600 text-white" : "border-slate-300")}>
-                          {isActive && <CheckCircle2 className="w-4 h-4" />}
-                        </div>
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {step === 5 && (
               <div className="space-y-6">
                 <div className="text-center mb-6">
                   <p className="text-slate-600 font-medium">If you have a transcript, resume, or recommendation letter ready, upload it now so it's safely stored in your Schoolari Vault.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-sm font-bold text-slate-700">Document Name (Optional)</Label>
+                  <Input
+                    value={customDocName}
+                    onChange={(e) => setCustomDocName(e.target.value)}
+                    placeholder="e.g. John Resume"
+                    className="h-12 rounded-xl"
+                  />
+                  <p className="text-xs text-slate-500">Give your document a custom display name for your Vault.</p>
                 </div>
 
                 <div className="space-y-3">

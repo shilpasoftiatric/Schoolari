@@ -193,7 +193,7 @@ export async function triggerApifyScraper() {
   await verifyAdmin();
   const token = process.env.APIFY_API_TOKEN;
   if (!token) throw new Error("Missing APIFY_API_TOKEN in environment variables");
-  
+
   const runUrl = `https://api.apify.com/v2/acts/commanding_hotdog~scholarship-finder-scraper/runs?token=${token}`;
   const res = await fetch(runUrl, {
     method: "POST",
@@ -317,6 +317,13 @@ type VideoPayload = {
 
 export async function createEarnVideo(payload: VideoPayload) {
   await verifyAdmin();
+
+  // Validate action items (1 to 3 required) before DB operations
+  const validActionItems = payload.action_items.filter((t) => t.trim());
+  if (validActionItems.length < 1 || validActionItems.length > 3) {
+    throw new Error("Please provide at least 1 and up to 3 action items for this video.");
+  }
+
   const adminClient = await createAdminClient();
 
   // Next sort_order for this category
@@ -348,12 +355,11 @@ export async function createEarnVideo(payload: VideoPayload) {
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
-
-  // Validate action items (1 to 3 required)
-  const validActionItems = payload.action_items.filter((t) => t.trim());
-  if (validActionItems.length < 1 || validActionItems.length > 3) {
-    throw new Error("A video must have between 1 and 3 action items.");
+  if (error) {
+    if (error.code === '23505') throw new Error("A video with this title already exists. Please choose a different title.");
+    if (error.code === '23503') throw new Error("The selected category is invalid or no longer exists.");
+    if (error.code === '23502') throw new Error("A required field is missing. Please check your inputs.");
+    throw new Error("Failed to save the video to the database. Please try again.");
   }
 
   // Insert action items
@@ -362,7 +368,7 @@ export async function createEarnVideo(payload: VideoPayload) {
 
   if (actionItems.length > 0) {
     const { error: aiErr } = await adminClient.from("earn_video_action_items").insert(actionItems);
-    if (aiErr) throw new Error(aiErr.message);
+    if (aiErr) throw new Error("Video was created, but failed to save action items. Please edit the video to add them.");
   }
 
   revalidatePath("/admin/income");
@@ -371,6 +377,13 @@ export async function createEarnVideo(payload: VideoPayload) {
 
 export async function updateEarnVideo(id: string, payload: VideoPayload) {
   await verifyAdmin();
+
+  // Validate action items (1 to 3 required) before DB operations
+  const validActionItems = payload.action_items.filter((t) => t.trim());
+  if (validActionItems.length < 1 || validActionItems.length > 3) {
+    throw new Error("Please provide at least 1 and up to 3 action items for this video.");
+  }
+
   const adminClient = await createAdminClient();
 
   const { error } = await adminClient
@@ -389,12 +402,11 @@ export async function updateEarnVideo(id: string, payload: VideoPayload) {
     })
     .eq("id", id);
 
-  if (error) throw new Error(error.message);
-
-  // Validate action items (1 to 3 required)
-  const validActionItems = payload.action_items.filter((t) => t.trim());
-  if (validActionItems.length < 1 || validActionItems.length > 3) {
-    throw new Error("A video must have between 1 and 3 action items.");
+  if (error) {
+    if (error.code === '23505') throw new Error("A video with this title already exists. Please choose a different title.");
+    if (error.code === '23503') throw new Error("The selected category is invalid or no longer exists.");
+    if (error.code === '23502') throw new Error("A required field is missing. Please check your inputs.");
+    throw new Error("Failed to update the video in the database. Please try again.");
   }
 
   // Replace action items: delete existing then insert new
@@ -405,7 +417,7 @@ export async function updateEarnVideo(id: string, payload: VideoPayload) {
 
   if (actionItems.length > 0) {
     const { error: aiErr } = await adminClient.from("earn_video_action_items").insert(actionItems);
-    if (aiErr) throw new Error(aiErr.message);
+    if (aiErr) throw new Error("Video was updated, but failed to save action items. Please try editing again.");
   }
 
   revalidatePath("/admin/income");

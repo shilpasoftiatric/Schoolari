@@ -15,8 +15,8 @@ type Video = {
   youtube_url: string | null;
   earn_video_action_items: ActionItem[];
 };
-type Progress = { 
-  id: string; 
+type Progress = {
+  id: string;
   status: "not_started" | "in_progress" | "completed";
   last_position_seconds: number;
   progress_percentage: number;
@@ -50,11 +50,12 @@ export function VideoPlayerClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [status, setStatus] = useState(initialProgress?.status || "not_started");
-  
+
   const ytPlayerRef = useRef<any>(null);
   const mp4PlayerRef = useRef<HTMLVideoElement>(null);
   const lastSyncTimeRef = useRef<number>(0);
   const lastPositionRef = useRef<number>(initialProgress?.last_position_seconds || 0);
+  const completionCardRef = useRef<HTMLDivElement>(null);
 
   // Mark as in progress when the page loads
   useEffect(() => {
@@ -63,6 +64,16 @@ export function VideoPlayerClient({
       markVideoInProgress(video.id).catch(console.error);
     }
   }, [video.id, status]);
+
+  // Auto-scroll to completion card when video ends
+  useEffect(() => {
+    if (status === "completed" && completionCardRef.current) {
+      // Small timeout to ensure the DOM has painted the animate-in element before scrolling
+      setTimeout(() => {
+        completionCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [status]);
 
   const handleMarkComplete = () => {
     if (status === "completed") return;
@@ -78,16 +89,16 @@ export function VideoPlayerClient({
 
   const syncProgress = (currentTime: number, duration: number) => {
     if (!duration || status === "completed") return;
-    
+
     // Only sync if 5 seconds have passed since last sync to prevent spam
     const now = Date.now();
     if (now - lastSyncTimeRef.current < 5000) return;
-    
+
     lastSyncTimeRef.current = now;
     lastPositionRef.current = currentTime;
-    
+
     const percentage = Math.min(100, Math.max(0, Math.round((currentTime / duration) * 100)));
-    
+
     // Fire and forget
     saveVideoPlaybackState(video.id, Math.round(currentTime), percentage).catch(console.error);
   };
@@ -97,17 +108,17 @@ export function VideoPlayerClient({
 
   // Initialize YouTube IFrame API
   useEffect(() => {
-    if (video.video_type !== "youtube" || !ytId || status === "completed") return;
+    if (video.video_type !== "youtube" || !ytId) return;
 
     const initPlayer = () => {
       if (!(window as any).YT || !(window as any).YT.Player) return;
-      
+
       const player = new (window as any).YT.Player(`youtube-player-${video.id}`, {
         videoId: ytId,
-        playerVars: { 
-          rel: 0, 
+        playerVars: {
+          rel: 0,
           modestbranding: 1,
-          start: Math.round(lastPositionRef.current) 
+          start: Math.round(lastPositionRef.current)
         },
         events: {
           onReady: (event: any) => {
@@ -135,7 +146,7 @@ export function VideoPlayerClient({
     } else if ((window as any).YT && (window as any).YT.Player) {
       setTimeout(initPlayer, 100);
     }
-    
+
     return () => {
       ytPlayerRef.current = null;
     };
@@ -144,7 +155,7 @@ export function VideoPlayerClient({
   // YouTube polling interval for progress sync
   useEffect(() => {
     if (video.video_type !== "youtube" || status === "completed") return;
-    
+
     const interval = setInterval(() => {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
         const currentTime = ytPlayerRef.current.getCurrentTime();
@@ -154,7 +165,7 @@ export function VideoPlayerClient({
         }
       }
     }, 5000);
-    
+
     return () => clearInterval(interval);
   }, [video.video_type, status]);
 
@@ -167,7 +178,7 @@ export function VideoPlayerClient({
           mp4PlayerRef.current.currentTime = lastPositionRef.current;
         }
       };
-      
+
       const videoEl = mp4PlayerRef.current;
       videoEl.addEventListener("loadedmetadata", handleLoadedMetadata);
       return () => videoEl.removeEventListener("loadedmetadata", handleLoadedMetadata);
@@ -211,22 +222,22 @@ export function VideoPlayerClient({
         {/* Right Col: Action Items & Completion state */}
         <div className="space-y-6">
           {status === "completed" && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center animate-in zoom-in-95 duration-500 shadow-sm">
+            <div ref={completionCardRef} className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center animate-in zoom-in-95 duration-500 shadow-sm">
               <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <Trophy className="w-6 h-6 text-emerald-600" />
               </div>
               <h3 className="text-lg font-bold text-emerald-900">Great job!</h3>
               <p className="text-emerald-700 text-sm mt-1 mb-4 font-medium">You've completed this video.</p>
-              
+
               {nextVideoId ? (
-                <Button 
+                <Button
                   onClick={() => router.push(`/income/watch/${nextVideoId}`)}
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-2 shadow-sm font-bold"
                 >
                   Next Video <ArrowRight className="w-4 h-4" />
                 </Button>
               ) : (
-                <Button 
+                <Button
                   onClick={() => router.push(`/income`)}
                   variant="outline"
                   className="w-full rounded-xl gap-2 font-bold text-emerald-700 border-emerald-300 hover:bg-emerald-100"

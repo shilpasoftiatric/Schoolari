@@ -30,72 +30,6 @@ const iconMap: Record<string, any> = {
   "Colleges Saved": GraduationCap
 };
 
-/* ──────────────────────────────────────────────────────────── */
-/* Goals Widget                                                   */
-/* ──────────────────────────────────────────────────────────── */
-
-const ALL_GOALS = [
-  { label: "Finding scholarships", emoji: "🏆", href: "/scholarships" },
-  { label: "Writing essays", emoji: "✍️", href: "/essays" },
-  { label: "Choosing colleges", emoji: "🎓", href: "/colleges" },
-  { label: "Building a resume", emoji: "📄", href: "/resume" },
-  { label: "Finding internships or jobs", emoji: "💼", href: "/jobs" },
-  { label: "Earning money now", emoji: "💰", href: "/income" },
-];
-
-function GoalsWidget({ userGoals }: { userGoals: string[] }) {
-  const normalizedGoals = (userGoals || []).map(g => g.toLowerCase().trim());
-
-  const isActive = (label: string) =>
-    normalizedGoals.some(g => label.toLowerCase().includes(g.split(" ")[0].toLowerCase()) || g.includes(label.toLowerCase().split(" ")[0]));
-
-  return (
-    <Card className="shadow-sm border-slate-100">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
-          <Flag className="w-4 h-4 text-amber-500" /> My Schoolari Goals
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {ALL_GOALS.map(({ label, emoji, href }) => {
-            const active = isActive(label);
-            return (
-              <div
-                key={label}
-                className={`rounded-2xl border p-4 flex flex-col gap-3 transition-all ${active
-                    ? "bg-gradient-to-br from-violet-50 to-indigo-50 border-violet-200 shadow-sm"
-                    : "bg-slate-50 border-slate-200 opacity-60"
-                  }`}
-              >
-                <span className="text-2xl">{emoji}</span>
-                <p className={`text-sm font-bold leading-tight ${active ? "text-violet-800" : "text-slate-500"}`}>
-                  {label}
-                </p>
-                {active ? (
-                  <a
-                    href={href}
-                    className="mt-auto flex items-center gap-1 text-xs font-bold text-violet-600 hover:text-violet-800 transition-colors"
-                  >
-                    Go <ArrowRight className="w-3.5 h-3.5" />
-                  </a>
-                ) : (
-                  <a
-                    href="/profile"
-                    className="mt-auto flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors"
-                  >
-                    <PlusCircle className="w-3.5 h-3.5" /> Add Goal
-                  </a>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function ScholarshipSearchSkeleton() {
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col h-full space-y-4 shadow-sm animate-pulse">
@@ -143,7 +77,7 @@ function DashboardSection({ title, icon: Icon, colorClass, borderClass, bgClass,
       </CardHeader>
       <CardContent className="space-y-6 pt-4 flex-1">
         <div className="space-y-3">
-          <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Today's Priority (Max 3)</h4>
+          <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Do This Today</h4>
           <div className="space-y-2">
             {sectionData?.tasks && sectionData.tasks.length > 0 ? (
               sectionData.tasks.slice(0, 3).map((t: any, i: number) => (
@@ -404,9 +338,6 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
           )}
         </CardContent>
       </Card>
-
-      {/* ── Row 5+: Goals Widget ── */}
-      <GoalsWidget userGoals={userGoals} />
 
       {/* ── Row 5: AI Suggested Resources (Colleges, Essay Prompts, Resume Tips) ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">

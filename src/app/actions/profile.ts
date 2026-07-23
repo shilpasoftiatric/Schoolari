@@ -5,7 +5,7 @@ import { formatPhoneE164 } from "@/lib/phone";
 import { redirect } from "next/navigation";
 import { syncOnboardingContacts } from "@/lib/constant-contact";
 import { sendWelcomeSMS } from "@/lib/twilio";
-import { sendInviteEmail } from "@/lib/email";
+import { sendInviteEmail, sendWelcomeEmail } from "@/lib/email";
 
 // Hardcoded fallback to members.localhost:3000 to match Supabase Site URL
 const APP_URL = process.env.NODE_ENV === 'production' ? "https://members.schoolari.com" : "http://members.localhost:3000";
@@ -172,6 +172,13 @@ export async function saveOnboardingStep(step: number, data: any) {
 
       if (parentPhone) {
         await sendWelcomeSMS(parentPhone, 'parent', !isCurrentUserStudent).catch(console.error);
+      }
+
+      // Send Welcome Email to the person who signed up
+      if (isCurrentUserStudent && studentEmail) {
+        await sendWelcomeEmail(studentEmail, studentFirstName || "there", "student").catch(console.error);
+      } else if (!isCurrentUserStudent && parentEmail) {
+        await sendWelcomeEmail(parentEmail, parentFirstName || "there", "parent").catch(console.error);
       }
 
       // If current user is student, create parent account if it doesn't exist

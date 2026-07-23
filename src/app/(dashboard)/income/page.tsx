@@ -25,16 +25,16 @@ export default async function IncomePage() {
   ]);
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8 space-y-8">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8 md:pt-4 space-y-8">
       <div>
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Earn While You Learn</h1>
         <p className="text-slate-500 mt-2 text-base">Watch videos, learn new skills, and unlock income opportunities.</p>
       </div>
-      
-      <VideoLibrary 
-        categories={categoriesRes.data || []} 
-        videos={videosRes.data || []} 
-        progress={progressRes.data || []} 
+
+      <VideoLibrary
+        categories={categoriesRes.data || []}
+        videos={videosRes.data || []}
+        progress={progressRes.data || []}
       />
     </div>
   );

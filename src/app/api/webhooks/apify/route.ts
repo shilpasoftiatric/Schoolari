@@ -50,6 +50,35 @@ function parseGradeLevels(enrollmentStr: string | undefined): string[] {
   return levels;
 }
 
+function mapCategory(item: any): string {
+  const text = `${item.majors || ''} ${item.title || ''} ${item.description || ''}`.toLowerCase();
+  
+  if (text.match(/agriculture|farming|food science|natural resources/)) return "Agriculture, Food & Natural Resources";
+  if (text.match(/architecture|construction|building/)) return "Architecture & Construction";
+  if (text.match(/performing arts|music|dance|theater/)) return "Performing Arts (Music, Dance, Theater)";
+  if (text.match(/arts|design|graphic|fashion|illustration/)) return "Arts & Design";
+  if (text.match(/business|entrepreneur|finance|accounting|marketing/)) return "Business & Entrepreneurship";
+  if (text.match(/communication|journalism|media|public relations/)) return "Communications, Journalism & Media";
+  if (text.match(/computer science|it|information technology|cybersecurity|software/)) return "Computer Science & Information Technology";
+  if (text.match(/education|teaching/)) return "Education";
+  if (text.match(/engineering/)) return "Engineering";
+  if (text.match(/veterinary|animal/)) return "Veterinary & Animal Sciences";
+  if (text.match(/health|medicine|nursing|medical|biology|pre-med/)) return "Health & Medicine";
+  if (text.match(/hospitality|tourism|culinary/)) return "Hospitality, Tourism & Culinary Arts";
+  if (text.match(/humanities|history|philosophy|english/)) return "Humanities";
+  if (text.match(/law|criminal justice|public safety|police/)) return "Law, Criminal Justice & Public Safety";
+  if (text.match(/math|statistics/)) return "Mathematics";
+  if (text.match(/science|chemistry|physics/)) return "Science";
+  if (text.match(/social science|psychology|sociology|political science/)) return "Social Sciences";
+  if (text.match(/stem/)) return "STEM (General)";
+  if (text.match(/trade|technical|welding|hvac|plumbing/)) return "Trade & Technical Careers (Skilled Trades)";
+  if (text.match(/transportation|aviation|logistics|automotive/)) return "Transportation, Aviation & Logistics";
+  
+  if (text.match(/all majors|any major/)) return "General (Open to All Majors)";
+  
+  return "General (Open to All Majors)";
+}
+
 export async function POST(req: Request) {
   try {
     const payload = await req.json();
@@ -93,7 +122,7 @@ export async function POST(req: Request) {
         award_amount: awardAmount,
         award_amount_value: typeof item.award_amount === 'number' ? item.award_amount : null,
         deadline: parseDeadline(item.deadline),
-        category: "General", // The scraper doesn't seem to return a unified category
+        category: mapCategory(item),
         description: item.full_description || item.description || "",
         eligible_majors: item.majors || "All Majors Eligible",
         eligible_states: item.geographic_restrictions || "All",

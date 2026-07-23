@@ -43,6 +43,7 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
   const [localNumber, setLocalNumber] = React.useState("");
   const [isOpen, setIsOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const prevValueRef = React.useRef<string | null>(null);
 
@@ -72,6 +73,22 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      const index = COUNTRIES.findIndex(c => c.code === countryCode);
+      setSelectedIndex(index >= 0 ? index : 0);
+    }
+  }, [isOpen, countryCode]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      const el = document.getElementById(`country-option-${selectedIndex}`);
+      if (el) {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedIndex, isOpen]);
 
   const emitChange = (code: CountryCode, num: string) => {
     const dialCode = `+${getCountryCallingCode(code)}`;
@@ -123,7 +140,26 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
                 type="text"
                 placeholder="Search country or code..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSelectedIndex(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSelectedIndex((prev) => (prev < filteredCountries.length - 1 ? prev + 1 : prev));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev));
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (filteredCountries[selectedIndex]) {
+                      handleCountrySelect(filteredCountries[selectedIndex].code as CountryCode);
+                    }
+                  } else if (e.key === "Escape") {
+                    setIsOpen(false);
+                  }
+                }}
                 className="w-full text-sm outline-none bg-transparent placeholder:text-slate-400"
                 autoFocus
               />
@@ -132,14 +168,17 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
               {filteredCountries.length === 0 ? (
                 <div className="p-3 text-sm text-center text-slate-500">No country found</div>
               ) : (
-                filteredCountries.map((c) => (
+                filteredCountries.map((c, index) => (
                   <button
                     key={c.code}
+                    id={`country-option-${index}`}
                     type="button"
                     onClick={() => handleCountrySelect(c.code as CountryCode)}
+                    onMouseEnter={() => setSelectedIndex(index)}
                     className={cn(
                       "flex items-center justify-between w-full p-2 rounded-lg text-sm transition-colors text-left",
-                      countryCode === c.code ? "bg-primary/10 text-primary font-medium" : "hover:bg-slate-50 text-slate-700"
+                      countryCode === c.code ? "text-primary font-medium" : "text-slate-700",
+                      selectedIndex === index ? (countryCode === c.code ? "bg-primary/20" : "bg-slate-100") : (countryCode === c.code ? "bg-primary/10" : "hover:bg-slate-50")
                     )}
                   >
                     <span className="flex items-center gap-2">

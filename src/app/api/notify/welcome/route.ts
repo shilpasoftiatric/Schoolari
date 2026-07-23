@@ -15,7 +15,7 @@ import { formatPhoneE164 } from "@/lib/phone";
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { createClient } from "@/lib/supabase/server";
-import { sendInviteEmail } from "@/lib/email";
+import { sendInviteEmail, sendWelcomeEmail } from "@/lib/email";
 
 const hasTwilio = () =>
   !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
@@ -157,6 +157,25 @@ export async function POST(req: Request) {
       } catch (err: any) {
         results.invitation = `failed: ${err.message}`;
         console.error("Invite Error:", err);
+      }
+    }
+
+    // ── 4. Welcome Email for the Inviter ─────────────────────────────────────
+    const inviterEmail = account_type === "parent" ? parent_email : student_email;
+    const inviterRole = account_type;
+
+    if (inviterEmail) {
+      try {
+        const welcomeRes = await sendWelcomeEmail(
+          inviterEmail,
+          inviterFirstName || "there",
+          inviterRole as "student" | "parent"
+        );
+        if (!welcomeRes.success) throw new Error(welcomeRes.error);
+        results.welcome_email = "sent via email";
+      } catch (err: any) {
+        results.welcome_email = `failed: ${err.message}`;
+        console.error("Welcome Email Error:", err);
       }
     }
 

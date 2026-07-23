@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { sendPasswordResetEmail } from "@/lib/email";
 
 export async function signUp(formData: FormData) {
   const supabase = await createClient();
@@ -33,9 +34,15 @@ export async function signUp(formData: FormData) {
       .from("profiles")
       .update({ phone, account_type: accountType as "student" | "parent" })
       .eq("id", data.user.id);
+      
+    // Log the user in immediately since we just created their account
+    await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
   }
 
-  return { success: true, redirectUrl: "/login" };
+  return { success: true, redirectUrl: "/pricing" };
 }
 
 export async function signIn(formData: FormData) {
@@ -211,4 +218,57 @@ export async function healInvitedUserProfile(): Promise<{ redirectTo: string }> 
 
   // --- CASE 3: Fresh signup (not an invite) → normal flow ---
   return { redirectTo: "/dashboard" };
+}
+
+export async function sendPasswordResetLink(formData: FormData) {
+  const supabaseAdmin = await createAdminClient();
+  const email = formData.get("email") as string;
+  
+  if (!email || !email.includes("@")) {
+    return { error: "Please enter a valid email address." };
+  }
+
+  const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const redirectTo = `${origin}/reset-password`;
+
+  // Check if user exists using admin API
+  const { data: usersData, error: userError } = await supabaseAdmin.auth.admin.listUsers();
+  
+  // To avoid enumeration, we always return success. 
+  // If the user doesn't exist, we just don't send an email.
+  if (userError) {
+    console.error("Error fetching users:", userError);
+  } else {
+    const userExists = usersData.users.some(u => u.email === email);
+    
+    if (userExists) {
+      // Generate a recovery link
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email: email,
+        options: {
+          redirectTo,
+        }
+      });
+
+      if (linkError) {
+        console.error("Password reset link generation error:", linkError);
+      } else if (linkData?.properties?.action_link) {
+        // Extract the token to bypass Supabase's strict redirect allowlist and email scanners
+        const actionUrl = new URL(linkData.properties.action_link);
+        const token = actionUrl.searchParams.get("token");
+        const type = actionUrl.searchParams.get("type") || "recovery";
+        
+        const customResetLink = `${origin}/reset-password?token=${token}&type=${type}`;
+        
+        // Send the email manually using our custom Google OAuth setup
+        await sendPasswordResetEmail(email, customResetLink);
+      }
+    }
+  }
+
+  return { 
+    success: true, 
+    message: "If an account exists for this email address, we've sent a password reset link." 
+  };
 }

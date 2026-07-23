@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callAI } from '@/lib/ai';
-import { compileDashboard, calculateWorkflowStates, isDashboardStateEqual } from '@/services/task-engine';
+import { compileDashboard, calculateWorkflowStates, isDashboardStateEqual, getTodayDateString } from '@/services/task-engine';
 import { getStudentDashboardData } from '@/services/data-fetcher';
 
 const SYSTEM_PROMPT = `You are the Schoolari AI, an expert scholarship and college admissions counselor.
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
       force = body.force;
     } catch (e) { }
 
-    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId, completedActionItems } = await getStudentDashboardData(user.id);
+    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId, globalTasks: completedActionItems } = await getStudentDashboardData(user.id);
 
     if (!profile) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -187,7 +187,8 @@ export async function POST(req: Request) {
     const currentState = {
       ...states,
       firstName: profile.student_first_name || "",
-      completedActionItemsCount: completedActionItems?.length || 0
+      completedActionItemsCount: completedActionItems?.length || 0,
+      lastGeneratedDate: getTodayDateString()
     };
 
     const cachedData = profile.ai_dashboard_data;
@@ -213,12 +214,33 @@ export async function POST(req: Request) {
     let generatedJson = null;
 
     try {
+      const today = getTodayDateString();
       const userPrompt = `
-Student Profile:
-${JSON.stringify(profile, null, 2)}
+Today's Date: ${today}
+
+Student Profile Summary:
+- Name: ${profile.student_first_name || 'Student'}
+- State: ${profile.state || 'Not specified'}
+- Grade Level: ${profile.grade_level || 'Not specified'}
+- GPA: ${profile.gpa_range || profile.unweighted_gpa || 'Not specified'}
+- Intended Major(s): ${(profile.intended_major || []).join(', ') || 'Not specified'}
+- Career Interests: ${(profile.career_interest || []).join(', ') || 'Not specified'}
+- Extracurriculars: ${(profile.extracurricular_activities || []).join(', ') || 'Not specified'}
+- Ethnicity: ${(profile.ethnicity || []).join(', ') || 'Not specified'}
+- Schoolari Goals: ${(profile.schoolari_goals || []).join(', ') || 'Not specified'}
 
 Current Platform Progress:
-${JSON.stringify(progressStats, null, 2)}
+- hasTranscript: ${progressStats.hasTranscript}
+- hasRecommendationLetter: ${progressStats.hasRecommendationLetter}
+- hasResume: ${progressStats.hasResume}
+- documentsCount: ${progressStats.documentsCount}
+- essaysCount: ${progressStats.essaysCount}
+- completedEssaysCount: ${progressStats.completedEssaysCount}
+- savedCollegesCount: ${progressStats.savedCollegesCount}
+- appliedScholarshipsCount: ${progressStats.appliedScholarshipsCount}
+- savedScholarshipsCount: ${progressStats.savedScholarshipsCount}
+
+IMPORTANT: Use the student's name, state, major, career interests, and today's date to write tasks and goals that are specific and personal to THIS student. Vary the wording from generic advice — mention their actual state, major, or career field by name where appropriate.
       `;
 
       // Try OpenAI first since it is working well
@@ -234,16 +256,33 @@ ${JSON.stringify(progressStats, null, 2)}
       console.error('Error fetching from AI:', err.message);
     }
 
-    // If AI failed use personalized fallback data
+    // If AI failed, use personalized fallback data (still uses profile fields, not generic)
     if (!generatedJson) {
       console.log('Falling back to local generated data due to AI error.');
       generatedJson = getFallbackData(profile, progressStats);
     }
 
-    // Merge JSearch/Admissions tips/ideas from AI with local progression logic
+    // Surgical merge: AI wins for tasks and goals (personalized content).
+    // The local engine ONLY contributes real DB-driven deadline data and the _state fingerprint.
+    // This prevents hardcoded strings from overwriting what AI generated.
     generatedJson = {
       ...generatedJson,
-      ...localDashboard
+      scholarships: {
+        ...generatedJson.scholarships,
+        deadlines: localDashboard.scholarships.deadlines   // real deadline data from DB
+      },
+      essays: {
+        ...generatedJson.essays,
+        deadlines: localDashboard.essays.deadlines
+      },
+      colleges: {
+        ...generatedJson.colleges,
+        deadlines: localDashboard.colleges.deadlines
+      },
+      _state: {
+        ...localDashboard._state,
+        lastGeneratedDate: getTodayDateString()           // stamp today's date for daily rotation
+      }
     };
 
     // Update stats count in fallback or generated json using database values

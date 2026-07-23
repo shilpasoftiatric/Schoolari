@@ -21,8 +21,8 @@ type Video = {
 };
 
 type Category = { id: string; name: string; description: string | null; sort_order: number };
-type ProgressRecord = { 
-  video_id: string; 
+type ProgressRecord = {
+  video_id: string;
   status: "not_started" | "in_progress" | "completed";
   progress_percentage: number;
 };
@@ -84,8 +84,8 @@ export function VideoLibrary({
   }
 
   return (
-    <div className="space-y-10">
-      {categories.map(category => {
+    <div className="space-y-8 divide-y divide-slate-500">
+      {categories.map((category, index) => {
         const catVideos = videos.filter(v => v.category_id === category.id);
         if (catVideos.length === 0) return null;
 
@@ -93,7 +93,7 @@ export function VideoLibrary({
         const progressPct = Math.round((completedCount / catVideos.length) * 100);
 
         return (
-          <div key={category.id} className="space-y-4 relative">
+          <div key={category.id} className={`${index > 0 ? 'pt-8' : ''} space-y-4 relative`}>
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">{category.name}</h2>
@@ -103,12 +103,15 @@ export function VideoLibrary({
               </div>
               <div className="hidden md:flex items-center gap-3">
                 <span className="text-sm font-semibold text-slate-600">{completedCount} of {catVideos.length}</span>
-                <Progress value={progressPct} className="w-32 h-2 [&>div]:bg-emerald-500" />
+                <Progress
+                  value={progressPct}
+                  className="w-32 h-2 [&_[data-slot=progress-track]]:bg-purple-300 [&_[data-slot=progress-indicator]]:bg-blue-600"
+                />
               </div>
             </div>
 
             {/* Horizontal Scroll Container */}
-            <div className="flex overflow-x-auto pb-6 -mx-4 px-4 md:-mx-8 md:px-8 gap-5 snap-x snap-mandatory [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+            <div className="flex overflow-x-auto pb-6 -mx-4 px-4 md:-mx-8 md:px-8 gap-5 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {catVideos.map(video => {
                 const progressData = progressMap.get(video.id) || { status: "not_started", percentage: 0 };
                 const status = progressData.status;
@@ -130,7 +133,7 @@ export function VideoLibrary({
                           {video.video_type === "youtube" ? <Play className="w-10 h-10 text-slate-300" /> : <Film className="w-10 h-10 text-slate-300" />}
                         </div>
                       )}
-                      
+
                       {/* Overlay */}
                       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm transform scale-90 group-hover:scale-100 transition-transform">
@@ -145,6 +148,15 @@ export function VideoLibrary({
                         </span>
                       </div>
 
+                      {/* Completed Badge */}
+                      {status === "completed" && (
+                        <div className="absolute top-3 right-3">
+                          <div className="bg-white/90 backdrop-blur-md rounded-full  shadow-sm border border-emerald-100 flex items-center justify-center">
+                            <CheckCircle2 className="w-6 h-6 text-emerald-700 fill-emerald-100" />
+                          </div>
+                        </div>
+                      )}
+
                       {/* Time Badge */}
                       {video.watch_time_mins && (
                         <div className="absolute bottom-3 right-3">
@@ -153,11 +165,11 @@ export function VideoLibrary({
                           </span>
                         </div>
                       )}
-                      
+
                       {/* Visual Progress Bar (if in progress or completed) */}
                       {(status === "in_progress" || status === "completed") && (
                         <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/30 backdrop-blur-sm z-10 overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full ${status === 'completed' ? 'bg-emerald-500' : 'bg-violet-600'}`}
                             style={{ width: `${status === 'completed' ? 100 : Math.max(2, progressData.percentage || 0)}%` }}
                           />
@@ -172,7 +184,7 @@ export function VideoLibrary({
                           {video.title}
                         </h3>
                       </div>
-                      
+
                       {/* Progress Indicator */}
                       <div className="flex items-center gap-1.5 pt-1">
                         {status === "completed" ? (
