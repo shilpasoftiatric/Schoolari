@@ -119,7 +119,7 @@ export async function saveOnboardingStep(step: number, data: any) {
           finalInviteLink = newAuthUser.properties?.action_link || finalInviteLink;
         }
 
-        sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", finalInviteLink, "student").catch(console.error);
+        await sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", finalInviteLink, "student");
       }
     }
   }
@@ -151,7 +151,7 @@ export async function saveOnboardingStep(step: number, data: any) {
   // Trigger integrations when moving past Step 1
   if (step === 2 && updatedProfile) {
     // 1. Sync Constant Contact (fire and forget)
-    syncOnboardingContacts(
+    await syncOnboardingContacts(
       updatedProfile.student_email || "", updatedProfile.student_first_name || "", updatedProfile.student_last_name || "",
       updatedProfile.parent_email || "", updatedProfile.parent_first_name || "", updatedProfile.parent_last_name || ""
     ).catch(console.error);
@@ -167,11 +167,11 @@ export async function saveOnboardingStep(step: number, data: any) {
       const parentFirstName = updatedProfile.parent_first_name;
 
       if (studentPhone) {
-        sendWelcomeSMS(studentPhone, 'student', isCurrentUserStudent).catch(console.error);
+        await sendWelcomeSMS(studentPhone, 'student', isCurrentUserStudent).catch(console.error);
       }
 
       if (parentPhone) {
-        sendWelcomeSMS(parentPhone, 'parent', !isCurrentUserStudent).catch(console.error);
+        await sendWelcomeSMS(parentPhone, 'parent', !isCurrentUserStudent).catch(console.error);
       }
 
       // If current user is student, create parent account if it doesn't exist
@@ -211,7 +211,7 @@ export async function saveOnboardingStep(step: number, data: any) {
           console.error("Error creating parent account link:", createError.message);
         }
 
-        sendInviteEmail(parentEmail, parentFirstName || "", studentFirstName || "", finalInviteLink, "parent").catch(console.error);
+        await sendInviteEmail(parentEmail, parentFirstName || "", studentFirstName || "", finalInviteLink, "parent");
       }
     } catch (e) {
       console.error("Error setting up secondary account during onboarding", e);
