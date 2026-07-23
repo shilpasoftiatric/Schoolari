@@ -750,7 +750,7 @@ export default function OnboardingPage() {
                 </Button>
               )}
               <div className="flex gap-3 flex-1 sm:justify-end">
-                {(step === 5 || (step > 1 && isParentAccount)) && (
+                {(step === 4 || (step > 1 && isParentAccount)) && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -769,7 +769,7 @@ export default function OnboardingPage() {
                 >
                   {isPending ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : step === 5 ? "Finish Setup" : "Continue"}
+                  ) : step === 4 ? "Finish Setup" : "Continue"}
                 </Button>
               </div>
             </div>
