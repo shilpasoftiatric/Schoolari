@@ -4,6 +4,16 @@ import { useState } from "react";
 import { Star, Clock, DollarSign, ExternalLink, BellRing, CheckCircle2, Trophy, Loader2, Sparkles, MapPin, GraduationCap } from "lucide-react";
 import { setScholarshipAction, sendScholarshipReminder } from "@/app/actions/scholarships";
 import Swal from "sweetalert2";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface ScholarshipCardProps {
   scholarship: any;
@@ -13,10 +23,16 @@ interface ScholarshipCardProps {
 export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCardProps) {
   const [actionStatus, setActionStatus] = useState<string | null>(userActionStatus);
   const [processing, setProcessing] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [targetDate, setTargetDate] = useState<string>("");
 
-  const handleAction = async (action: "will_apply" | "applied" | "won") => {
+  const handleAction = async (action: "will_apply" | "applied" | "won", dueDate?: string) => {
     if (processing) return;
     setProcessing(true);
+
+    if (action === "will_apply") {
+      setIsDialogOpen(false);
+    }
 
     const STATUS_MAP = {
       will_apply: "Not Started",
@@ -29,7 +45,7 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
     setActionStatus(STATUS_MAP[action]);
 
     try {
-      await setScholarshipAction(scholarship.id, action);
+      await setScholarshipAction(scholarship.id, action, dueDate);
 
       // Send SMS reminder for "I Will Apply"
       if (action === "will_apply") {
@@ -207,7 +223,9 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
 
             {/* I Will Apply */}
             <button
-              onClick={() => handleAction("will_apply")}
+              onClick={() => {
+                if (!isApplied && !isWon) setIsDialogOpen(true);
+              }}
               disabled={processing || isApplied || isWon}
               className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-bold transition-all ${
                 isWillApply
@@ -255,6 +273,44 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
             </button>
           </div>
         </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add to Tracker</DialogTitle>
+              <DialogDescription>
+                When do you plan to complete and submit this application? We will add it to your dashboard tasks.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <label className="text-sm font-medium mb-2 block text-slate-700">Target Date</label>
+              <Input 
+                type="date" 
+                value={targetDate} 
+                onChange={(e) => setTargetDate(e.target.value)} 
+                min={new Date().toISOString().split('T')[0]}
+              />
+              {scholarship.deadline && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Official deadline: {new Date(scholarship.deadline).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={processing}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => handleAction("will_apply", targetDate)} 
+                disabled={processing || !targetDate}
+                className="bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                {processing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save to Tracker
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Apply Button */}
         <a

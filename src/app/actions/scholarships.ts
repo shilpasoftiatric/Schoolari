@@ -250,7 +250,8 @@ export async function getScholarshipRecommendations(forceRefresh = false) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function setScholarshipAction(
   scholarshipId: string,
-  action: "will_apply" | "applied" | "won"
+  action: "will_apply" | "applied" | "won",
+  dueDate?: string
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -264,32 +265,66 @@ export async function setScholarshipAction(
 
   const newStatus = STATUS_MAP[action];
 
-  // Upsert the application row — handles first-time and status updates
-  const { error } = await supabase
-    .from("applications")
-    .upsert(
-      [{ user_id: user.id, scholarship_id: scholarshipId, status: newStatus }],
-      { onConflict: "user_id,scholarship_id" }
-    );
+  const { data: schData } = await supabase.from("scholarships").select("name, deadline").eq("id", scholarshipId).single();
+  if (!schData) throw new Error("Scholarship not found");
+
+  // Check if it exists in tracker
+  const { data: existing } = await supabase
+    .from("tracker_items")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("reference_id", scholarshipId)
+    .eq("reference_type", "scholarship")
+    .single();
+
+  const finalDueDate = dueDate || schData?.deadline;
+
+  let error;
+  if (existing) {
+    const res = await supabase
+      .from("tracker_items")
+      .update({ status: newStatus, due_date: finalDueDate, updated_at: new Date().toISOString() })
+      .eq("id", existing.id);
+    error = res.error;
+  } else {
+    const res = await supabase
+      .from("tracker_items")
+      .insert({
+        user_id: user.id,
+        reference_id: scholarshipId,
+        reference_type: "scholarship",
+        title: schData.name,
+        status: newStatus,
+        due_date: finalDueDate
+      });
+    error = res.error;
+  }
 
   if (error) {
     console.error("setScholarshipAction error:", error);
     throw new Error(error.message);
   }
 
-  // Create reminder if student commits
-  if (action === "will_apply") {
-    const { data: schData } = await supabase.from("scholarships").select("name, deadline").eq("id", scholarshipId).single();
-    if (schData?.deadline) {
-      await addReminder(
-        user.id,
-        schData.name,
-        schData.deadline,
-        "scholarship",
-        scholarshipId
-      );
+    // Create reminder if student commits
+    if (action === "will_apply") {
+      if (schData?.deadline) {
+        await addReminder(
+          user.id,
+          schData.name,
+          schData.deadline,
+          "scholarship",
+          scholarshipId
+        );
+      }
     }
-  }
+
+  // Clear profile AI dashboard cache so dashboard reflects updated tracker items immediately
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const supabaseAdmin = await createAdminClient();
+  await supabaseAdmin
+    .from("profiles")
+    .update({ ai_dashboard_data: null })
+    .eq("id", user.id);
 
   // Invalidate dashboard and scholarships page
   revalidatePath("/scholarships");

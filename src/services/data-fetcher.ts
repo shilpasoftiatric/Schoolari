@@ -65,12 +65,13 @@ export const getStudentDashboardData = cache(async (userId: string) => {
     masterProfile.subscription_status = isFamilyPaid ? 'active' : null;
   }
 
-  const [docsRes, essaysRes, collegesRes, appsRes, resumeRes] = await Promise.all([
+  const [docsRes, essaysRes, collegesRes, appsRes, resumeRes, trackerRes] = await Promise.all([
     supabaseAdmin.from("documents").select("type, name").eq("user_id", masterId), 
     supabaseAdmin.from("essays").select("status").eq("user_id", masterId),
     supabaseAdmin.from("saved_colleges").select("status, college_name, deadline").eq("user_id", masterId),
     supabaseAdmin.from("applications").select("status, scholarships(deadline, name)").eq("user_id", masterId),
-    supabaseAdmin.from("resumes").select("id").eq("user_id", masterId).maybeSingle()
+    supabaseAdmin.from("resumes").select("id").eq("user_id", masterId).maybeSingle(),
+    supabaseAdmin.from("tracker_items").select("*").eq("user_id", masterId).order("due_date", { ascending: true })
   ]);
 
   // Global Dashboard Tasks
@@ -84,6 +85,7 @@ export const getStudentDashboardData = cache(async (userId: string) => {
     savedColleges: collegesRes.data || [],
     applications: appsRes.data || [],
     resume: resumeRes.data || null,
+    trackerItems: trackerRes.data || [],
     globalTasks: globalTasks || [],
     masterId
   };

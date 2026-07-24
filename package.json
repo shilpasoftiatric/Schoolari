@@ -12,6 +12,7 @@
     "@aws-sdk/client-s3": "^3.1085.0",
     "@aws-sdk/s3-request-presigner": "^3.1085.0",
     "@base-ui/react": "^1.6.0",
+    "@hello-pangea/dnd": "^18.0.1",
     "@radix-ui/react-accordion": "^1.2.17",
     "@stripe/stripe-js": "^9.9.0",
     "@supabase/ssr": "^0.12.0",

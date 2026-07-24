@@ -71,6 +71,10 @@ export interface Database {
           current_streak: number;
           longest_streak: number;
           last_login_date: string | null;
+          scholarship_task_index: number;
+          essay_task_index: number;
+          college_task_index: number;
+          job_task_index: number;
           created_at: string;
           updated_at: string;
         };
@@ -131,6 +135,49 @@ export interface Database {
           notes?: string;
         };
         Update: Partial<Database["public"]["Tables"]["applications"]["Row"]>;
+        Relationships: any[];
+      };
+      tracker_items: {
+        Row: {
+          id: string;
+          user_id: string;
+          reference_type: string;
+          reference_id: string | null;
+          title: string;
+          status: string;
+          due_date: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          reference_type: string;
+          reference_id?: string | null;
+          title: string;
+          status?: string;
+          due_date?: string | null;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["tracker_items"]["Row"]>;
+        Relationships: any[];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          message: string;
+          is_read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          title: string;
+          message: string;
+          is_read?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["notifications"]["Row"]>;
         Relationships: any[];
       };
       tasks: {

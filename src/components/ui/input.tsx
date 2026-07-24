@@ -204,7 +204,7 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
         placeholder="(555) 123-4567"
         {...props}
       />
-      {name && <input type="hidden" name={name} value={prevValueRef.current || ""} />}
+      {name && <input type="hidden" name={name} value={String(value || "")} />}
     </div>
   )
 }

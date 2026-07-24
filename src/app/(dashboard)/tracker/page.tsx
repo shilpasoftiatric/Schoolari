@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { TrackerDashboard } from "./TrackerDashboard";
 
 export const metadata = {
-  title: "Application Tracker ",
+  title: "Tracker",
 };
 
 export default async function TrackerPage() {
@@ -12,23 +12,17 @@ export default async function TrackerPage() {
 
   if (!user) redirect("/login");
 
-  // Fetch applications along with their scholarship details
+  // Fetch universal tracker items
   const { data: applications, error } = await supabase
-    .from("applications")
+    .from("tracker_items")
     .select(`
       id,
       status,
       notes,
-      scholarship_id,
-      scholarships (
-        id,
-        name,
-        award_amount,
-        deadline,
-        category,
-        organization_name,
-        link
-      )
+      reference_id,
+      reference_type,
+      title,
+      due_date
     `)
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
@@ -46,10 +40,10 @@ export default async function TrackerPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-2 mb-8">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-          Application Tracker
+          Tracker
         </h1>
         <p className="text-slate-500 text-lg max-w-2xl">
-          Manage your scholarship applications. Move them across the board as you progress.
+          Manage your tasks, scholarships, colleges, and essays. Move them across the board as you progress.
         </p>
       </div>
 

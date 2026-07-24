@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { EssayWorkspace } from "../[id]/EssayWorkspace";
+import { EssayInterviewWizard } from "./EssayInterviewWizard";
 
 export const metadata = {
-  title: "New Essay",
+  title: "New Essay | Schoolari",
 };
 
 export default async function NewEssayPage() {
@@ -14,7 +14,7 @@ export default async function NewEssayPage() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 h-full">
-      <EssayWorkspace initialEssay={null} />
+      <EssayInterviewWizard />
     </div>
   );
 }

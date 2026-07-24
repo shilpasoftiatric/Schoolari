@@ -1,69 +1,27 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { callAI } from '@/lib/ai';
-import { compileDashboard, calculateWorkflowStates, isDashboardStateEqual, getTodayDateString } from '@/services/task-engine';
-import { getStudentDashboardData } from '@/services/data-fetcher';
+import { NextResponse } from "next/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { callAI } from "@/lib/ai";
+import { isDashboardStateEqual, getTodayDateString } from "@/services/task-engine";
+import { getStudentDashboardData } from "@/services/data-fetcher";
+import { MASTER_TASKS } from "@/config/master-tasks";
 
 const SYSTEM_PROMPT = `You are the Schoolari AI, an expert scholarship and college admissions counselor.
-Your job is to take a student's profile and their actual database progress metadata, and generate a highly personalized action plan.
+Your job is to generate a highly personalized action plan based on the student profile.
+You DO NOT need to generate tasks or goals. You only generate the supplementary content.
 
-The action plan must be organized into three main content sections: Scholarships, Essays, and Colleges.
-Adhere strictly to the following rules for generating tasks:
-1. Do NOT repeat completed tasks.
-2. Under Today's Priority: show a maximum of 3 tasks per section.
-3. Under This Week's Goals: show a maximum of 5 goals per section.
-4. Tasks and goals must progress logically based on current database state:
-   - If transcript already uploaded (hasTranscript = true) -> Do NOT show "Upload Transcript". Show next task: "Attach transcript to scholarship applications".
-   - If essay draft finished (essaysCount > 0) -> Do NOT show "Finish Essay Outline". Show next task: "Review essay with AI".
-   - If student has saved scholarships (savedScholarshipsCount >= 5) -> Do NOT show "Find Scholarships". Show next task: "Apply to a saved scholarship".
-   - If student has saved colleges (savedCollegesCount > 0) -> Show next task: "Compare admission requirements".
+CRITICAL INSTRUCTION FOR COLLEGES:
+When suggesting colleges, you MUST base your suggestions on a holistic combination of the student's:
+1. Intended Major(s)
+2. Career Interests
+3. Extracurricular Activities
+4. Ethnicity (if they seek diversity or specialized programs)
+5. State of residence (as just one of many factors)
+Do NOT simply suggest state universities based solely on their state. Provide highly targeted suggestions that reflect their specific academic and personal background.
 
 Respond STRICTLY in the following JSON format, with no markdown formatting or extra text:
 {
-  "scholarships": {
-    "tasks": [
-      { "title": "...", "done": false }
-    ],
-    "deadlines": [
-      { "name": "...", "date": "14 Days", "urgent": false }
-    ],
-    "goals": [
-      "..."
-    ]
-  },
-  "essays": {
-    "tasks": [
-      { "title": "...", "done": false }
-    ],
-    "deadlines": [
-      { "name": "...", "date": "30 Days", "urgent": false }
-    ],
-    "goals": [
-      "..."
-    ]
-  },
-  "colleges": {
-    "tasks": [
-      { "title": "...", "done": false }
-    ],
-    "deadlines": [
-      { "name": "...", "date": "45 Days", "urgent": false }
-    ],
-    "goals": [
-      "..."
-    ]
-  },
-  "stats": [
-    { "label": "Scholarships Matched", "sub": "Total Matches", "value": "12", "color": "text-emerald-500", "bg": "bg-emerald-50" },
-    { "label": "Applied Scholarship Applications", "sub": "Submitted", "value": "0", "color": "text-blue-500", "bg": "bg-blue-50" },
-    { "label": "Essays Drafted", "sub": "Drafts", "value": "0", "color": "text-violet-500", "bg": "bg-violet-50" },
-    { "label": "Colleges Saved", "sub": "Shortlist", "value": "0", "color": "text-amber-500", "bg": "bg-amber-50" }
-  ],
-  "tracker": [
-    { "name": "...", "status": "Not Started", "deadline": "14 Days", "progress": 0, "urgent": false }
-  ],
   "income_ideas": [
-    { "title": "...", "description": "..." }
+    { "opportunity": "...", "difficulty": "Easy | Medium | Hard", "how_to_start": "..." }
   ],
   "suggested_colleges": [
     { "name": "...", "reason": "...", "match": "98%" }
@@ -76,78 +34,199 @@ Respond STRICTLY in the following JSON format, with no markdown formatting or ex
   ]
 }`;
 
-function getFallbackData(profile: any, progressStats: any) {
-  const career = profile.career_interests?.[0] || 'College';
-  const state = profile.state || 'National';
-
+function getFallbackData(profile: any) {
+  const career = profile.career_interests?.[0] || profile.career_interest?.[0] || "College Student";
+  const major = profile.intended_major?.[0] || "General Studies";
   return {
-    scholarships: {
-      tasks: progressStats.hasTranscript
-        ? [{ title: "Attach transcript to scholarship applications", done: false }]
-        : [{ title: "Upload your high school transcript to Vault", done: false }],
-      deadlines: [
-        { name: `${state} State Excellence Grant`, date: "14 Days", urgent: true }
-      ],
-      goals: [
-        "Apply for 2 new scholarships this week",
-        "Log in 5 days in a row"
-      ]
-    },
-    essays: {
-      tasks: progressStats.essaysCount > 0
-        ? [{ title: "Review essay draft with AI", done: false }]
-        : [{ title: "Finish your main essay outline", done: false }],
-      deadlines: [],
-      goals: [
-        "Write 500 words of your draft"
-      ]
-    },
-    colleges: {
-      tasks: progressStats.savedCollegesCount > 0
-        ? [{ title: "Compare admission requirements", done: false }]
-        : [{ title: "Add 3 colleges to your saved list", done: false }],
-      deadlines: [],
-      goals: [
-        "Research 2 universities program requirements"
-      ]
-    },
-    stats: [
-      { label: "Scholarships Matched", sub: "Total Matches", value: "12", color: "text-emerald-500", bg: "bg-emerald-50" },
-      { label: "Applied Scholarship Applications", sub: "Submitted", value: String(progressStats.appliedScholarshipsCount), color: "text-blue-500", bg: "bg-blue-50" },
-      { label: "Essays Drafted", sub: "Drafts", value: String(progressStats.essaysCount), color: "text-violet-500", bg: "bg-violet-50" },
-      { label: "Colleges Saved", sub: "Shortlist", value: String(progressStats.savedCollegesCount), color: "text-amber-500", bg: "bg-amber-50" }
-    ],
-    tracker: [
-      { name: `${state} State Excellence Grant`, status: "Not Started", deadline: "14 Days", progress: 0, urgent: true },
-      { name: `Future ${career} Leaders Award`, status: "Not Started", deadline: "30 Days", progress: 0, urgent: false },
-      { name: "First-Generation Scholarship", status: "Not Started", deadline: "45 Days", progress: 0, urgent: false }
-    ],
     income_ideas: [
-      { title: "Tutoring in your strong subjects", description: "Use your school GPA to tutor middle schoolers in math or science." },
-      { title: "Freelance gigs online", description: "Offer services on Fiverr or Upwork based on your career interests." }
+      { opportunity: "Subject Tutoring", difficulty: "Easy", how_to_start: `Tutor middle/high school students online or locally in ${major} or general academics.` },
+      { opportunity: "Freelance Academic Writing & Proofreading", difficulty: "Medium", how_to_start: "Offer essay review and formatting assistance on platforms like Upwork or Fiverr." }
     ],
     suggested_colleges: [
-      { name: `${state} State University`, reason: `Great program for ${career}`, match: "95%" },
-      { name: "National Tech Institute", reason: "Strong financial aid opportunities", match: "88%" }
+      { name: "University of California, Berkeley", reason: `Renowned research institution with top-tier programs for ${major}`, match: "96%" },
+      { name: "University of Michigan - Ann Arbor", reason: `Strong industry connections, academic excellence, and financial aid in ${career}`, match: "92%" },
+      { name: "Howard University", reason: "Outstanding academic reputation, vibrant campus culture, and generous merit aid opportunities", match: "90%" }
     ],
     essay_prompts: [
-      { topic: "Overcoming a challenge", advice: "Focus on a time you showed resilience and leadership." },
-      { topic: `Why ${career}?`, advice: "Be specific about what inspired you to pursue this field." }
+      { topic: "Overcoming a significant challenge", advice: "Focus on a specific obstacle, your strategic response, and the personal growth you gained." },
+      { topic: `Why pursue a path in ${career}?`, advice: "Connect your personal experiences directly to your long-term educational and career goals." }
     ],
     resume_tips: [
-      "Use action verbs to describe your extracurriculars.",
-      "Quantify your achievements (e.g., 'raised $500' instead of 'raised money')."
+      "Use strong action verbs (e.g., Directed, Coordinated, Initiated) to start every bullet point.",
+      "Quantify your accomplishments (e.g., 'managed a team of 5', 'raised $1,200 for local shelter').",
+      "Highlight leadership roles, academic honors, dual enrollment credits, and community involvement."
     ]
   };
+}
+
+async function ensureActiveTasks(category: "SCHOLARSHIPS" | "ESSAYS" | "COLLEGES", profile: any, globalTasks: any[], supabaseAdmin: any, masterId: string) {
+  const categoryKey = category.toLowerCase();
+  const dbCategory = categoryKey;
+  
+  // Find all tasks for this category
+  const allCategoryTasks = globalTasks.filter((t: any) => t.description === dbCategory);
+  
+  // Existing active (pending) tasks
+  const pendingTasks = allCategoryTasks.filter((t: any) => t.status === "pending");
+  
+  // Deduplicate pending tasks by title (if duplicates exist in DB, clean up extra ones)
+  const uniqueActiveTasks: any[] = [];
+  const duplicateIdsToDelete: string[] = [];
+  const seenActiveTitles = new Set<string>();
+
+  for (const task of pendingTasks) {
+    if (seenActiveTitles.has(task.title)) {
+      if (task.id && !String(task.id).startsWith("temp-")) {
+        duplicateIdsToDelete.push(task.id);
+      }
+    } else {
+      seenActiveTitles.add(task.title);
+      uniqueActiveTasks.push(task);
+    }
+  }
+
+  // Delete duplicate pending tasks from DB in background if any exist
+  if (duplicateIdsToDelete.length > 0) {
+    await supabaseAdmin.from("tasks").delete().in("id", duplicateIdsToDelete);
+  }
+
+  let activeTasks = uniqueActiveTasks;
+  const targetActive = 3;
+  let newTasksToInsert = [];
+  const indexCol = categoryKey === "scholarships" ? "scholarship_task_index" : categoryKey === "essays" ? "essay_task_index" : categoryKey === "colleges" ? "college_task_index" : `${categoryKey}_task_index`;
+  let currentIndex = profile[indexCol] || 0;
+  const masterList = MASTER_TASKS[category] || [];
+
+  // Collect all titles that have ALREADY been used/active in this category
+  const usedTitles = new Set(allCategoryTasks.map((t: any) => t.title));
+
+  while (activeTasks.length < targetActive && currentIndex < masterList.length) {
+    const candidateTitle = masterList[currentIndex];
+    
+    if (!usedTitles.has(candidateTitle)) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 7);
+      
+      const newTask = {
+        user_id: masterId,
+        title: candidateTitle,
+        description: dbCategory,
+        status: "pending",
+        type: "custom",
+        due_date: dueDate.toISOString()
+      };
+      
+      newTasksToInsert.push(newTask);
+      activeTasks.push({ ...newTask, id: "temp-" + activeTasks.length });
+      usedTitles.add(candidateTitle);
+    }
+    
+    currentIndex++;
+  }
+
+  // Fallback: If still need tasks, pick any unused task from masterList
+  if (activeTasks.length < targetActive && masterList.length > 0) {
+    for (let i = 0; activeTasks.length < targetActive && i < masterList.length; i++) {
+      const candidateTitle = masterList[i];
+      if (!activeTasks.some((t: any) => t.title === candidateTitle)) {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+        const newTask = {
+          user_id: masterId,
+          title: candidateTitle,
+          description: dbCategory,
+          status: "pending",
+          type: "custom",
+          due_date: dueDate.toISOString()
+        };
+        newTasksToInsert.push(newTask);
+        activeTasks.push({ ...newTask, id: "temp-" + activeTasks.length });
+      }
+    }
+  }
+
+  if (newTasksToInsert.length > 0) {
+    const { data } = await supabaseAdmin.from("tasks").insert(newTasksToInsert).select();
+    if (data) {
+      const nonTempActive = activeTasks.filter((t: any) => !String(t.id).startsWith("temp-"));
+      activeTasks = nonTempActive.concat(data);
+    }
+    await supabaseAdmin.from("profiles").update({
+      [indexCol]: currentIndex
+    }).eq("id", masterId);
+  }
+
+  return activeTasks;
+}
+
+async function syncNotifications(userId: string, tasks: any[], trackerItems: any[], supabaseAdmin: any) {
+  try {
+    const now = new Date();
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(now.getDate() + 3);
+
+    const upcoming = [];
+
+    // Scan tasks
+    for (const t of tasks) {
+      if (t.status !== "completed" && t.status !== "skipped" && t.due_date) {
+        const dd = new Date(t.due_date);
+        if (dd >= now && dd <= threeDaysFromNow) {
+          upcoming.push({ title: `Task Due Soon: ${t.title}`, message: `This task is due on ${dd.toLocaleDateString()}.`, type: 'task', ref: t.id });
+        } else if (dd < now) {
+          upcoming.push({ title: `Overdue Task: ${t.title}`, message: `This task was due on ${dd.toLocaleDateString()}.`, type: 'task', ref: t.id });
+        }
+      }
+    }
+
+    // Scan tracker
+    for (const t of trackerItems) {
+      if (t.status !== "Won" && t.status !== "Lost" && t.status !== "completed" && t.due_date) {
+        const dd = new Date(t.due_date);
+        if (dd >= now && dd <= threeDaysFromNow) {
+          upcoming.push({ title: `Deadline Approaching: ${t.title}`, message: `This item is due on ${dd.toLocaleDateString()}.`, type: 'tracker', ref: t.id });
+        } else if (dd < now) {
+          upcoming.push({ title: `Overdue Deadline: ${t.title}`, message: `This item was due on ${dd.toLocaleDateString()}.`, type: 'tracker', ref: t.id });
+        }
+      }
+    }
+
+    if (upcoming.length === 0) return;
+
+    // Fetch recent notifications to prevent duplicates
+    const { data: recentNotifs } = await supabaseAdmin
+      .from("notifications")
+      .select("title")
+      .eq("user_id", userId)
+      .gte("created_at", new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString()); // Last 3 days
+
+    const existingTitles = new Set(recentNotifs?.map((n: any) => n.title) || []);
+
+    const toInsert = upcoming
+      .filter(u => !existingTitles.has(u.title))
+      .map(u => ({
+        user_id: userId,
+        title: u.title,
+        message: u.message,
+        is_read: false
+      }));
+
+    if (toInsert.length > 0) {
+      await supabaseAdmin.from("notifications").insert(toInsert);
+    }
+  } catch (err) {
+    console.error("Failed to sync notifications:", err);
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
+    const supabaseAdmin = await createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     let force = false;
@@ -156,60 +235,68 @@ export async function POST(req: Request) {
       force = body.force;
     } catch (e) { }
 
-    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId, globalTasks: completedActionItems } = await getStudentDashboardData(user.id);
+    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId, globalTasks, trackerItems } = await getStudentDashboardData(user.id);
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
     const progressStats = {
-      hasTranscript: docs.some(d => d.type === "transcript"),
-      hasRecommendationLetter: docs.some(d => d.type === "recommendation_letter"),
-      hasResume: docs.some(d => d.type === "resume"),
+      hasTranscript: docs.some((d: any) => d.type === "transcript"),
+      hasRecommendationLetter: docs.some((d: any) => d.type === "recommendation_letter"),
+      hasResume: docs.some((d: any) => d.type === "resume"),
       documentsCount: docs.length,
       essaysCount: essays.length,
-      completedEssaysCount: essays.filter(e => e.status === "completed").length,
+      completedEssaysCount: essays.filter((e: any) => e.status === "completed").length,
       savedCollegesCount: savedColleges.length,
-      appliedScholarshipsCount: apps.filter(a => a.status === "Submitted").length,
+      appliedScholarshipsCount: apps.filter((a: any) => a.status === "Submitted").length,
       savedScholarshipsCount: apps.length
     };
 
-    // Calculate database-driven semantic states
-    const states = calculateWorkflowStates({
-      documents: docs,
-      essays,
-      savedColleges,
-      applications: apps,
-      resume,
-      profile
-    });
-
     const currentState = {
-      ...states,
+      ...progressStats,
       firstName: profile.student_first_name || "",
-      completedActionItemsCount: completedActionItems?.length || 0,
       lastGeneratedDate: getTodayDateString()
     };
 
     const cachedData = profile.ai_dashboard_data;
     const cachedState = cachedData?._state;
+    const isStateEqual = isDashboardStateEqual(currentState as any, cachedState);
 
-    const isStateEqual = isDashboardStateEqual(currentState, cachedState);
+    // 1. Maintain tasks (ensures DB is populated)
+    const scholarshipTasks = await ensureActiveTasks("SCHOLARSHIPS", profile, globalTasks, supabaseAdmin, masterId);
+    const essayTasks = await ensureActiveTasks("ESSAYS", profile, globalTasks, supabaseAdmin, masterId);
+    const collegeTasks = await ensureActiveTasks("COLLEGES", profile, globalTasks, supabaseAdmin, masterId);
+
+    // Sync notifications for deadlines
+    await syncNotifications(masterId, [...scholarshipTasks, ...essayTasks, ...collegeTasks], trackerItems, supabaseAdmin);
 
     if (!force && cachedData && isStateEqual) {
+      // Re-inject the latest tasks and tracker deadlines from DB even if we cache AI
+      cachedData.scholarships = {
+        tasks: scholarshipTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
+        deadlines: trackerItems.filter((t: any) => t.reference_type === "scholarship").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+      };
+      cachedData.essays = {
+        tasks: essayTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
+        deadlines: trackerItems.filter((t: any) => t.reference_type === "essay").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+      };
+      cachedData.colleges = {
+        tasks: collegeTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
+        deadlines: trackerItems.filter((t: any) => t.reference_type === "college").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+      };
+      cachedData.tracker = trackerItems.map((t: any) => ({
+        id: t.id,
+        name: t.title,
+        status: t.status,
+        category: t.reference_type || "scholarship",
+        deadline: new Date(t.due_date).toLocaleDateString(),
+        progress: 0,
+        urgent: false
+      }));
+      
       return NextResponse.json(cachedData);
     }
-
-    // Compile dynamic priority checklist locally
-    const localDashboard = compileDashboard({
-      documents: docs,
-      essays,
-      savedColleges,
-      applications: apps,
-      resume,
-      profile,
-      completedActionItems
-    });
 
     let generatedJson = null;
 
@@ -219,97 +306,84 @@ export async function POST(req: Request) {
 Today's Date: ${today}
 
 Student Profile Summary:
-- Name: ${profile.student_first_name || 'Student'}
-- State: ${profile.state || 'Not specified'}
-- Grade Level: ${profile.grade_level || 'Not specified'}
-- GPA: ${profile.gpa_range || profile.unweighted_gpa || 'Not specified'}
-- Intended Major(s): ${(profile.intended_major || []).join(', ') || 'Not specified'}
-- Career Interests: ${(profile.career_interest || []).join(', ') || 'Not specified'}
-- Extracurriculars: ${(profile.extracurricular_activities || []).join(', ') || 'Not specified'}
-- Ethnicity: ${(profile.ethnicity || []).join(', ') || 'Not specified'}
-- Schoolari Goals: ${(profile.schoolari_goals || []).join(', ') || 'Not specified'}
+- Name: ${profile.student_first_name || "Student"}
+- State: ${profile.state || "Not specified"}
+- Grade Level: ${profile.grade_level || "Not specified"}
+- GPA: ${profile.gpa_range || profile.unweighted_gpa || "Not specified"}
+- Intended Major(s): ${(profile.intended_major || []).join(", ") || "Not specified"}
+- Career Interests: ${(profile.career_interest || []).join(", ") || "Not specified"}
+- Extracurriculars: ${(profile.extracurricular_activities || []).join(", ") || "Not specified"}
+- Ethnicity: ${(profile.ethnicity || []).join(", ") || "Not specified"}
+- Schoolari Goals: ${(profile.schoolari_goals || []).join(", ") || "Not specified"}
 
-Current Platform Progress:
-- hasTranscript: ${progressStats.hasTranscript}
-- hasRecommendationLetter: ${progressStats.hasRecommendationLetter}
-- hasResume: ${progressStats.hasResume}
-- documentsCount: ${progressStats.documentsCount}
-- essaysCount: ${progressStats.essaysCount}
-- completedEssaysCount: ${progressStats.completedEssaysCount}
-- savedCollegesCount: ${progressStats.savedCollegesCount}
-- appliedScholarshipsCount: ${progressStats.appliedScholarshipsCount}
-- savedScholarshipsCount: ${progressStats.savedScholarshipsCount}
+IMPORTANT: Generate only the exact JSON requested.`;
 
-IMPORTANT: Use the student's name, state, major, career interests, and today's date to write tasks and goals that are specific and personal to THIS student. Vary the wording from generic advice — mention their actual state, major, or career field by name where appropriate.
-      `;
-
-      // Try OpenAI first since it is working well
       const responseText = await callAI({
         systemPrompt: SYSTEM_PROMPT,
         userPrompt: userPrompt,
-        provider: 'openai',
+        provider: "openai",
         jsonMode: true
       });
 
       generatedJson = JSON.parse(responseText);
     } catch (err: any) {
-      console.error('Error fetching from AI:', err.message);
+      console.error("Error fetching from AI:", err.message);
     }
 
-    // If AI failed, use personalized fallback data (still uses profile fields, not generic)
+    const fallbackData = getFallbackData(profile);
     if (!generatedJson) {
-      console.log('Falling back to local generated data due to AI error.');
-      generatedJson = getFallbackData(profile, progressStats);
+      generatedJson = fallbackData;
+    } else {
+      generatedJson.income_ideas = generatedJson.income_ideas?.length ? generatedJson.income_ideas : fallbackData.income_ideas;
+      generatedJson.suggested_colleges = generatedJson.suggested_colleges?.length ? generatedJson.suggested_colleges : fallbackData.suggested_colleges;
+      generatedJson.essay_prompts = generatedJson.essay_prompts?.length ? generatedJson.essay_prompts : fallbackData.essay_prompts;
+      generatedJson.resume_tips = generatedJson.resume_tips?.length ? generatedJson.resume_tips : fallbackData.resume_tips;
     }
 
-    // Surgical merge: AI wins for tasks and goals (personalized content).
-    // The local engine ONLY contributes real DB-driven deadline data and the _state fingerprint.
-    // This prevents hardcoded strings from overwriting what AI generated.
+    // Merge database state and AI state
     generatedJson = {
       ...generatedJson,
+      stats: [
+        { label: "Scholarships Matched", sub: "Total Matches", value: "12", color: "text-emerald-500", bg: "bg-emerald-50" },
+        { label: "Applied Scholarship Applications", sub: "Submitted", value: String(progressStats.appliedScholarshipsCount), color: "text-blue-500", bg: "bg-blue-50" },
+        { label: "Essays Drafted", sub: "Drafts", value: String(progressStats.essaysCount), color: "text-violet-500", bg: "bg-violet-50" },
+        { label: "Colleges Saved", sub: "Shortlist", value: String(progressStats.savedCollegesCount), color: "text-amber-500", bg: "bg-amber-50" }
+      ],
       scholarships: {
-        ...generatedJson.scholarships,
-        deadlines: localDashboard.scholarships.deadlines   // real deadline data from DB
+        tasks: scholarshipTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
+        deadlines: trackerItems.filter((t: any) => t.reference_type === "scholarship").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
       },
       essays: {
-        ...generatedJson.essays,
-        deadlines: localDashboard.essays.deadlines
+        tasks: essayTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
+        deadlines: trackerItems.filter((t: any) => t.reference_type === "essay").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
       },
       colleges: {
-        ...generatedJson.colleges,
-        deadlines: localDashboard.colleges.deadlines
+        tasks: collegeTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
+        deadlines: trackerItems.filter((t: any) => t.reference_type === "college").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
       },
+      tracker: trackerItems.map((t: any) => ({
+        id: t.id,
+        name: t.title,
+        status: t.status,
+        category: t.reference_type || "scholarship",
+        deadline: new Date(t.due_date).toLocaleDateString(),
+        progress: 0,
+        urgent: false
+      })),
       _state: {
-        ...localDashboard._state,
-        lastGeneratedDate: getTodayDateString()           // stamp today's date for daily rotation
+        ...currentState
       }
     };
 
-    // Update stats count in fallback or generated json using database values
-    if (generatedJson && generatedJson.stats) {
-      const statsMap: Record<string, string> = {
-        "Applied Scholarship Applications": String(progressStats.appliedScholarshipsCount),
-        "Essays Drafted": String(progressStats.essaysCount),
-        "Colleges Saved": String(progressStats.savedCollegesCount),
-      };
-
-      generatedJson.stats = generatedJson.stats.map((s: any) => {
-        if (statsMap[s.label] !== undefined) {
-          return { ...s, value: statsMap[s.label] };
-        }
-        return s;
-      });
-    }
-
     // Save to database
-    await supabase
-      .from('profiles')
+    await supabaseAdmin
+      .from("profiles")
       .update({ ai_dashboard_data: generatedJson })
-      .eq('id', masterId);
+      .eq("id", masterId);
 
     return NextResponse.json(generatedJson);
   } catch (error: any) {
-    console.error('Error generating AI dashboard:', error);
+    console.error("Error generating AI dashboard:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

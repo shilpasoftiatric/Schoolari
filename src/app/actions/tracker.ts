@@ -11,7 +11,7 @@ export async function updateApplicationStatus(applicationId: string, status: App
   if (!user) throw new Error("Unauthorized");
 
   const { error } = await supabase
-    .from("applications")
+    .from("tracker_items")
     .update({ status: status, updated_at: new Date().toISOString() })
     .eq("id", applicationId)
     .eq("user_id", user.id);
@@ -33,7 +33,7 @@ export async function deleteApplication(applicationId: string) {
   if (!user) throw new Error("Unauthorized");
 
   const { error } = await supabase
-    .from("applications")
+    .from("tracker_items")
     .delete()
     .eq("id", applicationId)
     .eq("user_id", user.id);
