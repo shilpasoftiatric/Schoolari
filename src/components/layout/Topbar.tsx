@@ -30,7 +30,7 @@ export default async function Topbar() {
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between h-16 px-4 sm:px-6 bg-white border-b border-border shrink-0">
+    <header className="sticky top-0 z-20 flex items-center justify-between h-16 px-4 sm:px-6 bg-white border-b border-border shrink-0 print:hidden">
 
       <div className="flex items-center gap-4">
         {/* Mobile Navigation Toggle */}

@@ -147,3 +147,106 @@
 nextjs-portal {
   display: none !important;
 }
+
+/* ==========================================================================
+   US STUDENT RESUME BUILDER — ENTERPRISE PRINT & PDF FORMATTING
+   ========================================================================== */
+@media print {
+  /* 1. Standard US Letter (8.5 x 11 inches) Portrait with 0 page margin.
+        Setting margin to 0 automatically prevents Chrome, Edge, and Safari from
+        printing default browser headers & footers (URL, Date, Page title/numbers). */
+  @page {
+    size: letter portrait;
+    margin: 0mm;
+  }
+
+  /* 2. Hide ALL website UI, navigation bars, topbars, sidebars, modals, and toolbars */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* 3. Make ONLY the printable resume sheet and its children visible */
+  #print-resume-area,
+  #print-resume-area * {
+    visibility: visible !important;
+  }
+
+  /* 4. Reset layout wrappers so browsers NEVER render vertical scrollbar tracks */
+  html,
+  body,
+  div,
+  main,
+  section,
+  .fixed,
+  .overflow-hidden,
+  .overflow-y-auto,
+  .overflow-x-hidden {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    position: static !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+
+  /* 5. Position the resume area at top-left (0,0) with standard US Letter 0.5in-0.6in margins */
+  #print-resume-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0.5in 0.6in !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 6. Prevent awkward page breaks inside headers, sections, or bullet items */
+  #print-resume-area header,
+  #print-resume-area section,
+  #print-resume-area h1,
+  #print-resume-area h2,
+  #print-resume-area h3,
+  #print-resume-area li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 7. Strip shadows and extra styling in print */
+  #print-resume-area * {
+    text-shadow: none !important;
+  }
+}
+
+/* SweetAlert2 Customizations */
+div:where(.swal2-container) div:where(.swal2-popup) {
+  width: 420px !important;
+  max-width: 90vw !important;
+  padding: 1.5rem !important;
+  border-radius: 1.25rem !important;
+}
+
+div:where(.swal2-container) h2:where(.swal2-title) {
+  font-size: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+div:where(.swal2-container) div:where(.swal2-html-container) {
+  font-size: 0.95rem !important;
+  margin: 0 0 1.5rem !important;
+}
+
+div:where(.swal2-container) button:where(.swal2-styled) {
+  padding: 0.625rem 1.5rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  border-radius: 0.75rem !important;
+}

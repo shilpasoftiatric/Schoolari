@@ -87,11 +87,11 @@ function PricingContent() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert(data.error || "Failed to create checkout session");
+        Swal.fire({ title: "Checkout Error", text: data.error || "Failed to create checkout session", icon: "error", confirmButtonColor: "#4f46e5" });
       }
     } catch (error) {
       console.error(error);
-      alert("Something went wrong");
+      Swal.fire({ title: "Error", text: "Something went wrong", icon: "error", confirmButtonColor: "#4f46e5" });
     } finally {
       setLoadingPriceId(null);
     }

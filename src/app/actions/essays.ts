@@ -33,7 +33,7 @@ export async function createEssay(title: string, topic: string, content: string 
   return { id: data.id };
 }
 
-export async function updateEssay(id: string, updates: { title?: string; topic?: string; content?: string; status?: string }) {
+export async function updateEssay(id: string, updates: { title?: string; topic?: string; content?: string; status?: "completed" | "in_progress" | "draft" }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

@@ -12,6 +12,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { PhoneInput } from "@/components/ui/input";
+import Swal from "sweetalert2";
 
 function UserActions({
   user,
@@ -200,7 +201,12 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
           window.location.href = "/login";
         }
       } catch (err: any) {
-        alert(err.message || "Failed to update role");
+        Swal.fire({
+          title: "Error",
+          text: err.message || "Failed to update role",
+          icon: "error",
+          confirmButtonColor: "#4f46e5"
+        });
       }
     });
   };

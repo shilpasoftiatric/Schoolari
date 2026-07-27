@@ -6,7 +6,27 @@ export const getStudentDashboardData = cache(async (userId: string) => {
   const supabaseAdmin = await createAdminClient();
 
   // 1. Fetch current user's profile
-  const { data: userProfile } = await supabaseAdmin.from("profiles").select("*").eq("id", userId).single();
+  let { data: userProfile } = await supabaseAdmin.from("profiles").select("*").eq("id", userId).maybeSingle();
+
+  // Self-healing: if auth user exists but profile row is missing, create a default profile automatically
+  if (!userProfile) {
+    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (user) {
+      const email = user.email || "";
+      const defaultProfile = {
+        id: userId,
+        email: email,
+        student_first_name: user.user_metadata?.first_name || email.split("@")[0] || "Student",
+        student_last_name: user.user_metadata?.last_name || "",
+        grade_level: "11th Grade (Junior)",
+        account_type: (user.user_metadata?.account_type as "student" | "parent") || "student",
+        subscription_status: "active"
+      };
+      const { data: createdProfile } = await supabaseAdmin.from("profiles").insert(defaultProfile).select("*").maybeSingle();
+      userProfile = createdProfile || defaultProfile;
+    }
+  }
+
   if (!userProfile) {
     throw new Error("Profile not found");
   }
@@ -66,7 +86,7 @@ export const getStudentDashboardData = cache(async (userId: string) => {
   }
 
   const [docsRes, essaysRes, collegesRes, appsRes, resumeRes, trackerRes] = await Promise.all([
-    supabaseAdmin.from("documents").select("type, name").eq("user_id", masterId), 
+    supabaseAdmin.from("documents").select("type, name").eq("user_id", masterId),
     supabaseAdmin.from("essays").select("status").eq("user_id", masterId),
     supabaseAdmin.from("saved_colleges").select("status, college_name, deadline").eq("user_id", masterId),
     supabaseAdmin.from("applications").select("status, scholarships(deadline, name)").eq("user_id", masterId),

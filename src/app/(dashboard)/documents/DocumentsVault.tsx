@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { UploadCloud, FileText, FileBadge, File, FileImage, Trash2, Download, Loader2, Link2 } from "lucide-react";
+import { UploadCloud, FileText, FileBadge, File, FileImage, Trash2, Download, Loader2, Link2, Edit } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const DOCUMENT_TYPES = [
   { value: "transcript", label: "Transcript" },
@@ -53,7 +54,8 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
       }
 
       if (errJson.document) {
-        setLocalDocuments(prev => [errJson.document, ...prev]);
+        const newDoc = { ...errJson.document, source: "upload", is_virtual: false };
+        setLocalDocuments(prev => [newDoc, ...prev]);
       }
 
       router.refresh();
@@ -73,7 +75,8 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
     }
   };
 
-  const handleDelete = (id: string, fileUrl: string) => {
+  const handleDelete = (id: string, fileUrl: string, isVirtual: boolean) => {
+    if (isVirtual) return; // Virtual documents are managed in their respective builders
     if (!confirm("Are you sure you want to permanently delete this document?")) return;
     
     // Optimistic UI update
@@ -108,6 +111,7 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
       case "transcript":
       case "report_card":
       case "resume":
+      case "essay":
         return <FileText className="w-8 h-8 text-blue-500" />;
       default:
         return <File className="w-8 h-8 text-slate-400" />;
@@ -122,8 +126,69 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Group documents
+  const resumes = localDocuments.filter(d => d.type === "resume");
+  const essays = localDocuments.filter(d => d.type === "essay");
+  const others = localDocuments.filter(d => d.type !== "resume" && d.type !== "essay");
+
+  const DocumentCard = ({ doc }: { doc: any }) => (
+    <div key={doc.id} className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 flex flex-col h-full relative overflow-hidden">
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-14 h-14 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
+          {getFileIcon(doc.type)}
+        </div>
+        <div className="flex gap-2">
+          {doc.is_virtual ? (
+            <Link 
+              href={doc.file_url}
+              className="px-3 h-8 rounded-lg flex items-center justify-center border border-violet-200 text-violet-600 hover:bg-violet-600 hover:text-white transition-colors text-xs font-bold shadow-sm"
+            >
+              <Edit className="w-3.5 h-3.5 mr-1.5" /> Edit / View
+            </Link>
+          ) : (
+            <>
+              <a 
+                href={doc.file_url} 
+                target="_blank" 
+                rel="noreferrer"
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+              <button 
+                onClick={() => handleDelete(doc.id, doc.file_url, doc.is_virtual)}
+                disabled={isPending}
+                className="w-8 h-8 rounded-lg flex items-center justify-center border border-red-100 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-200 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      
+      <div className="mt-auto">
+        <h4 className="font-bold text-slate-900 line-clamp-1 mb-1" title={doc.name}>
+          {doc.name}
+        </h4>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-md">
+            {doc.type.replace('_', ' ')}
+          </span>
+          <span className="text-xs text-slate-400 font-medium">
+            {doc.is_virtual ? (
+              <span className="text-violet-500 font-bold">{doc.source === "resume_builder" ? "Resume Builder" : "Essay Builder"}</span>
+            ) : (
+              formatBytes(doc.size_bytes)
+            )}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-12">
       {/* Upload Zone */}
       <div 
         className={`relative border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center transition-all ${
@@ -176,55 +241,46 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
         </Button>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {localDocuments.length === 0 ? (
-          <div className="col-span-full py-12 text-center border border-slate-100 rounded-3xl bg-white shadow-sm">
-            <p className="text-slate-500">Your vault is empty. Upload your first document above.</p>
+      {/* Resumes Section */}
+      {(resumes.length > 0) && (
+        <div className="space-y-4">
+          <h2 className="text-2xl font-extrabold text-slate-900 border-b border-slate-200 pb-2">Resumes</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {resumes.map(doc => <DocumentCard key={doc.id} doc={doc} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Essays Section */}
+      {(essays.length > 0) && (
+        <div className="space-y-4">
+          <h2 className="text-2xl font-extrabold text-slate-900 border-b border-slate-200 pb-2">Essays</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {essays.map(doc => <DocumentCard key={doc.id} doc={doc} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Other Documents Section */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-extrabold text-slate-900 border-b border-slate-200 pb-2">Other Documents</h2>
+        {others.length === 0 ? (
+          <div className="py-12 text-center border border-slate-100 rounded-3xl bg-white shadow-sm">
+            <p className="text-slate-500">No other documents uploaded yet.</p>
           </div>
         ) : (
-          localDocuments.map((doc) => (
-            <div key={doc.id} className="group bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 flex flex-col h-full relative overflow-hidden">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-14 h-14 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100">
-                  {getFileIcon(doc.type)}
-                </div>
-                <div className="flex gap-2">
-                  <a 
-                    href={doc.file_url} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition-colors"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                  <button 
-                    onClick={() => handleDelete(doc.id, doc.file_url)}
-                    disabled={isPending}
-                    className="w-8 h-8 rounded-lg flex items-center justify-center border border-red-100 text-red-500 bg-red-50 hover:bg-red-100 hover:border-red-200 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="mt-auto">
-                <h4 className="font-bold text-slate-900 line-clamp-1 mb-1" title={doc.name}>
-                  {doc.name}
-                </h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-md">
-                    {doc.type.replace('_', ' ')}
-                  </span>
-                  <span className="text-xs text-slate-400 font-medium">
-                    {formatBytes(doc.size_bytes)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {others.map(doc => <DocumentCard key={doc.id} doc={doc} />)}
+          </div>
         )}
       </div>
+      
+      {/* Empty State when completely empty */}
+      {localDocuments.length === 0 && resumes.length === 0 && essays.length === 0 && (
+        <div className="col-span-full py-12 text-center border border-slate-100 rounded-3xl bg-white shadow-sm">
+          <p className="text-slate-500">Your vault is entirely empty. Upload your first document or start building your resume/essays.</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,20 +13,63 @@ export default async function DocumentsPage() {
 
   if (!user) redirect("/login");
 
-  // Fetch user's documents, ordered by newest first
-  const { data: documents, error } = await supabase
-    .from("documents")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  // Fetch all documents in parallel
+  const [docsRes, resumesRes, essaysRes] = await Promise.all([
+    supabase.from("documents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+    supabase.from("resumes").select("*").eq("user_id", user.id),
+    supabase.from("essays").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
+  ]);
 
-  if (error) {
+  if (docsRes.error) {
     return (
       <div className="p-8 text-red-500 bg-red-50 rounded-xl">
-        Failed to load documents: {error.message}
+        Failed to load documents: {docsRes.error.message}
       </div>
     );
   }
+
+  // Map physical uploads
+  const physicalDocs = (docsRes.data || []).map(doc => ({
+    ...doc,
+    source: "upload",
+    is_virtual: false
+  }));
+
+  // Map virtual resumes
+  const virtualResumes: any[] = [];
+  if (resumesRes.data && resumesRes.data.length > 0) {
+    const r = resumesRes.data[0];
+    if (r.content && r.content.resumes && Array.isArray(r.content.resumes)) {
+      r.content.resumes.forEach((resume: any) => {
+        virtualResumes.push({
+          id: resume.id,
+          name: resume.title || "Resume",
+          type: "resume",
+          file_url: "/resume", // Link to builder
+          size_bytes: 0,
+          created_at: resume.last_modified || r.updated_at || r.created_at,
+          source: "resume_builder",
+          is_virtual: true
+        });
+      });
+    }
+  }
+
+  // Map virtual essays
+  const virtualEssays = (essaysRes.data || []).map(essay => ({
+    id: essay.id,
+    name: essay.title || "Untitled Essay",
+    type: "essay",
+    file_url: `/essays/${essay.id}`, // Link to builder
+    size_bytes: 0,
+    created_at: essay.updated_at || essay.created_at,
+    source: "essay_builder",
+    is_virtual: true
+  }));
+
+  const allDocuments = [...physicalDocs, ...virtualResumes, ...virtualEssays].sort((a, b) => {
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">
@@ -42,7 +85,7 @@ export default async function DocumentsPage() {
         </p>
       </div>
 
-      <DocumentsVault initialDocuments={documents || []} userId={user.id} />
+      <DocumentsVault initialDocuments={allDocuments} userId={user.id} />
     </div>
   );
 }

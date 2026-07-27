@@ -41,7 +41,7 @@ const NAV_GROUPS = [
     items: [
       { label: "Documents", icon: FolderOpen, href: "/documents", disabled: false },
       { label: "Essays", icon: FileEdit, href: "/essays", disabled: false },
-      { label: "Resume Builder", icon: FileText, href: "/resume", disabled: true },
+      { label: "Resume Builder", icon: FileText, href: "/resume", disabled: false },
     ],
   },
   {
@@ -91,7 +91,7 @@ export default function Sidebar({ siteName = "Schoolari", progressData }: Sideba
   }, [pathname]);
 
   return (
-    <div className={cn("flex flex-col h-full border-r border-slate-200 bg-slate-150 shrink-0 transition-all duration-300 ease-in-out relative", isSidebarCollapsed ? "w-20" : "w-64")}>
+    <div className={cn("flex flex-col h-full border-r border-slate-200 bg-slate-150 shrink-0 transition-all duration-300 ease-in-out relative print:hidden", isSidebarCollapsed ? "w-20" : "w-64")}>
       {/* Header / Logo Area */}
       <div className={cn("flex items-center border-b border-slate-200 hover:bg-slate-50 transition-colors h-[76px]", isSidebarCollapsed ? "justify-center gap-1.5" : "justify-between pl-5 pr-2")}>
         <Link href="/dashboard" className="flex items-center gap-2.5">
