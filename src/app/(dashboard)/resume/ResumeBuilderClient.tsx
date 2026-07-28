@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
+import { toast } from "sonner";
 import {
   ResumeDocument,
   UserResumesPayload,
@@ -111,22 +112,35 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
     });
   };
 
+  const formatResumeTitle = (r: ResumeDocument) => {
+    const firstName = r.header?.first_name || "Student";
+    const lastName = r.header?.last_name || "";
+    const typeText = r.resume_type === "academic" ? "Academic" : r.resume_type === "professional" ? "Professional" : "Resume";
+    return lastName ? `${firstName} ${lastName} - ${typeText} Resume` : `${firstName} - ${typeText} Resume`;
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setSaveSuccess(false);
+
+    let payloadToSave = payload;
+    const currentResumeIndex = payload.resumes.findIndex(r => r.id === activeId);
+    if (currentResumeIndex !== -1) {
+      const updatedResumes = [...payload.resumes];
+      updatedResumes[currentResumeIndex] = {
+        ...updatedResumes[currentResumeIndex],
+        title: formatResumeTitle(updatedResumes[currentResumeIndex])
+      };
+      payloadToSave = { ...payload, resumes: updatedResumes };
+      setPayload(payloadToSave);
+    }
+
     try {
-      await saveResumesAction(payload);
+      await saveResumesAction(payloadToSave);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 3000,
-        icon: "error",
-        title: err.message || "Error saving resume"
-      });
+      toast.error(err.message || "Error saving resume");
     } finally {
       setIsSaving(false);
     }
@@ -184,24 +198,10 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
             : "Academic & Professional Resume";
       generated.resume_type = typeToUse;
       updateActiveResume(generated);
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 3000,
-        icon: "success",
-        title: "✨ Success! Your resume has been prefilled from your profile."
-      });
+      toast.success("✨ Success! Your resume has been prefilled from your profile.");
       setTypeModalOpen(false);
     } catch (err: any) {
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 3000,
-        icon: "error",
-        title: err.message || "AI Prefill error"
-      });
+      toast.error(err.message || "AI Prefill error");
     } finally {
       setIsPrefilling(false);
     }
@@ -215,14 +215,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
       setAtsResult(result);
       setAtsModalOpen(false);
     } catch (err: any) {
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 3000,
-        icon: "error",
-        title: err.message || "ATS check error"
-      });
+      toast.error(err.message || "ATS check error");
     } finally {
       setAtsLoading(false);
     }
@@ -230,27 +223,26 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
 
   const handleSaveToVault = async () => {
     setIsSavingVault(true);
+
+    let payloadToSave = payload;
+    const currentResumeIndex = payload.resumes.findIndex(r => r.id === activeId);
+    if (currentResumeIndex !== -1) {
+      const updatedResumes = [...payload.resumes];
+      updatedResumes[currentResumeIndex] = {
+        ...updatedResumes[currentResumeIndex],
+        title: formatResumeTitle(updatedResumes[currentResumeIndex])
+      };
+      payloadToSave = { ...payload, resumes: updatedResumes };
+      setPayload(payloadToSave);
+    }
+
     try {
       // Just save the resume. The Document Vault is now automatically synchronized to display all Resumes.
-      await saveResumesAction(payload);
+      await saveResumesAction(payloadToSave);
 
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 3000,
-        icon: "success",
-        title: "Available in your Document Vault!"
-      });
+      toast.success("Available in your Document Vault!");
     } catch (err: any) {
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 3000,
-        icon: "error",
-        title: err.message || "Failed to save to Vault"
-      });
+      toast.error(err.message || "Failed to save to Vault");
     } finally {
       setIsSavingVault(false);
     }
@@ -278,9 +270,9 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50/60">
-      <AILoader 
-        isOpen={isPrefilling || atsLoading} 
-        message={isPrefilling ? "Prefilling your resume with AI..." : "Tailoring resume for ATS..."} 
+      <AILoader
+        isOpen={isPrefilling || atsLoading}
+        message={isPrefilling ? "Prefilling your resume with AI..." : "Tailoring resume for ATS..."}
       />
       {/* Top Action Bar (Hidden when printing) */}
       <div className="print:hidden bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs relative z-40">
@@ -293,7 +285,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
             </div>
             <div className="relative flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2.5 min-w-0">
               {/* Custom Theme Dropdown Button */}
-              <button
+              {/* <button
                 type="button"
                 onClick={() => setResumeDropdownOpen((prev) => !prev)}
                 className="bg-slate-50/90 border border-slate-200/80 hover:border-violet-300 rounded-2xl px-3.5 py-1.5 transition-all inline-flex items-center justify-between gap-2 max-w-full shadow-2xs hover:bg-white text-left group"
@@ -305,7 +297,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
                   className={`w-4 h-4 text-slate-400 group-hover:text-violet-600 transition-transform duration-200 shrink-0 ${resumeDropdownOpen ? "rotate-180 text-violet-600" : ""
                     }`}
                 />
-              </button>
+              </button> */}
 
               {/* Fullscreen Backdrop to close dropdown when clicking outside */}
               {resumeDropdownOpen && (

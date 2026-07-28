@@ -22,7 +22,8 @@ import {
   HelpCircle,
   Users,
   MessageSquare,
-  Menu
+  Menu,
+  ClipboardList
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -34,6 +35,7 @@ const NAV_GROUPS = [
       { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", disabled: false },
       { label: "Colleges", icon: Landmark, href: "/colleges", disabled: false },
       { label: "Scholarships", icon: Search, href: "/scholarships", disabled: false },
+      { label: "Tracker", icon: ClipboardList, href: "/tracker", disabled: false },
     ],
   },
   {
@@ -47,7 +49,7 @@ const NAV_GROUPS = [
   {
     label: "CAREER & GROWTH",
     items: [
-      { label: "Jobs & Internships", icon: Briefcase, href: "/jobs", disabled: true },
+      { label: "Jobs & Internships", icon: Briefcase, href: "/jobs" },
       { label: "Earn Income", icon: DollarSign, href: "/income", disabled: false },
       { label: "College Coach", icon: GraduationCap, href: "/coaching", disabled: true },
     ],

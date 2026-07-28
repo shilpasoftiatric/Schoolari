@@ -9,7 +9,8 @@ import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, Check, ArrowRight, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
+import { toast } from "sonner";
 
 const US_STATES = [
   "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", "Delaware", "Florida",
@@ -261,14 +262,7 @@ export default function OnboardingPage() {
       });
 
       setUploadedDocs([...uploadedDocs, { name: displayName, type: uploadType }]);
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'Document uploaded!',
-        showConfirmButton: false,
-        timer: 3000
-      });
+      toast.success('Document uploaded!');
     } catch (err: any) {
       console.error(err);
       Swal.fire('Upload Error', err.message, 'error');

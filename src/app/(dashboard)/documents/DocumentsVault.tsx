@@ -3,6 +3,8 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { UploadCloud, FileText, FileBadge, File, FileImage, Trash2, Download, Loader2, Link2, Edit } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import Swal from "@/lib/swal";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -75,9 +77,19 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
     }
   };
 
-  const handleDelete = (id: string, fileUrl: string, isVirtual: boolean) => {
+  const handleDelete = async (id: string, fileUrl: string, isVirtual: boolean) => {
     if (isVirtual) return; // Virtual documents are managed in their respective builders
-    if (!confirm("Are you sure you want to permanently delete this document?")) return;
+    
+    const result = await Swal.fire({
+      title: "Delete Document?",
+      text: "Are you sure you want to permanently delete this document?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete it!",
+      confirmButtonColor: "#ef4444",
+    });
+
+    if (!result.isConfirmed) return;
     
     // Optimistic UI update
     const previousDocs = [...localDocuments];
@@ -85,16 +97,17 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
 
     startTransition(async () => {
       try {
-        const res = await fetch("/api/documents/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, fileUrl })
-        });
-        if (!res.ok) {
-          const errJson = await res.json();
-          throw new Error(errJson.error || "Failed to delete document");
+        if (!isVirtual) {
+          const res = await fetch("/api/documents/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file_url: fileUrl, doc_id: id }),
+          });
+          if (!res.ok) {
+            const errJson = await res.json();
+            throw new Error(errJson.error || "Failed to delete document");
+          }
         }
-
         router.refresh();
       } catch (err: any) {
         setLocalDocuments(previousDocs); // Revert on failure

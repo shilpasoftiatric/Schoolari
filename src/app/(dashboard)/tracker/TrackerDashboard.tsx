@@ -7,16 +7,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Calendar, CheckCircle2, XCircle, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
 
+import { useSearchParams, useRouter } from "next/navigation";
+import Swal from "@/lib/swal";
+import { JobDetailPanel } from "@/app/(dashboard)/jobs/JobDetailPanel";
 
-import { useSearchParams } from "next/navigation";
-
-const COLUMNS = [
-  { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
-  { id: "In Progress", label: "In Progress", color: "bg-blue-50 text-blue-700 border-blue-200" },
-  { id: "Submitted", label: "Submitted", color: "bg-amber-50 text-amber-700 border-amber-200" },
-  { id: "Won", label: "Won", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { id: "Lost", label: "Lost", color: "bg-red-50 text-red-700 border-red-200" },
-];
+const getColumnsForCategory = (category: string) => {
+  if (category === "job") {
+    return [
+      { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
+      { id: "In Progress", label: "In Progress", color: "bg-blue-50 text-blue-700 border-blue-200" },
+      { id: "Submitted", label: "Applied", color: "bg-amber-50 text-amber-700 border-amber-200" },
+      { id: "Won", label: "Offer Received", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      { id: "Lost", label: "Passed", color: "bg-red-50 text-red-700 border-red-200" },
+    ];
+  }
+  return [
+    { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
+    { id: "In Progress", label: "In Progress", color: "bg-blue-50 text-blue-700 border-blue-200" },
+    { id: "Submitted", label: "Submitted", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    { id: "Won", label: "Won", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    { id: "Lost", label: "Lost", color: "bg-red-50 text-red-700 border-red-200" },
+  ];
+};
 
 const CATEGORIES = [
   { id: "all", label: "All Items" },
@@ -28,12 +40,16 @@ const CATEGORIES = [
 ];
 
 export function TrackerDashboard({ initialApplications }: { initialApplications: any[] }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialType = searchParams?.get("type") || "all";
   const [activeCategory, setActiveCategory] = useState<string>(initialType);
   const [applications, setApplications] = useState(initialApplications);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
+
+  const activeColumns = getColumnsForCategory(activeCategory);
 
   useEffect(() => {
     const typeFromUrl = searchParams?.get("type");
@@ -64,8 +80,17 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
     });
   };
 
-  const handleDelete = (appId: string) => {
-    if (!confirm("Are you sure you want to remove this from your tracker?")) return;
+  const handleDelete = async (appId: string) => {
+    const result = await Swal.fire({
+      title: "Remove from tracker?",
+      text: "Are you sure you want to remove this item? This cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove it!",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!result.isConfirmed) return;
 
     setApplications((prev) => prev.filter((app) => app.id !== appId));
 
@@ -87,9 +112,15 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
   const filteredApplications = applications.filter((app) => {
     if (activeCategory === "all") return true;
     return app.reference_type?.toLowerCase() === activeCategory.toLowerCase();
+  }).map(app => {
+    // Fix stuck jobs from previous bug where status was saved as 'Applied' instead of 'Submitted'
+    if (app.reference_type === "job" && app.status === "Applied") {
+      return { ...app, status: "Submitted" };
+    }
+    return app;
   });
 
-  const appsByStatus = COLUMNS.reduce((acc, col) => {
+  const appsByStatus = activeColumns.reduce((acc, col) => {
     acc[col.id] = filteredApplications.filter((app) => app.status === col.id);
     return acc;
   }, {} as Record<string, any[]>);
@@ -130,7 +161,7 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory h-[calc(100vh-250px)] min-h-[550px]">
-          {COLUMNS.map((col) => (
+          {activeColumns.map((col) => (
             <div key={col.id} className="flex-shrink-0 w-80 flex flex-col bg-slate-100/50 rounded-3xl border border-slate-200 snap-center">
               {/* Column Header */}
               <div className="flex items-center justify-between p-4 border-b border-slate-200/60">
@@ -163,7 +194,29 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
                               opacity: snapshot.isDragging ? 0.8 : 1
                             }}
                           >
-                            <Card className={`shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative group py-0 !overflow-visible ${col.id === 'Won' ? 'bg-emerald-50/30' : ''}`}>
+                            <Card 
+                              onClick={() => {
+                                if (app.reference_type === 'job') {
+                                  let notes: any = {};
+                                  try { notes = JSON.parse(app.notes || '{}'); } catch(e) {}
+                                  const parts = app.title.split(' at ');
+                                  const job_title = parts[0];
+                                  const employer_name = parts[1] || '';
+                                  setSelectedJob({
+                                    job_id: app.reference_id,
+                                    job_title: job_title || app.title,
+                                    employer_name: employer_name,
+                                    job_city: notes.location || '',
+                                    job_description: notes.description || '',
+                                    job_apply_link: notes.url || '',
+                                  });
+                                }
+                                else if (app.reference_type === 'scholarship') router.push('/scholarships');
+                                else if (app.reference_type === 'essay') router.push('/essays');
+                                else if (app.reference_type === 'college') router.push('/colleges');
+                              }}
+                              className={`shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative group py-0 !overflow-visible cursor-pointer ${col.id === 'Won' ? 'bg-emerald-50/30' : ''}`}
+                            >
                               <CardHeader className="p-3.5 pb-1">
                                 <div className="flex justify-between items-start">
                                   <CardTitle className="text-sm font-bold leading-tight pr-6">
@@ -200,7 +253,7 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
                                           <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                                             Move to...
                                           </div>
-                                          {COLUMNS.filter(c => c.id !== app.status).map(c => (
+                                          {activeColumns.filter(c => c.id !== app.status).map(c => (
                                             <button
                                               key={c.id}
                                               type="button"
@@ -278,6 +331,16 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
           ))}
         </div>
       </DragDropContext>
+
+      {selectedJob && (
+        <JobDetailPanel 
+          job={selectedJob} 
+          isOpen={!!selectedJob} 
+          onClose={() => setSelectedJob(null)} 
+          isTracked={true}
+          onSave={() => {}}
+        />
+      )}
     </div>
   );
 }

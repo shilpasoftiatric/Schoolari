@@ -4,7 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
+import { toast } from "sonner";
 
 
 const TIERS = [

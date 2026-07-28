@@ -12,7 +12,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { PhoneInput } from "@/components/ui/input";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
+import { toast } from "sonner";
 
 function UserActions({
   user,

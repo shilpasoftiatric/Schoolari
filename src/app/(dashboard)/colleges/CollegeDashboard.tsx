@@ -14,7 +14,8 @@ import {
   scheduleCollegeReminder,
   updateRecommendationStatus,
 } from "@/app/actions/colleges";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
+import { toast } from "sonner";
 
 /* ──────────────────────────────────────────────────────────────────────────── */
 /*  Constants                                                                   */
@@ -59,14 +60,11 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
     setStatus(asApplied ? "APPLIED" : "SAVED");
     try {
       await saveRecommendationToTracker(rec, asApplied);
-      Swal.fire({
-        toast: true, position: "top-end", showConfirmButton: false, timer: 3500, icon: "success",
-        title: asApplied ? "Marked as applied!" : "Added to your college list!",
-      });
+      toast.success(asApplied ? "Marked as applied!" : "Added to your college list!");
       onSaved();
     } catch (err: any) {
       setStatus(prev);
-      Swal.fire({ toast: true, position: "top-end", showConfirmButton: false, timer: 3000, icon: "error", title: err.message || "Something went wrong." });
+      toast.error(err.message || "Something went wrong.");
     } finally {
       setProcessing(false);
     }
@@ -79,19 +77,16 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
 
   const handleSetReminder = async () => {
     if (!reminderDate) {
-      Swal.fire({ toast: true, position: "top-end", showConfirmButton: false, timer: 2500, icon: "warning", title: "Please select a date." });
+      toast.warning("Please select a date.");
       return;
     }
     setSettingReminder(true);
     try {
       await scheduleCollegeReminder(rec.college_name, reminderDate, reminderTime);
       setReminderOpen(false);
-      Swal.fire({
-        toast: true, position: "top-end", showConfirmButton: false, timer: 3500, icon: "success",
-        title: "Reminder set! We'll notify you before the deadline.",
-      });
+      toast.success("Reminder set! We'll notify you before the deadline.");
     } catch (err: any) {
-      Swal.fire({ toast: true, position: "top-end", showConfirmButton: false, timer: 3000, icon: "error", title: err.message || "Failed to set reminder." });
+      toast.error(err.message || "Failed to set reminder.");
     } finally {
       setSettingReminder(false);
     }
@@ -328,7 +323,7 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
       setColleges([newCollege, ...colleges]);
       setNewCollegeName(""); setNewCollegeDeadline(""); setIsAddModalOpen(false);
     } catch (err: any) {
-      Swal.fire({ toast: true, position: "top-end", showConfirmButton: false, timer: 3000, icon: "error", title: err.message || "Failed to add college." });
+      toast.error(err.message || "Failed to add college.");
     } finally { setIsAdding(false); }
   };
 
@@ -348,7 +343,7 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
       setColleges(colleges.map(c => c.id === editingCollege.id ? { ...c, status: editStatus, notes: editNotes, deadline: editDeadline } : c));
       setEditingCollege(null);
     } catch (err: any) {
-      Swal.fire({ toast: true, position: "top-end", showConfirmButton: false, timer: 3000, icon: "error", title: err.message || "Failed to save." });
+      toast.error(err.message || "Failed to save.");
     } finally { setIsSaving(false); }
   };
 
@@ -362,7 +357,7 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
       setColleges(colleges.filter(c => c.id !== id));
       if (editingCollege?.id === id) setEditingCollege(null);
     } catch (err: any) {
-      Swal.fire({ toast: true, position: "top-end", showConfirmButton: false, timer: 3000, icon: "error", title: err.message || "Failed to delete." });
+      toast.error(err.message || "Failed to delete.");
     }
   };
 

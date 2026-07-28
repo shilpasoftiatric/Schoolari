@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
+import { toast } from "sonner";
 import {
   ResumeDocument,
   ResumeTemplateTheme,
@@ -77,20 +78,23 @@ export function ResumePreview({
     (resume.experience?.length || 0) + (resume.extracurriculars?.length || 0) > 6;
 
   const handlePrintPdf = () => {
+    const typeText = resume.resume_type === "academic" ? "Academic" : resume.resume_type === "professional" ? "Professional" : "Resume";
+    const firstName = resume.header?.first_name || "Student";
+    const lastName = resume.header?.last_name || "";
+    const fileName = lastName ? `${firstName} ${lastName} - ${typeText} Resume` : `${firstName} - ${typeText} Resume`;
+    
+    const originalTitle = document.title;
+    document.title = fileName;
     window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 100);
   };
 
   const handleCopyPlaintext = () => {
     const text = generatePlaintextResume(resume);
     navigator.clipboard.writeText(text);
-    Swal.fire({
-      toast: true,
-      position: "top-end",
-      showConfirmButton: false,
-      timer: 3000,
-      icon: "success",
-      title: "Plaintext resume copied to clipboard!"
-    });
+    toast.success("Plaintext resume copied to clipboard!");
   };
 
   const handleDownloadDocs = () => {
@@ -100,17 +104,14 @@ export function ResumePreview({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${(resume.header.first_name || "Student").toLowerCase()}_${(resume.header.last_name || "Resume").toLowerCase()}_resume.doc`;
+    const typeText = resume.resume_type === "academic" ? "academic" : resume.resume_type === "professional" ? "professional" : "resume";
+    const firstName = (resume.header?.first_name || "student").toLowerCase();
+    const lastName = (resume.header?.last_name || "").toLowerCase();
+    const fileName = lastName ? `${firstName}_${lastName}_${typeText}_resume` : `${firstName}_${typeText}_resume`;
+    link.download = `${fileName}.doc`;
     link.click();
     URL.revokeObjectURL(url);
-    Swal.fire({
-      toast: true,
-      position: "top-end",
-      showConfirmButton: false,
-      timer: 3000,
-      icon: "success",
-      title: "Resume downloaded as Docs!"
-    });
+    toast.success("Resume downloaded as Docs!");
   };
 
   return (

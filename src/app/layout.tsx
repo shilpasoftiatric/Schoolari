@@ -16,6 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
       "The all-in-one platform for students to find scholarships, track applications, build their college portfolio, and earn income.",
   };
 }
+import { Toaster } from "sonner";
 
 export default function RootLayout({
   children,
@@ -24,7 +25,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable}`}>
-      <body className="font-sans antialiased overflow-x-hidden w-full max-w-full m-0 p-0">{children}</body>
+      <body className="font-sans antialiased overflow-x-hidden w-full max-w-full m-0 p-0">
+        {children}
+        <Toaster richColors position="top-right" theme="light" />
+      </body>
     </html>
   );
 }

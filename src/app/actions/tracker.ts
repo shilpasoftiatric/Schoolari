@@ -23,6 +23,10 @@ export async function updateApplicationStatus(applicationId: string, status: App
 
   revalidatePath("/tracker");
   revalidatePath("/dashboard");
+  revalidatePath("/jobs");
+  revalidatePath("/scholarships");
+  revalidatePath("/colleges");
+  revalidatePath("/essays");
   return { success: true };
 }
 
@@ -45,5 +49,9 @@ export async function deleteApplication(applicationId: string) {
 
   revalidatePath("/tracker");
   revalidatePath("/dashboard");
+  revalidatePath("/jobs");
+  revalidatePath("/scholarships");
+  revalidatePath("/colleges");
+  revalidatePath("/essays");
   return { success: true };
 }

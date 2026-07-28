@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Star, Clock, DollarSign, ExternalLink, BellRing, CheckCircle2, Trophy, Loader2, Sparkles, MapPin, GraduationCap } from "lucide-react";
 import { setScholarshipAction, sendScholarshipReminder } from "@/app/actions/scholarships";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -53,45 +54,16 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
         const smsNote = smsResult.smsSent
           ? " We'll send you a reminder before the deadline."
           : "";
-
-        Swal.fire({
-          toast: true,
-          position: "top-end",
-          showConfirmButton: false,
-          timer: 4000,
-          icon: "success",
-          title: `Saved to tracker!${smsNote}`,
-        });
+        toast.success(`Saved to tracker!${smsNote}`);
       } else if (action === "applied") {
-        Swal.fire({
-          toast: true,
-          position: "top-end",
-          showConfirmButton: false,
-          timer: 3000,
-          icon: "success",
-          title: "Marked as applied in your tracker.",
-        });
+        toast.success("Marked as applied in your tracker.",);
       } else if (action === "won") {
-        Swal.fire({
-          toast: true,
-          position: "top-end",
-          showConfirmButton: false,
-          timer: 4000,
-          icon: "success",
-          title: "🏆 Congratulations! Scholarship win recorded.",
-        });
+        toast.success("🏆 Congratulations! Scholarship win recorded.");
       }
     } catch (err: any) {
       // Rollback optimistic update on failure
       setActionStatus(previousStatus);
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 3000,
-        icon: "error",
-        title: err.message || "Something went wrong. Please try again.",
-      });
+      toast.error(err.message || "Something went wrong. Please try again.",);
     } finally {
       setProcessing(false);
     }
