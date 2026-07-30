@@ -129,15 +129,17 @@ export function ResumePreview({
               value={theme}
               onValueChange={(val) => onThemeChange(val as ResumeTemplateTheme)}
             >
-              <SelectTrigger id="resume-template-select" className="h-9 w-[160px] rounded-full border-2 border-violet-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-800 shadow-sm hover:border-violet-300 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all">
+              <SelectTrigger id="resume-template-select" className="h-9 w-[180px] rounded-full border-2 border-violet-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-800 shadow-sm hover:border-violet-300 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all">
                 <SelectValue placeholder="Select template">
-                  {theme === "harvard" ? "Harvard Serif" : theme === "modern" ? "Modern Sans" : "Executive ATS"}
+                  {theme === "classic" ? "Classic Professional" : theme === "modern" ? "Modern Clean" : theme === "executive" ? "Executive Standard" : theme === "college" ? "College Ready" : theme === "internship" ? "Internship Ready" : "Classic Professional"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false} sideOffset={5} className="rounded-xl border border-slate-200 bg-white shadow-xl">
-                <SelectItem value="harvard" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">Harvard Serif</SelectItem>
-                <SelectItem value="modern" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">Modern Sans</SelectItem>
-                <SelectItem value="executive" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">Executive ATS</SelectItem>
+                <SelectItem value="classic" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">Classic Professional</SelectItem>
+                <SelectItem value="modern" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">Modern Clean</SelectItem>
+                <SelectItem value="executive" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">Executive Standard</SelectItem>
+                <SelectItem value="college" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">College Ready</SelectItem>
+                <SelectItem value="internship" className="cursor-pointer py-2.5 px-3 font-semibold text-slate-700 focus:bg-slate-50 focus:text-violet-700">Internship Ready</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -195,7 +197,7 @@ export function ResumePreview({
         <div className="print:hidden p-3 rounded-2xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800 text-xs font-semibold">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
           <span>
-            ⚠️ Your resume is quite detailed ({totalBulletsCount} bullets). In US Student ATS formatting, keep to 1 page by condensing older items or using AI concise wording.
+            ⚠️ Your resume is quite detailed ({totalBulletsCount} bullets). In Student ATS formatting, keep to 1 page by condensing older items or using AI concise wording.
           </span>
         </div>
       )}
@@ -305,12 +307,13 @@ export function ResumePreview({
       <FullscreenPortal isFullscreen={isFullscreen} onClose={() => setIsFullscreen(false)}>
         <div
           id="print-resume-area"
-          className={`bg-white text-slate-900 rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] p-8 sm:p-12 lg:p-14 print:border-none print:shadow-none print:w-full print:max-w-none print:min-h-0 print:m-0 print:rounded-none max-w-[850px] w-full mx-auto min-h-[1056px] flex flex-col justify-between transition-all relative group ${theme === "harvard"
-            ? "font-serif"
-            : theme === "modern"
-              ? "font-sans"
-              : "font-sans tracking-tight"
-            }`}
+          className={`bg-white text-slate-900 rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] p-8 sm:p-12 lg:p-14 print:border-none print:shadow-none print:w-full print:max-w-none print:min-h-0 print:m-0 print:rounded-none max-w-[850px] w-full mx-auto min-h-[1056px] flex flex-col justify-between transition-all relative group ${
+            theme === "classic" ? "font-serif text-slate-950" :
+            theme === "college" ? "font-serif text-slate-900" :
+            theme === "modern" ? "font-sans text-slate-900" :
+            theme === "internship" ? "font-sans text-slate-800" :
+            "font-sans tracking-tight text-slate-900"
+          }`}
         >
           {!isFullscreen && (
             <button
@@ -325,25 +328,30 @@ export function ResumePreview({
           <div className="space-y-6">
             {/* Header Section */}
             <header
-              className={`space-y-1.5 ${theme === "harvard"
-                ? "text-center border-b-2 border-slate-900 pb-4"
-                : theme === "modern"
-                  ? "text-left border-b border-slate-300 pb-4"
-                  : "text-center pb-3 border-b border-slate-400"
-                }`}
+              className={`space-y-1.5 ${
+                theme === "classic" ? "text-center border-b-2 border-slate-900 pb-4" :
+                theme === "college" ? "text-left border-b-4 border-slate-800 pb-3" :
+                theme === "modern" ? "text-left pb-4" :
+                theme === "internship" ? "text-left border-b border-slate-300 pb-3" :
+                "text-center pb-4 border-b border-slate-300"
+              }`}
             >
               <h1
-                className={`font-black tracking-tight ${theme === "harvard"
-                  ? "text-3xl sm:text-4xl uppercase"
-                  : theme === "modern"
-                    ? "text-3xl text-slate-950 font-extrabold"
-                    : "text-2xl uppercase"
-                  }`}
+                className={`tracking-tight ${
+                  theme === "classic" ? "text-3xl sm:text-4xl uppercase font-black" :
+                  theme === "college" ? "text-4xl font-serif font-semibold text-slate-900" :
+                  theme === "modern" ? "text-4xl text-slate-950 font-extrabold" :
+                  theme === "internship" ? "text-3xl text-slate-900 font-black" :
+                  "text-2xl uppercase tracking-[0.2em] font-medium text-slate-800"
+                }`}
               >
                 {resume.header.first_name || "STUDENT"}{" "}
                 {resume.header.last_name || "NAME"}
               </h1>
-              <div className="flex flex-wrap items-center justify-center sm:justify-center gap-2 text-xs text-slate-600">
+              <div
+                className={`flex flex-wrap items-center gap-2 text-xs text-slate-600 ${["modern", "college", "internship"].includes(theme) ? "justify-start" : "justify-center"
+                  }`}
+              >
                 {resume.header.city_state && <span>{resume.header.city_state}</span>}
                 {resume.header.phone && (
                   <>
@@ -366,7 +374,7 @@ export function ResumePreview({
               </div>
               {resume.header.summary && (
                 <p
-                  className={`text-xs text-slate-700 pt-2 ${theme === "harvard" ? "italic" : ""
+                  className={`text-xs text-slate-700 pt-2 ${["classic", "college"].includes(theme) ? "italic" : ""
                     }`}
                 >
                   {resume.header.summary}
@@ -378,10 +386,13 @@ export function ResumePreview({
             {resume.education && resume.education.length > 0 && (
               <section className="space-y-2">
                 <h2
-                  className={`text-xs font-extrabold uppercase tracking-widest ${theme === "harvard"
-                    ? "border-b border-slate-400 pb-1 text-slate-900"
-                    : "text-violet-700 pb-0.5 border-b border-violet-200"
-                    }`}
+                  className={`text-xs uppercase tracking-widest ${
+                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+                  }`}
                 >
                   Education
                 </h2>
@@ -416,10 +427,13 @@ export function ResumePreview({
             {resume.experience && resume.experience.length > 0 && (
               <section className="space-y-2">
                 <h2
-                  className={`text-xs font-extrabold uppercase tracking-widest ${theme === "harvard"
-                    ? "border-b border-slate-400 pb-1 text-slate-900"
-                    : "text-violet-700 pb-0.5 border-b border-violet-200"
-                    }`}
+                  className={`text-xs uppercase tracking-widest ${
+                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+                  }`}
                 >
                   Professional & Leadership Experience
                 </h2>
@@ -454,10 +468,13 @@ export function ResumePreview({
             {resume.extracurriculars && resume.extracurriculars.length > 0 && (
               <section className="space-y-2">
                 <h2
-                  className={`text-xs font-extrabold uppercase tracking-widest ${theme === "harvard"
-                    ? "border-b border-slate-400 pb-1 text-slate-900"
-                    : "text-violet-700 pb-0.5 border-b border-violet-200"
-                    }`}
+                  className={`text-xs uppercase tracking-widest ${
+                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+                  }`}
                 >
                   Extracurricular Activities & Community Service
                 </h2>
@@ -495,10 +512,13 @@ export function ResumePreview({
             {resume.awards && resume.awards.length > 0 && (
               <section className="space-y-2">
                 <h2
-                  className={`text-xs font-extrabold uppercase tracking-widest ${theme === "harvard"
-                    ? "border-b border-slate-400 pb-1 text-slate-900"
-                    : "text-violet-700 pb-0.5 border-b border-violet-200"
-                    }`}
+                  className={`text-xs uppercase tracking-widest ${
+                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+                  }`}
                 >
                   Honors & Awards
                 </h2>
@@ -525,10 +545,13 @@ export function ResumePreview({
             {/* Skills, Languages & Certifications */}
             <section className="space-y-2">
               <h2
-                className={`text-xs font-extrabold uppercase tracking-widest ${theme === "harvard"
-                  ? "border-b border-slate-400 pb-1 text-slate-900"
-                  : "text-violet-700 pb-0.5 border-b border-violet-200"
-                  }`}
+                className={`text-xs uppercase tracking-widest ${
+                  theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+                  theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+                  theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+                  theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+                  "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+                }`}
               >
                 Skills, Languages & Certifications
               </h2>

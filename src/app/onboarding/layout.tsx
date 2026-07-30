@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { canAccessAdmin } from "@/lib/rbac";
 
 export default async function OnboardingLayout({
   children,
@@ -19,7 +20,7 @@ export default async function OnboardingLayout({
     .eq("id", user.id)
     .single();
 
-  if (userProfile?.role === "admin") {
+  if (canAccessAdmin(userProfile?.role)) {
     redirect("/admin/dashboard");
   }
 

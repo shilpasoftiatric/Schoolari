@@ -4,6 +4,8 @@ import { ShieldCheck, LogOut } from "lucide-react";
 import { AdminNav } from "./AdminNav";
 import { signOut } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
+import { canAccessAdmin, isStaffRole, ROLE_LABELS, ROLE_COLORS, type StaffRole } from "@/lib/rbac";
+import { cn } from "@/lib/utils";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -13,16 +15,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/login");
   }
 
-  // Verify Admin Role
+  // Verify Staff Role (any of the 5 staff roles)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, first_name")
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "admin") {
+  const role = profile?.role;
+
+  if (!canAccessAdmin(role)) {
     redirect("/dashboard");
   }
+
+  const staffRole = role as StaffRole;
+  const roleLabel = ROLE_LABELS[staffRole];
+  const roleColor = ROLE_COLORS[staffRole];
 
   return (
     <div className="fixed inset-0 flex bg-slate-50">
@@ -35,12 +43,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <span className="text-xl font-extrabold text-slate-900 tracking-tight">Admin<span className="text-slate-400 font-normal">Panel</span></span>
         </div>
 
-        <AdminNav />
+        <AdminNav role={staffRole} />
+        {/* Role Badge */}
+        <div className="px-5 py-3 border-t border-slate-100 flex flex-row justify-between items-center">
+          <p className="text-xs text-slate-400 font-medium mb-1">{profile?.first_name || user.email}</p>
+          <span className={cn("inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold", roleColor)}>
+            {roleLabel}
+          </span>
+        </div>
+
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 flex items-center justify-end px-6 md:px-8">
+        <header className="h-16 flex items-center justify-end px-6 md:px-8 bg-white border-b border-slate-200 shrink-0">
           <form action={signOut}>
             <Button type="submit" className="gap-2 font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm h-9">
               <LogOut className="w-4 h-4" />

@@ -36,7 +36,7 @@ const CATEGORIES = [
   { id: "essay", label: "Essays" },
   { id: "college", label: "Colleges" },
   { id: "job", label: "Jobs" },
-  { id: "custom", label: "Tasks" },
+  // { id: "custom", label: "Tasks" },
 ];
 
 export function TrackerDashboard({ initialApplications }: { initialApplications: any[] }) {

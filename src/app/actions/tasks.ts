@@ -99,4 +99,7 @@ async function forceDashboardRefresh(userId: string) {
     .from("profiles")
     .update({ ai_dashboard_data: null })
     .eq("id", userId);
+
+  revalidatePath("/dashboard");
+  revalidatePath("/tracker");
 }

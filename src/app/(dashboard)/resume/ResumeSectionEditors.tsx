@@ -26,10 +26,14 @@ import {
 } from "lucide-react";
 import { generateProfessionalSummaryAIAction } from "@/app/actions/resume-ai";
 
-interface SectionEditorProps {
+export interface SectionEditorProps {
   resume: ResumeDocument;
-  onChange: (updated: ResumeDocument) => void;
-  onOpenStarModal: (bulletText: string, roleTitle: string, onApply: (newText: string) => void) => void;
+  onChange: (updatedOrUpdater: ResumeDocument | ((prev: ResumeDocument) => ResumeDocument)) => void;
+  onOpenStarModal: (
+    bulletText: string,
+    roleTitle: string,
+    onApply: (newText: string) => void
+  ) => void;
 }
 
 export function ContactEditor({ resume, onChange }: SectionEditorProps) {
@@ -405,15 +409,15 @@ export function ExperienceEditor({
   };
 
   const updateBullet = (expId: string, idx: number, value: string) => {
-    onChange({
-      ...resume,
-      experience: resume.experience.map((exp) => {
+    onChange((prev: ResumeDocument) => ({
+      ...prev,
+      experience: prev.experience.map((exp) => {
         if (exp.id !== expId) return exp;
         const newBullets = [...exp.bullets];
         newBullets[idx] = value;
         return { ...exp, bullets: newBullets };
       })
-    });
+    }));
   };
 
   const addBullet = (expId: string) => {
@@ -624,15 +628,15 @@ export function ExtracurricularsEditor({
   };
 
   const updateBullet = (extId: string, idx: number, value: string) => {
-    onChange({
-      ...resume,
-      extracurriculars: resume.extracurriculars.map((ext) => {
+    onChange((prev: ResumeDocument) => ({
+      ...prev,
+      extracurriculars: prev.extracurriculars?.map((ext) => {
         if (ext.id !== extId) return ext;
-        const newBullets = [...ext.bullets];
+        const newBullets = [...(ext.bullets || [])];
         newBullets[idx] = value;
         return { ...ext, bullets: newBullets };
       })
-    });
+    }));
   };
 
   const addBullet = (extId: string) => {

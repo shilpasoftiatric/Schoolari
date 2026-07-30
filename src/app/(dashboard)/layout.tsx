@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { getStudentDashboardData } from "@/services/data-fetcher";
+import { canAccessAdmin } from "@/lib/rbac";
 import { 
   calculateWorkflowStates, 
   calculateOverallProgress, 
@@ -28,8 +29,13 @@ export default async function DashboardLayout({
   const profile = dbData.profile;
   const userProfile = dbData.userProfile;
 
-  if (userProfile?.role === "admin") {
+  if (canAccessAdmin(userProfile?.role)) {
     redirect("/admin/dashboard");
+  }
+
+  if (userProfile?.is_active === false) {
+    await supabase.auth.signOut();
+    redirect("/login?error=account_suspended");
   }
 
   // Calculate Progress

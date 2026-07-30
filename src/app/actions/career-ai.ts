@@ -160,7 +160,7 @@ ${JSON.stringify(resume?.content || {}, null, 2)}`;
   }
 }
 
-export async function saveJobToTrackerAction(jobData: any, status: string = "Not Started") {
+export async function saveJobToTrackerAction(jobData: any, status: string = "Not Started", dueDate?: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -178,7 +178,7 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
   if (existing) {
     const { error } = await supabase
       .from("tracker_items")
-      .update({ status })
+      .update(dueDate ? { status, due_date: new Date(dueDate).toISOString() } : { status })
       .eq("id", existing.id);
     if (error) throw new Error(error.message);
   } else {
@@ -190,7 +190,7 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
         reference_id: jobData.job_id,
         title: `${jobData.job_title} at ${jobData.employer_name}`,
         status: status,
-        due_date: jobData.job_offer_expiration_timestamp ? new Date(jobData.job_offer_expiration_timestamp * 1000).toISOString() : null,
+        due_date: dueDate ? new Date(dueDate).toISOString() : (jobData.job_offer_expiration_timestamp ? new Date(jobData.job_offer_expiration_timestamp * 1000).toISOString() : null),
         notes: JSON.stringify({
           url: jobData.job_apply_link,
           location: jobData.job_city ? `${jobData.job_city}, ${jobData.job_state}` : "Remote",
@@ -200,7 +200,16 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
     if (error) throw new Error(error.message);
   }
 
+  // Clear profile AI dashboard cache so dashboard reflects updated tracker items immediately
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const supabaseAdmin = await createAdminClient();
+  await supabaseAdmin
+    .from("profiles")
+    .update({ ai_dashboard_data: null })
+    .eq("id", user.id);
+
   revalidatePath("/jobs");
   revalidatePath("/tracker");
+  revalidatePath("/dashboard");
   return { success: true };
 }

@@ -7,7 +7,10 @@ export async function getCoachingMessages() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) throw new Error("Unauthorized");
+  if (!user) {
+    const { redirect } = await import("next/navigation");
+    redirect("/login");
+  }
 
   const { data, error } = await supabase
     .from("coaching_messages")
@@ -34,5 +37,30 @@ export async function markMessageAsRead(id: string) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/coaching");
+  return { success: true };
+}
+
+export async function sendStudentMessage(content: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Unauthorized");
+
+  // A student sending a message to their coach/admin
+  // type='guidance' (to pass check constraint), prefix title with [STUDENT]
+  // is_read=false (so admin sees it)
+  const { error } = await supabase
+    .from("coaching_messages")
+    .insert({
+      user_id: user.id,
+      title: "[STUDENT] Message from Student",
+      content,
+      type: "guidance",
+      is_read: false
+    });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/messages");
   return { success: true };
 }

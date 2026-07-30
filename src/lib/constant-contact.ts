@@ -1,21 +1,14 @@
+import { createClient } from "@supabase/supabase-js";
+
 export const CONSTANT_CONTACT_PARENT_LIST = process.env.CONSTANT_CONTACT_PARENT_LIST || "cdff2514-7ebe-11f1-a371-02420a320002";
 export const CONSTANT_CONTACT_STUDENT_LIST = process.env.CONSTANT_CONTACT_STUDENT_LIST || "fdcd3218-7ebe-11f1-94bb-02420a320003";
 
-async function getValidAccessToken() {
-  // If an access token is provided directly and we don't want to manage refresh, use it.
-  if (process.env.CONSTANT_CONTACT_ACCESS_TOKEN) {
-    return process.env.CONSTANT_CONTACT_ACCESS_TOKEN;
-  }
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
-  // Refresh token logic
-  const refreshToken = process.env.CONSTANT_CONTACT_REFRESH_TOKEN;
-  const clientId = process.env.CONSTANT_CONTACT_API_KEY;
-  const clientSecret = process.env.CONSTANT_CONTACT_CLIENT_SECRET;
-
-  if (!refreshToken || !clientId || !clientSecret) {
-    return null;
-  }
-
+async function refreshConstantContactToken(refreshToken: string, clientId: string, clientSecret: string) {
   try {
     const encodedCredentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
     const res = await fetch("https://authz.constantcontact.com/oauth2/default/v1/token", {
@@ -36,6 +29,13 @@ async function getValidAccessToken() {
     }
 
     const data = await res.json();
+    
+    // Save new tokens to DB
+    await supabase.from("site_settings").update({
+      cc_access_token: data.access_token,
+      cc_refresh_token: data.refresh_token,
+    }).neq("id", "00000000-0000-0000-0000-000000000000"); // Update all rows (usually just 1 row)
+
     return data.access_token;
   } catch (error) {
     console.error("Error refreshing CC token", error);
@@ -43,8 +43,44 @@ async function getValidAccessToken() {
   }
 }
 
+async function getValidAccessToken(forceRefresh = false) {
+  // If an access token is provided directly and we don't want to manage refresh, use it.
+  if (process.env.CONSTANT_CONTACT_ACCESS_TOKEN) {
+    return process.env.CONSTANT_CONTACT_ACCESS_TOKEN;
+  }
+
+  // 1. Fetch tokens from DB
+  const { data: settings } = await supabase
+    .from("site_settings")
+    .select("cc_access_token, cc_refresh_token")
+    .limit(1)
+    .single();
+
+  let accessToken = settings?.cc_access_token;
+  let refreshToken = settings?.cc_refresh_token;
+
+  // Fallback to .env for initial setup if DB is empty
+  if (!refreshToken && process.env.CONSTANT_CONTACT_REFRESH_TOKEN) {
+    refreshToken = process.env.CONSTANT_CONTACT_REFRESH_TOKEN;
+  }
+
+  const clientId = process.env.CONSTANT_CONTACT_API_KEY;
+  const clientSecret = process.env.CONSTANT_CONTACT_CLIENT_SECRET;
+
+  if (!refreshToken || !clientId || !clientSecret) {
+    return null;
+  }
+
+  // If we don't have an access token or we are forced to refresh
+  if (!accessToken || forceRefresh) {
+    return await refreshConstantContactToken(refreshToken, clientId, clientSecret);
+  }
+
+  return accessToken;
+}
+
 export async function syncContact(email: string, firstName: string, lastName: string, listId: string) {
-  const token = await getValidAccessToken();
+  let token = await getValidAccessToken();
 
   if (!token) {
     console.warn("Constant Contact credentials missing. Skipping sync.");
@@ -58,9 +94,21 @@ export async function syncContact(email: string, firstName: string, lastName: st
 
   try {
     // 1. Check if contact exists
-    const searchRes = await fetch(`https://api.cc.email/v3/contacts?email=${encodeURIComponent(email)}&include=list_memberships`, {
+    let searchRes = await fetch(`https://api.cc.email/v3/contacts?email=${encodeURIComponent(email)}&include=list_memberships`, {
       headers,
     });
+
+    // Handle token expiration
+    if (searchRes.status === 401) {
+      console.log("CC token expired, refreshing...");
+      token = await getValidAccessToken(true);
+      if (!token) return;
+      
+      headers.Authorization = `Bearer ${token}`;
+      searchRes = await fetch(`https://api.cc.email/v3/contacts?email=${encodeURIComponent(email)}&include=list_memberships`, {
+        headers,
+      });
+    }
 
     if (!searchRes.ok) {
       throw new Error(`Failed to search contact: ${await searchRes.text()}`);

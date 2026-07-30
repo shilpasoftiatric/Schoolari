@@ -21,6 +21,10 @@ export async function updateApplicationStatus(applicationId: string, status: App
     throw new Error("Failed to update application status");
   }
 
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const supabaseAdmin = await createAdminClient();
+  await supabaseAdmin.from("profiles").update({ ai_dashboard_data: null }).eq("id", user.id);
+
   revalidatePath("/tracker");
   revalidatePath("/dashboard");
   revalidatePath("/jobs");
@@ -46,6 +50,10 @@ export async function deleteApplication(applicationId: string) {
     console.error("Error deleting application:", error);
     throw new Error("Failed to delete application");
   }
+
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const supabaseAdmin = await createAdminClient();
+  await supabaseAdmin.from("profiles").update({ ai_dashboard_data: null }).eq("id", user.id);
 
   revalidatePath("/tracker");
   revalidatePath("/dashboard");

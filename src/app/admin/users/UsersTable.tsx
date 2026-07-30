@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { Search, Plus, X, Loader2, MessageSquare, ChevronDown } from "lucide-react";
-import { updateUserRole, createUserMember } from "@/app/actions/admin";
+import { Search, Plus, X, Loader2, MessageSquare, ChevronDown, Pencil, Trash, Ban, CheckCircle } from "lucide-react";
+import { updateUserRole, createUserMember, updateUserBasicInfo, resetUserPassword, toggleUserActive, deleteUserAccount } from "@/app/actions/admin";
+import { cancelSubscription } from "@/app/actions/admin-payments";
 import { sendAdminSms } from "@/app/actions/sms";
 import { formatPhoneUS } from "@/lib/phone";
+import { ROLE_LABELS, STAFF_ROLES } from "@/lib/rbac";
 import {
   Accordion,
   AccordionContent,
@@ -20,12 +22,14 @@ function UserActions({
   handleRoleChange,
   isPending,
   onSendSms,
+  onManage,
   roleOption
 }: {
   user: any;
   handleRoleChange?: (id: string, role: "admin" | "user") => void;
   isPending?: boolean;
   onSendSms: () => void;
+  onManage?: () => void;
   roleOption?: boolean;
 }) {
   return (
@@ -33,28 +37,44 @@ function UserActions({
       {handleRoleChange && roleOption && (
         <select
           value={user.role}
-          onChange={(e) => handleRoleChange(user.id, e.target.value as "admin" | "user")}
+          onChange={(e) => handleRoleChange(user.id, e.target.value as any)}
           disabled={isPending}
-          className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-violet-500 focus:border-violet-500 block p-2"
+          className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-violet-500 focus:border-violet-500 block p-2 max-w-[140px] truncate"
         >
-          <option value="user">Member</option>
-          <option value="admin">Admin</option>
+          <option value="user">Member (Student/Parent)</option>
+          <optgroup label="── Staff Roles ──">
+            {STAFF_ROLES.map((r) => (
+              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+            ))}
+          </optgroup>
         </select>
       )}
-      <button
+            {onManage && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={(e) => { e.stopPropagation(); onManage(); }}
+          className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+          title="Manage User"
+        >
+          <Pencil className="w-4 h-4" />
+        </div>
+      )}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={(e) => { e.stopPropagation(); onSendSms(); }}
-        className="p-2 text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors"
+        className="p-2 text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors cursor-pointer"
         title="Send SMS"
       >
         <MessageSquare className="w-4 h-4" />
-      </button>
-    </div>
+      </div>    </div>
   );
 }
 
 function StudentSection({ user, actions }: { user: any, actions: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-center w-full text-left pr-4">
+    <div className="grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 items-center w-full text-left pr-4">
       <div>
         <p className="font-bold text-slate-900">{user.student_first_name ? `${user.student_first_name} ${user.student_last_name}` : (user.first_name || "—")}</p>
         <p className="text-slate-500 text-xs">{user.student_email || user.email}</p>
@@ -79,8 +99,7 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
       </div>
       <div className="flex justify-end pr-2 md:pr-0">
         {actions}
-      </div>
-    </div>
+      </div>    </div>
   );
 }
 
@@ -98,7 +117,7 @@ function ParentSection({ user, actions }: { user: any, actions: React.ReactNode 
   return (
     <div className="p-4 sm:p-6 bg-slate-50/80 border-t border-slate-100">
       <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Linked Parent</h4>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-center w-full text-left">
+      <div className="grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 items-center w-full text-left">
         <div>
           <p className="font-semibold text-slate-800">{user.parent_first_name ? `${user.parent_first_name} ${user.parent_last_name}` : "—"}</p>
           <p className="text-slate-500 text-xs">{user.parent_email || "—"}</p>
@@ -121,12 +140,11 @@ function ParentSection({ user, actions }: { user: any, actions: React.ReactNode 
         <div className="flex justify-end pr-2 md:pr-4">
           {actions}
         </div>
-      </div>
-    </div>
+      </div>    </div>
   );
 }
 
-function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms }: any) {
+function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onManage }: any) {
   return (
     <AccordionItem value={user.id} className="border border-slate-200 rounded-xl bg-white shadow-sm mb-3 overflow-hidden data-[state=open]:border-violet-200 data-[state=open]:shadow-md transition-all">
       <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors [&[data-state=open]]:bg-slate-50/50">
@@ -138,6 +156,7 @@ function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms }: any
               handleRoleChange={handleRoleChange}
               isPending={isPending}
               onSendSms={() => onSendSms(user, "student")}
+              onManage={() => onManage(user)}
               roleOption={true}
             />
           }
@@ -171,6 +190,113 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
   const [role, setRole] = useState<"admin" | "user">("user");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
+
+
+  // Manage User Modal state
+  const [manageModalOpen, setManageModalOpen] = useState(false);
+  const [manageUser, setManageUser] = useState<any>(null);
+  const [manageFormData, setManageFormData] = useState<any>({});
+  const [manageTab, setManageTab] = useState<"info" | "security" | "subscription">("info");
+  
+  const triggerManage = (user: any) => {
+    setManageUser(user);
+    setManageFormData({
+      first_name: user.first_name || "",
+      phone: user.phone || "",
+      student_first_name: user.student_first_name || user.first_name || "",
+      student_last_name: user.student_last_name || "",
+      student_email: user.student_email || user.email || "",
+      student_phone: user.student_phone || user.phone || "",
+      parent_first_name: user.parent_first_name || "",
+      parent_last_name: user.parent_last_name || "",
+      parent_email: user.parent_email || "",
+      parent_phone: user.parent_phone || "",
+    });
+    setManageTab("info");
+    setManageModalOpen(true);
+  };
+
+  const handleUpdateInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manageUser) return;
+    setIsSubmitting(true);
+    try {
+      // Sync first_name and phone with student_first_name and student_phone if they are empty
+      const payload = {
+        ...manageFormData,
+        first_name: manageFormData.student_first_name || manageFormData.first_name,
+        phone: manageFormData.student_phone || manageFormData.phone,
+      };
+      await updateUserBasicInfo(manageUser.id, payload);
+      toast.success("User info updated!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update info");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!manageUser || !confirm("Are you sure you want to reset this user's password?")) return;
+    setIsSubmitting(true);
+    try {
+      const res = await resetUserPassword(manageUser.id);
+      toast.success(`Password reset to: ${res.password}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reset password");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleActive = async () => {
+    if (!manageUser) return;
+    const newStatus = manageUser.is_active === false ? true : false;
+    setIsSubmitting(true);
+    try {
+      await toggleUserActive(manageUser.id, newStatus);
+      toast.success(newStatus ? "Account enabled" : "Account disabled");
+      setManageModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to toggle account");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!manageUser) return;
+    const confirmation = prompt(`Type "DELETE" to permanently delete ${manageUser.email}`);
+    if (confirmation !== "DELETE") {
+      toast.error("Deletion cancelled");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await deleteUserAccount(manageUser.id);
+      toast.success("User deleted completely");
+      setManageModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete user");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancelSub = async () => {
+    if (!manageUser || !manageUser.stripe_subscription_id) return;
+    if (!confirm("Cancel this subscription immediately?")) return;
+    setIsSubmitting(true);
+    try {
+      await cancelSubscription(manageUser.stripe_subscription_id, manageUser.id);
+      toast.success("Subscription cancelled");
+      setManageModalOpen(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel subscription");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // SMS Modal state
   const [smsModalOpen, setSmsModalOpen] = useState(false);
@@ -281,7 +407,7 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
         </button>
       </div>
 
-      <div className="hidden md:grid grid-cols-5 gap-4 px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+      <div className="hidden md:grid grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
         <div>Student</div>
         <div>Contact</div>
         <div>Role</div>
@@ -302,6 +428,7 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
               isPending={isPending}
               handleRoleChange={handleRoleChange}
               onSendSms={triggerSendSms}
+              onManage={triggerManage}
             />
           ))
         )}
@@ -464,6 +591,131 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Manage User Modal */}
+      {manageModalOpen && manageUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-2xl w-full animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Pencil className="w-5 h-5 text-blue-600" /> Manage User
+                </h2>
+                <button onClick={() => setManageModalOpen(false)} className="p-1 hover:bg-slate-100 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+              
+              <div className="flex border-b border-slate-100 px-6 shrink-0 bg-slate-50/50">
+                <button onClick={() => setManageTab("info")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "info" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Basic Info</button>
+                <button onClick={() => setManageTab("subscription")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "subscription" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Subscription</button>
+                <button onClick={() => setManageTab("security")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "security" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Security</button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                {manageTab === "info" && (
+                  <form onSubmit={handleUpdateInfo} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student First Name</label>
+                        <input value={manageFormData.student_first_name} onChange={(e) => setManageFormData({...manageFormData, student_first_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Last Name</label>
+                        <input value={manageFormData.student_last_name} onChange={(e) => setManageFormData({...manageFormData, student_last_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Email</label>
+                        <input value={manageFormData.student_email} onChange={(e) => setManageFormData({...manageFormData, student_email: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Phone</label>
+                        <input value={manageFormData.student_phone} onChange={(e) => setManageFormData({...manageFormData, student_phone: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                    </div>
+                    <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent First Name</label>
+                        <input value={manageFormData.parent_first_name} onChange={(e) => setManageFormData({...manageFormData, parent_first_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Last Name</label>
+                        <input value={manageFormData.parent_last_name} onChange={(e) => setManageFormData({...manageFormData, parent_last_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Email</label>
+                        <input value={manageFormData.parent_email} onChange={(e) => setManageFormData({...manageFormData, parent_email: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Phone</label>
+                        <input value={manageFormData.parent_phone} onChange={(e) => setManageFormData({...manageFormData, parent_phone: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-4">
+                      <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors">
+                        {isSubmitting ? "Saving..." : "Save Changes"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {manageTab === "subscription" && (
+                  <div className="space-y-6">
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <p className="text-sm text-slate-500">Subscription Status</p>
+                      <p className="text-lg font-bold text-slate-900 capitalize">{manageUser.subscription_status || "No active subscription"}</p>
+                    </div>
+                    {manageUser.subscription_status === "active" && (
+                      <div className="p-4 border border-red-100 bg-red-50 rounded-xl flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-red-900">Cancel Subscription</p>
+                          <p className="text-sm text-red-700">Immediately cancel their active plan.</p>
+                        </div>
+                        <button onClick={handleCancelSub} disabled={isSubmitting} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold">
+                          Cancel Plan
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {manageTab === "security" && (
+                  <div className="space-y-4">
+                    <div className="p-4 border border-amber-100 bg-amber-50 rounded-xl flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-amber-900">Reset Password</p>
+                        <p className="text-sm text-amber-700">Set password back to default (User@12345).</p>
+                      </div>
+                      <button onClick={handleResetPassword} disabled={isSubmitting} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold whitespace-nowrap">
+                        Reset Password
+                      </button>
+                    </div>
+                    
+                    <div className="p-4 border border-orange-100 bg-orange-50 rounded-xl flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-bold text-orange-900">{manageUser.is_active === false ? "Enable" : "Disable"} Account</p>
+                        <p className="text-sm text-orange-700">{manageUser.is_active === false ? "Restore user access." : "Block user from logging in."}</p>
+                      </div>
+                      <button onClick={handleToggleActive} disabled={isSubmitting} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold whitespace-nowrap">
+                        {manageUser.is_active === false ? "Enable Account" : "Disable Account"}
+                      </button>
+                    </div>
+
+                    <div className="p-4 border border-red-100 bg-red-50 rounded-xl flex items-center justify-between gap-4 mt-8">
+                      <div>
+                        <p className="font-bold text-red-900">Delete Account</p>
+                        <p className="text-sm text-red-700">Permanently delete user and all their data.</p>
+                      </div>
+                      <button onClick={handleDeleteUser} disabled={isSubmitting} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap">
+                        <Trash className="w-4 h-4" /> Delete Account
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

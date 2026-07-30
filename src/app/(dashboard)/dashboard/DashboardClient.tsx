@@ -1,5 +1,7 @@
 "use client";
 
+import Swal from "sweetalert2";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, Trophy, Bookmark, FileEdit, GraduationCap, ArrowRight, Lightbulb, Bell, Banknote, ListTodo, Flame, Send, FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, Users, Laptop, Video, Wallet, BarChart3, Loader2, FileText, X, PlusCircle, ChevronRight, ChevronLeft, Target } from "lucide-react";
@@ -97,13 +99,34 @@ function DashboardSection({
   const [trackerTaskModal, setTrackerTaskModal] = useState<{ id: string; title: string } | null>(null);
   const [trackerDueDate, setTrackerDueDate] = useState<string>("");
 
-  const handleComplete = (taskId: string, taskTitle: string) => {
+  const handleComplete = async (taskId: string, taskTitle: string) => {
     // Optimistic UI state update
     setCompletedTaskIds((prev) => ({ ...prev, [taskId]: true }));
-    startTransition(async () => {
-      await completeTask(taskId, taskTitle);
-      if (onRefresh) onRefresh();
+
+    const result = await Swal.fire({
+      title: "Confirm Completion",
+      text: `Did you complete: "${taskTitle}"?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, complete it",
+      cancelButtonText: "No, undo selection",
+      confirmButtonColor: "#10b981", // emerald-500
+      cancelButtonColor: "#94a3b8"
     });
+
+    if (result.isConfirmed) {
+      startTransition(async () => {
+        await completeTask(taskId, taskTitle);
+        if (onRefresh) onRefresh();
+      });
+    } else {
+      // Revert optimistic update
+      setCompletedTaskIds((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+    }
   };
 
   const handleSkip = (taskId: string) => {
@@ -344,6 +367,15 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
     );
   }
 
+  const coachTasks = globalTasks
+    .filter(t => t.description === 'COACHING' && t.status === 'pending')
+    .map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date }));
+
+  const coachSectionData = {
+    tasks: coachTasks,
+    deadlines: []
+  };
+
   return (
     <div className="space-y-8 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -427,6 +459,18 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
           category="college"
           onRefresh={() => generateDashboard(false)}
         />
+        {coachTasks.length > 0 && (
+          <DashboardSection
+            title="Coach Action Items"
+            icon={ListTodo}
+            colorClass="text-indigo-600"
+            borderClass="border-indigo-100"
+            bgClass="bg-indigo-50/50"
+            sectionData={coachSectionData}
+            category="coaching"
+            onRefresh={() => generateDashboard(false)}
+          />
+        )}
       </div>
 
       {(() => {

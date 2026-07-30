@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
 import {
@@ -15,7 +15,8 @@ import {
 } from "@/app/actions/resume";
 import {
   generateResumeFromProfileAction,
-  tailorResumeToJobAIAction
+  tailorResumeToJobAIAction,
+  importResumeWithAIAction
 } from "@/app/actions/resume-ai";
 import {
   ContactEditor,
@@ -38,6 +39,12 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   User,
   GraduationCap,
   Briefcase,
@@ -53,7 +60,8 @@ import {
   Edit3,
   Loader2,
   FileText,
-  ChevronDown
+  ChevronDown,
+  Upload
 } from "lucide-react";
 
 interface ResumeBuilderClientProps {
@@ -77,9 +85,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
   const [starModalOpen, setStarModalOpen] = useState(false);
   const [starOriginalText, setStarOriginalText] = useState("");
   const [starRoleTitle, setStarRoleTitle] = useState("");
-  const [starOnApply, setStarOnApply] = useState<(newText: string) => void>(
-    () => () => { }
-  );
+  const starOnApplyRef = useRef<(newText: string) => void>(() => {});
 
   // ATS Tailor modal state
   const [atsModalOpen, setAtsModalOpen] = useState(false);
@@ -89,9 +95,65 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
 
   // Step 1: Choose Resume Type modal state
   const [typeModalOpen, setTypeModalOpen] = useState(false);
+  const [startStep, setStartStep] = useState<"options" | "type">("options");
   const [selectedNewType, setSelectedNewType] = useState<
     "academic" | "professional" | "both"
   >("professional");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      // Only intercept if they are scrolling vertically
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    // Need passive: false to allow e.preventDefault()
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setTypeModalOpen(false);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const generated = await importResumeWithAIAction(formData);
+
+      const newPayload = {
+        resumes: [...payload.resumes, generated],
+        active_resume_id: generated.id
+      };
+      setPayload(newPayload);
+      setActiveId(generated.id);
+
+      Swal.fire({
+        title: "Resume Imported!",
+        text: "AI successfully parsed your resume and improved your bullet points using the STAR method. Please review them carefully.",
+        icon: "success",
+        confirmButtonColor: "#4f46e5"
+      });
+
+    } catch (err: any) {
+      toast.error(err.message || "Failed to import resume.");
+      setTypeModalOpen(true); // Re-open on error
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   // Loading states
   const [isSaving, setIsSaving] = useState(false);
@@ -102,13 +164,19 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
   const activeResume =
     payload.resumes.find((r) => r.id === activeId) || payload.resumes[0];
 
-  const updateActiveResume = (updated: ResumeDocument) => {
-    const newResumes = payload.resumes.map((r) =>
-      r.id === updated.id ? updated : r
-    );
-    setPayload({
-      ...payload,
-      resumes: newResumes
+  const updateActiveResume = (updatedOrUpdater: ResumeDocument | ((prev: ResumeDocument) => ResumeDocument)) => {
+    setPayload((prevPayload) => {
+      const active = prevPayload.resumes.find((r) => r.id === activeId);
+      if (!active) return prevPayload;
+      
+      const updated = typeof updatedOrUpdater === "function" ? updatedOrUpdater(active) : updatedOrUpdater;
+      
+      return {
+        ...prevPayload,
+        resumes: prevPayload.resumes.map((r) =>
+          r.id === updated.id ? updated : r
+        )
+      };
     });
   };
 
@@ -222,6 +290,26 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
   };
 
   const handleSaveToVault = async () => {
+    const defaultTitle = formatResumeTitle(activeResume);
+    const { value: customName, isConfirmed } = await Swal.fire({
+      title: "Name your Resume",
+      text: "Give your resume a custom display name before saving it to your Document Vault.",
+      input: "text",
+      inputPlaceholder: "e.g., Engineering Internship Resume July 2026",
+      inputValue: activeResume.title !== "Academic & Professional Resume" ? activeResume.title : defaultTitle,
+      showCancelButton: true,
+      confirmButtonText: "Save to Vault",
+      confirmButtonColor: "#8b5cf6", // matching violet theme
+      cancelButtonColor: "#94a3b8",
+      inputValidator: (value) => {
+        if (!value.trim()) {
+          return "Please enter a name for your resume!";
+        }
+      }
+    });
+
+    if (!isConfirmed) return;
+
     setIsSavingVault(true);
 
     let payloadToSave = payload;
@@ -230,10 +318,13 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
       const updatedResumes = [...payload.resumes];
       updatedResumes[currentResumeIndex] = {
         ...updatedResumes[currentResumeIndex],
-        title: formatResumeTitle(updatedResumes[currentResumeIndex])
+        title: customName.trim()
       };
       payloadToSave = { ...payload, resumes: updatedResumes };
       setPayload(payloadToSave);
+
+      // Also update activeResume locally to reflect immediately in UI if used
+      updateActiveResume(updatedResumes[currentResumeIndex]);
     }
 
     try {
@@ -255,7 +346,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
   ) => {
     setStarOriginalText(bulletText);
     setStarRoleTitle(roleTitle);
-    setStarOnApply(() => onApplyCallback);
+    starOnApplyRef.current = onApplyCallback;
     setStarModalOpen(true);
   };
 
@@ -271,8 +362,14 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
   return (
     <div className="flex flex-col min-h-screen bg-slate-50/60">
       <AILoader
-        isOpen={isPrefilling || atsLoading}
-        message={isPrefilling ? "Prefilling your resume with AI..." : "Tailoring resume for ATS..."}
+        isOpen={isPrefilling || atsLoading || isImporting}
+        message={
+          isImporting
+            ? "Importing resume and improving bullet points with AI..."
+            : isPrefilling
+              ? "Prefilling your resume with AI..."
+              : "Tailoring resume for ATS..."
+        }
       />
       {/* Top Action Bar (Hidden when printing) */}
       <div className="print:hidden bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs relative z-40">
@@ -378,15 +475,9 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
                 type="button"
                 onClick={() => setTypeModalOpen(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-2xl bg-violet-50/80 hover:bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200/80 transition-all shadow-2xs whitespace-nowrap self-start sm:self-auto"
-                title="Step 1: Switch or Choose Resume Type"
+                title="Switch, Create or Choose Resume Type"
               >
-                {activeResume.resume_type === "academic" ? (
-                  <>Academic Resume</>
-                ) : activeResume.resume_type === "professional" ? (
-                  <>Professional Resume</>
-                ) : (
-                  <>Academic & Professional</>
-                )}
+                <Plus className="w-3.5 h-3.5" /> Create New
               </button>
             </div>
           </div>
@@ -473,7 +564,10 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
             }`}
         >
           {/* Section Navigation Tabs */}
-          <div className="flex overflow-x-auto p-1.5 gap-1.5 rounded-2xl bg-slate-200/60 border border-slate-300/40 no-scrollbar">
+          <div
+            ref={tabsContainerRef}
+            className="flex overflow-x-auto p-1.5 gap-1.5 rounded-2xl bg-slate-200/60 border border-slate-300/40 no-scrollbar"
+          >
             {sections.map((sec) => {
               const Icon = sec.icon;
               const isSelected = selectedSection === sec.id;
@@ -548,7 +642,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
           <div className="sticky top-20">
             <ResumePreview
               resume={activeResume}
-              theme={activeResume.template_theme || "harvard"}
+              theme={activeResume.template_theme || "classic"}
               onThemeChange={(theme: ResumeTemplateTheme) =>
                 updateActiveResume({ ...activeResume, template_theme: theme })
               }
@@ -566,7 +660,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
         onClose={() => setStarModalOpen(false)}
         originalBullet={starOriginalText}
         roleTitle={starRoleTitle}
-        onApply={(newText) => starOnApply(newText)}
+        onApply={(newText) => starOnApplyRef.current(newText)}
       />
 
       {/* ATS Job Tailoring Dialog */}
@@ -579,16 +673,31 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
               </div>
               <div>
                 <DialogTitle className="text-lg font-black text-slate-900">
-                  ATS Match & Keyword Tailoring
+                  ATS Match & Tailor
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  Paste a target US internship, scholarship, or job description to analyze your ATS score.
+                  Paste a target internship, scholarship, or job description to analyze your ATS score.
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          <div className="my-4 space-y-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+              <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-indigo-600" /> ATS Check</h4>
+              <p className="text-[10px] text-slate-500 leading-tight">Makes sure your resume can be read by company software that filters applicants before a human sees it</p>
+            </div>
+            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+              <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Match</h4>
+              <p className="text-[10px] text-slate-500 leading-tight">See how well your resume matches a specific job or internship you want to apply for</p>
+            </div>
+            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+              <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 text-violet-600" /> Tailor</h4>
+              <p className="text-[10px] text-slate-500 leading-tight">Let AI rewrite parts of your resume to better fit a specific job posting</p>
+            </div>
+          </div>
+
+          <div className="mb-4 space-y-3">
             <label className="text-xs font-extrabold text-slate-700 block">
               Job / Internship / Scholarship Description
             </label>
@@ -622,7 +731,7 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Analyze & Score
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Run All Analysis
                 </>
               )}
             </Button>
@@ -631,7 +740,10 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
       </Dialog>
 
       {/* Step 1: Choose Resume Type Modal */}
-      <Dialog open={typeModalOpen} onOpenChange={setTypeModalOpen}>
+      <Dialog open={typeModalOpen} onOpenChange={(open) => {
+        setTypeModalOpen(open);
+        if (!open) setTimeout(() => setStartStep("options"), 200);
+      }}>
         <DialogContent className="sm:max-w-xl max-w-[95vw] w-full rounded-3xl p-6 bg-white border border-slate-200 shadow-2xl overflow-hidden">
           <DialogHeader>
             <div className="flex items-center gap-3">
@@ -640,114 +752,168 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
               </div>
               <div>
                 <DialogTitle className="text-lg font-black text-slate-900">
-                  Choose Resume Type
+                  {startStep === "options" ? "Get Started" : "Choose Resume Type"}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500">
-                  Select how you want Claude AI to tailor your US Student Resume.
+                  {startStep === "options"
+                    ? "Choose how you want to build your Student Resume."
+                    : "Select how you want Claude AI to tailor your Student Resume."}
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          <div className="my-4 space-y-3">
-            <div
-              onClick={() => setSelectedNewType("academic")}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "academic"
-                ? "border-violet-600 bg-violet-50/40 shadow-sm"
-                : "border-slate-200 hover:border-slate-300 bg-white"
-                }`}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🎓</span>
-                  <span className="text-sm font-black text-slate-900">
-                    Academic Resume
-                  </span>
+          {startStep === "options" ? (
+            <div className="my-4 space-y-4">
+              <div
+                onClick={() => setStartStep("type")}
+                className="p-5 rounded-2xl border border-slate-200 hover:border-violet-600 hover:bg-violet-50/40 transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Sparkles className="w-6 h-6 text-violet-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Build a new resume with AI</h3>
+                    <p className="text-sm text-slate-500 mt-1">Generate a structured resume from your Schoolari profile using AI.</p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                  College & Scholarships
-                </span>
               </div>
-              <p className="text-xs text-slate-600 font-medium">
-                Optimized for college admissions and scholarship applications. Focuses on honors, GPA, research projects, and academic goals.
-              </p>
-            </div>
 
-            <div
-              onClick={() => setSelectedNewType("professional")}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "professional"
-                ? "border-violet-600 bg-violet-50/40 shadow-sm"
-                : "border-slate-200 hover:border-slate-300 bg-white"
-                }`}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">💼</span>
-                  <span className="text-sm font-black text-slate-900">
-                    Professional Resume
-                  </span>
+              <div
+                onClick={() => { if (!isImporting) fileInputRef.current?.click() }}
+                className="p-5 rounded-2xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50/40 transition-all cursor-pointer group relative overflow-hidden"
+              >
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  disabled={isImporting}
+                />
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Upload className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">Upload my existing resume and improve it with AI</h3>
+                    <p className="text-sm text-slate-500 mt-1">AI will analyze, rewrite weak sections, and import it into the builder.</p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                  Jobs & Internships
-                </span>
               </div>
-              <p className="text-xs text-slate-600 font-medium">
-                Optimized for job and internship applications. Highlights quantifiable impact STAR bullets, leadership roles, and technical skills.
-              </p>
             </div>
-
-            <div
-              onClick={() => setSelectedNewType("both")}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "both"
-                ? "border-violet-600 bg-violet-50/40 shadow-sm"
-                : "border-slate-200 hover:border-slate-300 bg-white"
-                }`}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">✨</span>
-                  <span className="text-sm font-black text-slate-900">
-                    Both (Combined Resume)
-                  </span>
+          ) : (
+            <>
+              <div className="my-4 space-y-3">
+                <div
+                  onClick={() => setSelectedNewType("academic")}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "academic"
+                    ? "border-violet-600 bg-violet-50/40 shadow-sm"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🎓</span>
+                      <span className="text-sm font-black text-slate-900">
+                        Academic Resume
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                      College & Scholarships
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium">
+                    Optimized for college admissions and scholarship applications. Focuses on honors, GPA, research projects, and academic goals.
+                  </p>
                 </div>
-                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                  All-In-One
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 font-medium">
-                Build both using the same information. A comprehensive 1-page resume synthesizing academic honors and professional leadership.
-              </p>
-            </div>
-          </div>
 
-          <DialogFooter className="flex flex-col sm:flex-row items-center justify-end gap-2 border-t border-slate-100 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleCreateNewResume(selectedNewType)}
-              className="w-full sm:w-auto h-10 px-4 rounded-xl text-xs font-bold text-slate-700 border-slate-200 hover:bg-slate-50"
-            >
-              Start Blank Resume
-            </Button>
-            <Button
-              type="button"
-              onClick={() => handlePrefillFromProfile(selectedNewType)}
-              disabled={isPrefilling}
-              className="w-full sm:w-auto h-10 px-5 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md shadow-violet-500/20"
-            >
-              {isPrefilling ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> AI
-                  Prefilling...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5 text-yellow-300" /> AI
-                  Pre-Fill from Profile (Recommended)
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+                <div
+                  onClick={() => setSelectedNewType("professional")}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "professional"
+                    ? "border-violet-600 bg-violet-50/40 shadow-sm"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">💼</span>
+                      <span className="text-sm font-black text-slate-900">
+                        Professional Resume
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                      Jobs & Internships
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium">
+                    Optimized for job and internship applications. Highlights quantifiable impact STAR bullets, leadership roles, and technical skills.
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => setSelectedNewType("both")}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "both"
+                    ? "border-violet-600 bg-violet-50/40 shadow-sm"
+                    : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">✨</span>
+                      <span className="text-sm font-black text-slate-900">
+                        Both (Combined Resume)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                      All-In-One
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium">
+                    Build both using the same information. A comprehensive 1-page resume synthesizing academic honors and professional leadership.
+                  </p>
+                </div>
+              </div>
+
+              <DialogFooter className="flex flex-col sm:flex-row items-center justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setStartStep("options")}
+                  className="w-full sm:w-auto h-10 px-4 rounded-xl text-xs font-bold text-slate-700"
+                >
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleCreateNewResume(selectedNewType)}
+                  className="w-full sm:w-auto h-10 px-4 rounded-xl text-xs font-bold text-slate-700 border-slate-200 hover:bg-slate-50"
+                >
+                  Start Blank Resume
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handlePrefillFromProfile(selectedNewType)}
+                  disabled={isPrefilling}
+                  className="w-full sm:w-auto h-10 px-5 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md shadow-violet-500/20"
+                >
+                  {isPrefilling ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> AI
+                      Prefilling...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 mr-1.5 text-yellow-300" /> AI
+                      Pre-Fill from Profile (Recommended)
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

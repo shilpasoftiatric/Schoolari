@@ -122,25 +122,29 @@ export async function getJobsAndInternships() {
   }
 
   try {
-    // Fetch only Entry Level and Internship roles from TheMuse
-    const apiUrl = process.env.THE_MUSE_API_URL || "https://www.themuse.com/api/public/jobs";
-    const res = await fetch(`${apiUrl}?page=1&level=Entry%20Level&level=Internship`, {
-      method: "GET"
-    });
+    const appId = process.env.ADZUNA_APP_ID;
+    const appKey = process.env.ADZUNA_APP_KEY;
+    
+    let filteredJobs: any[] = [];
+    
+    if (appId && appKey) {
+      const query = interests.length > 0 ? interests.join(" ") : "";
+      const whatQuery = query ? `internship ${query}` : "internship";
+      const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=15&what=${encodeURIComponent(whatQuery)}&where=${encodeURIComponent(state)}&content-type=application/json`;
 
-    if (!res.ok) return [];
-
-    const json = await res.json();
-    let filteredJobs = [];
-
-    if (json.results && json.results.length > 0) {
-      filteredJobs = json.results.map((item: any) => ({
-        type: item.type === "external" ? "Full-Time" : "Internship",
-        title: item.name,
-        company: item.company.name,
-        location: item.locations.length > 0 ? item.locations[0].name : "Remote",
-        link: item.refs.landing_page
-      }));
+      const res = await fetch(adzunaUrl, { method: "GET" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.results && json.results.length > 0) {
+          filteredJobs = json.results.map((item: any) => ({
+            type: item.contract_type === "part_time" ? "Part-Time" : "Internship",
+            title: item.title,
+            company: item.company.display_name,
+            location: item.location.display_name || "Remote",
+            link: item.redirect_url
+          }));
+        }
+      }
     }
 
     if (filteredJobs.length === 0) {
@@ -196,43 +200,33 @@ export async function getRawJobsAndInternships() {
   }
 
   try {
-    // JSearch RapidAPI is returning 404 permanently, switching to TheMuse public API
-    const apiUrl = process.env.THE_MUSE_API_URL || "https://www.themuse.com/api/public/jobs";
-    const res = await fetch(`${apiUrl}?page=1&level=Entry%20Level&level=Internship`, {
-      method: "GET"
-    });
+    const appId = process.env.ADZUNA_APP_ID;
+    const appKey = process.env.ADZUNA_APP_KEY;
+    
+    let filteredJobs: any[] = [];
+    
+    if (appId && appKey) {
+      const query = interests.length > 0 ? interests.join(" ") : "";
+      const whatQuery = query ? `internship ${query}` : "internship";
+      const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=15&what=${encodeURIComponent(whatQuery)}&where=${encodeURIComponent(state)}&content-type=application/json`;
 
-    if (!res.ok) return [];
-
-    const json = await res.json();
-    let filteredJobs = [];
-
-    if (json.results && json.results.length > 0) {
-      filteredJobs = json.results.map((item: any) => ({
-        job_id: `00000000-0000-0000-0000-${item.id.toString().padStart(12, '0')}`,
-        job_title: item.name,
-        employer_name: item.company.name,
-        employer_logo: null,
-        job_city: item.locations.length > 0 ? item.locations[0].name : "Remote",
-        job_state: "",
-        job_employment_type: item.type === "external" ? "FULLTIME" : "INTERN",
-        job_description: item.contents
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/<\/p>/gi, '\n\n')
-          .replace(/<\/div>/gi, '\n')
-          .replace(/<li>/gi, '• ')
-          .replace(/<\/li>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-          .replace(/\n\s*\n/g, '\n\n') // Collapse multiple empty lines
-          .trim(),
-        job_apply_link: item.refs.landing_page
-      }));
+      const res = await fetch(adzunaUrl, { method: "GET" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.results && json.results.length > 0) {
+          filteredJobs = json.results.map((item: any) => ({
+            job_id: `00000000-0000-0000-0000-${item.id.toString().padStart(12, '0')}`,
+            job_title: item.title,
+            employer_name: item.company.display_name,
+            employer_logo: null,
+            job_city: item.location.area && item.location.area.length > 0 ? item.location.area[item.location.area.length - 1] : "Remote",
+            job_state: item.location.area && item.location.area.length > 1 ? item.location.area[1] : "",
+            job_employment_type: item.contract_type === "part_time" ? "PARTTIME" : "INTERN",
+            job_description: item.description || "No description provided.",
+            job_apply_link: item.redirect_url
+          }));
+        }
+      }
     }
 
     if (filteredJobs.length === 0) {
@@ -252,10 +246,53 @@ export async function getRawJobsAndInternships() {
       ];
     }
 
+    // Fetch custom internal jobs from DB
+    const { data: customJobs } = await supabase
+      .from("custom_jobs" as any)
+      .select("*")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+
+    if (customJobs && Array.isArray(customJobs) && customJobs.length > 0) {
+      const formattedCustomJobs = customJobs.map((job: any) => ({
+        job_id: job.id,
+        job_title: job.title,
+        employer_name: job.company,
+        employer_logo: null,
+        job_city: job.location,
+        job_state: "",
+        job_employment_type: job.employment_type === "Internship" ? "INTERN" : (job.employment_type === "Contract" ? "CONTRACTOR" : "FULLTIME"),
+        job_description: job.description,
+        job_apply_link: job.apply_url
+      }));
+      // Merge custom jobs at the top
+      filteredJobs = [...formattedCustomJobs, ...filteredJobs];
+    }
+
     RAW_JOBS_CACHE[cacheKey] = { data: filteredJobs, timestamp: now };
     return filteredJobs;
   } catch (error: any) {
     console.error("TheMuse Fetch Error:", error);
     return [];
   }
+}
+
+export async function clearJobsCache() {
+  for (const key in JOBS_CACHE) delete JOBS_CACHE[key];
+  for (const key in RAW_JOBS_CACHE) delete RAW_JOBS_CACHE[key];
+}
+
+export async function getCareerArticles() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const { data } = await supabase
+    .from("career_articles" as any)
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  return data || [];
 }

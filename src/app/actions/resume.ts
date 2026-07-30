@@ -37,7 +37,7 @@ function migrateLegacyResumeContent(rawContent: any, userProfile?: any): UserRes
     const defaultResume: ResumeDocument = {
       id: defaultResumeId,
       title: "General Academic & Professional Resume",
-      template_theme: "harvard",
+      template_theme: "classic",
       header: defaultHeader,
       education: defaultEducation,
       experience: [],
@@ -70,7 +70,7 @@ function migrateLegacyResumeContent(rawContent: any, userProfile?: any): UserRes
   const migratedResume: ResumeDocument = {
     id: defaultResumeId,
     title: "General Academic & Professional Resume",
-    template_theme: "harvard",
+    template_theme: "classic",
     header: defaultHeader,
     education: personalEdu.map((edu: any, idx: number) => ({
       id: `edu-legacy-${idx}`,

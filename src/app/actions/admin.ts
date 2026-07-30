@@ -1,12 +1,13 @@
 "use server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath, updateTag } from "next/cache";
+import { canAccessAdmin, hasPermission, isStaffRole, type Permission, type StaffRole } from "@/lib/rbac";
 
-// Utility to verify admin role
-export async function verifyAdmin() {
+// Get the current caller's staff role (or null if not staff)
+export async function getCallerRole(): Promise<StaffRole | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user) return null;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -14,13 +15,30 @@ export async function verifyAdmin() {
     .eq("id", user.id)
     .single();
 
-  if (profile?.role !== "admin") {
-    throw new Error("Access denied. Admin privileges required.");
-  }
+  const role = profile?.role;
+  return isStaffRole(role) ? role : null;
 }
 
-export async function updateUserRole(userId: string, newRole: "admin" | "user") {
-  await verifyAdmin();
+// Verify the caller has any staff role (can access admin panel)
+export async function verifyAdmin() {
+  const role = await getCallerRole();
+  if (!role || !canAccessAdmin(role)) {
+    throw new Error("Access denied. Staff privileges required.");
+  }
+  return role;
+}
+
+// Verify the caller has a specific permission
+export async function requirePermission(permission: Permission) {
+  const role = await getCallerRole();
+  if (!role || !hasPermission(role, permission)) {
+    throw new Error(`Access denied. Missing permission: ${permission}`);
+  }
+  return role;
+}
+
+export async function updateUserRole(userId: string, newRole: string) {
+  await requirePermission("manage_users");
   const adminClient = await createAdminClient();
 
   const { error } = await adminClient
@@ -168,6 +186,58 @@ export async function createUserMember(email: string, firstName: string, phone: 
     }
   }
 
+  revalidatePath("/admin/users");
+  return { success: true };
+}
+
+export async function updateUserBasicInfo(userId: string, data: {
+  first_name: string;
+  phone: string;
+  student_first_name: string;
+  student_last_name: string;
+  student_email: string;
+  student_phone: string;
+  parent_first_name: string;
+  parent_last_name: string;
+  parent_email: string;
+  parent_phone: string;
+}) {
+  await requirePermission("manage_users");
+  const adminClient = await createAdminClient();
+
+  const { error } = await adminClient
+    .from("profiles")
+    .update(data)
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/users");
+  return { success: true };
+}
+
+export async function resetUserPassword(userId: string, newPassword?: string) {
+  await requirePermission("manage_users");
+  const adminClient = await createAdminClient();
+  const password = newPassword || "User@12345";
+  const { error } = await adminClient.auth.admin.updateUserById(userId, { password });
+  if (error) throw new Error(error.message);
+  return { success: true, password };
+}
+
+export async function toggleUserActive(userId: string, isActive: boolean) {
+  await requirePermission("manage_users");
+  const adminClient = await createAdminClient();
+  const { error } = await adminClient.from("profiles").update({ is_active: isActive }).eq("id", userId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/users");
+  return { success: true };
+}
+
+export async function deleteUserAccount(userId: string) {
+  await requirePermission("manage_users");
+  const adminClient = await createAdminClient();
+  const { error } = await adminClient.auth.admin.deleteUser(userId);
+  if (error) throw new Error(error.message);
   revalidatePath("/admin/users");
   return { success: true };
 }

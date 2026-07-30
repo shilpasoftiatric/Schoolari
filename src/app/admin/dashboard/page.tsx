@@ -1,5 +1,5 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { LogOut, Users, GraduationCap, ToggleRight, ToggleLeft, ChevronRight, UserCog, Settings } from "lucide-react";
+import { LogOut, Users, GraduationCap, ChevronRight, Settings, HeartHandshake, Mail, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/app/actions/auth";
@@ -21,6 +21,9 @@ function StatCard({ label, value, icon: Icon, colorClass }: { label: string, val
 const QUICK_ACTIONS = [
   { to: "/admin/users", label: "Members", sub: "Directory & roles", icon: Users },
   { to: "/admin/scholarships", label: "Scholarships", sub: "Records & status", icon: GraduationCap },
+  { to: "/admin/coaching", label: "Coaching", sub: "Sessions & tasks", icon: HeartHandshake },
+  { to: "/admin/messages", label: "Messages", sub: "Send & broadcast", icon: Mail },
+  { to: "/admin/payments", label: "Payments", sub: "Stripe & plans", icon: CreditCard },
   { to: "/admin/settings", label: "Settings", sub: "Site & contact", icon: Settings },
 ];
 
@@ -31,16 +34,24 @@ export default async function AdminDashboardPage() {
   // Fire user fetch and ALL count fetches concurrently to save time
   const [
     { data: { user } },
-    { count: totalUsers },
+    { count: totalStudents },
+    { count: totalParentsLinked },
+    { count: activeSubscriptions },
     { count: totalScholarships },
     { count: activeScholarships },
-    { count: inactiveScholarships }
+    { count: inactiveScholarships },
+    { count: coachingSessions },
+    { count: messagesSent }
   ] = await Promise.all([
     supabase.auth.getUser(),
-    adminSupabase.from("profiles").select("*", { count: "exact", head: true }),
+    adminSupabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "user"),
+    adminSupabase.from("profiles").select("*", { count: "exact", head: true }).neq("parent_email", "").not("parent_email", "is", null),
+    adminSupabase.from("profiles").select("*", { count: "exact", head: true }).eq("subscription_status", "active"),
     adminSupabase.from("scholarships").select("*", { count: "exact", head: true }),
     adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", true),
-    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", false)
+    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", false),
+    adminSupabase.from("coaching_sessions").select("*", { count: "exact", head: true }),
+    adminSupabase.from("coaching_messages").select("*", { count: "exact", head: true }),
   ]);
 
   const { data: profile } = await supabase
@@ -57,6 +68,9 @@ export default async function AdminDashboardPage() {
     month: "long",
     day: "numeric",
   });
+
+  // Calculate unique parents
+  const totalParents = totalParentsLinked || 0;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -75,28 +89,28 @@ export default async function AdminDashboardPage() {
         <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Overview</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
-            label="Total users"
-            value={totalUsers || 0}
+            label="Total Students"
+            value={totalStudents || 0}
             icon={Users}
             colorClass="bg-blue-50 text-blue-600"
           />
           <StatCard
-            label="Total scholarships"
-            value={totalScholarships || 0}
-            icon={GraduationCap}
+            label="Total Parents"
+            value={totalParents}
+            icon={Users}
             colorClass="bg-indigo-50 text-indigo-600"
           />
           <StatCard
-            label="Active scholarships"
-            value={activeScholarships || 0}
-            icon={ToggleRight}
+            label="Active Subs"
+            value={activeSubscriptions || 0}
+            icon={CreditCard}
             colorClass="bg-emerald-50 text-emerald-600"
           />
           <StatCard
-            label="Inactive scholarships"
-            value={inactiveScholarships || 0}
-            icon={ToggleLeft}
-            colorClass="bg-slate-100 text-slate-500"
+            label="Coaching Sessions"
+            value={coachingSessions || 0}
+            icon={HeartHandshake}
+            colorClass="bg-rose-50 text-rose-600"
           />
         </div>
       </div>

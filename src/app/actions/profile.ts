@@ -283,6 +283,7 @@ export async function getProfile() {
 }
 
 import { syncContact, CONSTANT_CONTACT_PARENT_LIST, CONSTANT_CONTACT_STUDENT_LIST } from "@/lib/constant-contact";
+import { clearJobsCache } from "@/app/actions/career";
 
 export async function updateProfile(updates: any) {
   const supabase = await createClient();
@@ -294,7 +295,7 @@ export async function updateProfile(updates: any) {
   let targetId = user.id;
   const { data: currentUserProfile } = await supabase
     .from("profiles")
-    .select("account_type, linked_student_id")
+    .select("account_type, linked_student_id, unweighted_gpa, intended_major, state, preferred_college_type, career_interest, schoolari_goals, grade_level, student_first_name, student_last_name, student_email, student_phone")
     .eq("id", user.id)
     .single();
 
@@ -314,7 +315,7 @@ export async function updateProfile(updates: any) {
     'state', 'grade_level', 'fields_of_study',
     'background_tags', 'involvement_tags', 'college_start', 'biggest_challenge',
     'ethnicity_tags', 'financial_need',
-    'account_type', 'career_interest'
+    'account_type', 'career_interest', 'citizenship', 'sat_score_range', 'act_score_range'
   ];
 
   allowedKeys.forEach(key => {
@@ -334,6 +335,56 @@ export async function updateProfile(updates: any) {
   });
 
   const supabaseAdmin = await createAdminClient();
+
+  // We need to fetch the target profile to compare if it's the student (if we aren't already the student)
+  let existingProfile = currentUserProfile;
+  if (targetId !== user.id) {
+    const { data: tp } = await supabaseAdmin.from("profiles").select("*").eq("id", targetId).single();
+    if (tp) existingProfile = tp;
+  }
+
+  const scholarshipFields = ['unweighted_gpa', 'grade_level', 'intended_major', 'state', 'extracurricular_activities', 'citizenship', 'sat_score_range', 'act_score_range', 'career_interest'];
+  const collegeFields = ['unweighted_gpa', 'intended_major', 'career_interest', 'sat_score_range', 'act_score_range'];
+  const jobFields = ['unweighted_gpa', 'intended_major', 'state', 'career_interest'];
+  const taskFields = ['grade_level'];
+  const resumeFields = ['student_first_name', 'student_last_name', 'student_email', 'student_phone', 'state', 'unweighted_gpa', 'grade_level', 'expected_graduation_year', 'high_school_name', 'career_interest', 'languages_spoken', 'extracurricular_activities'];
+
+  let scholarshipsNeedRefresh = false;
+  let collegesNeedRefresh = false;
+  let jobsNeedRefresh = false;
+  let tasksNeedRefresh = false;
+  let resumeNeedsRefresh = false;
+
+  scholarshipFields.forEach(field => {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+      scholarshipsNeedRefresh = true;
+    }
+  });
+
+  collegeFields.forEach(field => {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+      collegesNeedRefresh = true;
+    }
+  });
+
+  jobFields.forEach(field => {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+      jobsNeedRefresh = true;
+    }
+  });
+
+  taskFields.forEach(field => {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+      tasksNeedRefresh = true;
+    }
+  });
+
+  resumeFields.forEach(field => {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+      resumeNeedsRefresh = true;
+    }
+  });
+
   const { error } = await supabaseAdmin
     .from("profiles")
     .update(safeUpdates)
@@ -341,6 +392,53 @@ export async function updateProfile(updates: any) {
 
   if (error) {
     throw new Error(`Failed to update profile: ${error.message}`);
+  }
+
+  // Phase 2: Safe SSOT Resume Patching
+  if (resumeNeedsRefresh) {
+    try {
+      const { data: resumesData } = await supabaseAdmin.from("resumes").select("id, content").eq("user_id", targetId).single();
+      if (resumesData && resumesData.content && resumesData.content.resumes) {
+        const updatedResumes = resumesData.content.resumes.map((r: any) => {
+          if (r.header) {
+            if (safeUpdates.student_first_name !== undefined) r.header.first_name = safeUpdates.student_first_name;
+            if (safeUpdates.student_last_name !== undefined) r.header.last_name = safeUpdates.student_last_name;
+            if (safeUpdates.student_email !== undefined) r.header.email = safeUpdates.student_email;
+            if (safeUpdates.student_phone !== undefined) r.header.phone = safeUpdates.student_phone;
+            if (safeUpdates.state !== undefined) r.header.city_state = safeUpdates.state;
+          }
+          if (r.education && r.education.length > 0) {
+            if (safeUpdates.high_school_name !== undefined) r.education[0].institution = safeUpdates.high_school_name;
+            if (safeUpdates.grade_level !== undefined) r.education[0].grade_level_or_degree = safeUpdates.grade_level;
+            if (safeUpdates.expected_graduation_year !== undefined) r.education[0].graduation_year = safeUpdates.expected_graduation_year;
+            if (safeUpdates.unweighted_gpa !== undefined) r.education[0].gpa_unweighted = safeUpdates.unweighted_gpa;
+            if (safeUpdates.state !== undefined) r.education[0].location = safeUpdates.state;
+          }
+          return r;
+        });
+        await supabaseAdmin.from("resumes").update({ content: { ...resumesData.content, resumes: updatedResumes } }).eq("id", resumesData.id);
+      }
+    } catch (e) {
+      console.error("Failed to sync resume with profile updates:", e);
+    }
+  }
+
+  // Phase 3: Background AI Trigger Invalidations
+  const cacheInvalidations: any = {};
+  if (scholarshipsNeedRefresh) cacheInvalidations.scholarship_recommendations_cache = null;
+  if (collegesNeedRefresh) cacheInvalidations.college_recommendations_cache = null;
+  if (tasksNeedRefresh) cacheInvalidations.dashboard_cache = null;
+
+  if (Object.keys(cacheInvalidations).length > 0) {
+    try {
+      await supabaseAdmin.from("profiles").update(cacheInvalidations).eq("id", targetId);
+    } catch(e) {}
+  }
+
+  if (jobsNeedRefresh) {
+    try {
+      clearJobsCache();
+    } catch(e) {}
   }
 
   // Sync to Constant Contact after successful update (fire and forget)
@@ -367,5 +465,12 @@ export async function updateProfile(updates: any) {
 
   // We do NOT use revalidatePath here because it will interfere with React State 
   // when used heavily in an edit form. The client component will handle state updates.
-  return { success: true };
+  return { 
+    success: true, 
+    scholarshipsRefreshed: scholarshipsNeedRefresh,
+    collegesRefreshed: collegesNeedRefresh,
+    jobsRefreshed: jobsNeedRefresh,
+    tasksRefreshed: tasksNeedRefresh,
+    resumeRefreshed: resumeNeedsRefresh 
+  };
 }

@@ -5,28 +5,29 @@ export interface AICallOptions {
   userPrompt: string;
   provider?: AIProvider;
   jsonMode?: boolean;
+  temperature?: number;
 }
 
-export async function callAI({ systemPrompt, userPrompt, provider = 'claude', jsonMode = false }: AICallOptions): Promise<string> {
+export async function callAI({ systemPrompt, userPrompt, provider = 'claude', jsonMode = false, temperature }: AICallOptions): Promise<string> {
   if (provider === 'claude') {
     try {
-      return await callClaude(systemPrompt, userPrompt);
+      return await callClaude(systemPrompt, userPrompt, temperature);
     } catch (err: any) {
       console.warn(`Claude API failed (${err.message || err}). Falling back to OpenAI...`);
-      return await callOpenAI(systemPrompt, userPrompt, jsonMode);
+      return await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature);
     }
   } else if (provider === 'openai') {
     try {
-      return await callOpenAI(systemPrompt, userPrompt, jsonMode);
+      return await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature);
     } catch (err: any) {
       console.warn(`OpenAI API failed (${err.message || err}). Falling back to Claude...`);
-      return await callClaude(systemPrompt, userPrompt);
+      return await callClaude(systemPrompt, userPrompt, temperature);
     }
   }
   throw new Error(`Unsupported AI provider: ${provider}`);
 }
 
-async function callOpenAI(systemPrompt: string, userPrompt: string, jsonMode: boolean): Promise<string> {
+async function callOpenAI(systemPrompt: string, userPrompt: string, jsonMode: boolean, temperature?: number): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
@@ -42,8 +43,8 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, jsonMode: bo
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.7,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {})
+      ...(jsonMode && { response_format: { type: "json_object" } }),
+      temperature: temperature !== undefined ? temperature : 0.7
     })
   });
 
@@ -56,7 +57,7 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, jsonMode: bo
   return data.choices[0].message.content;
 }
 
-async function callClaude(systemPrompt: string, userPrompt: string): Promise<string> {
+async function callClaude(systemPrompt: string, userPrompt: string, temperature?: number): Promise<string> {
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) throw new Error("CLAUDE_API_KEY is not set");
 
@@ -74,7 +75,7 @@ async function callClaude(systemPrompt: string, userPrompt: string): Promise<str
       messages: [
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.7
+      temperature: temperature !== undefined ? temperature : 0.7
     })
   });
 

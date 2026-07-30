@@ -250,3 +250,22 @@ div:where(.swal2-container) button:where(.swal2-styled) {
   font-weight: 600 !important;
   border-radius: 0.75rem !important;
 }
+
+/* Custom sleek scrollbar for modals and sidebars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+}

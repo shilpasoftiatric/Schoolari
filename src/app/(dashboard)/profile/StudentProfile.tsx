@@ -41,10 +41,38 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
         const errJson = await res.json();
         throw new Error(errJson.error || "Failed to update profile");
       }
+      const data = await res.json();
       setIsEditing(false);
       Object.assign(profile, formData);
+
+      // Phase 4: Confirmation Message
+      const { toast } = await import("sonner");
+      if (data.scholarshipsRefreshed || data.collegesRefreshed || data.jobsRefreshed || data.tasksRefreshed || data.resumeRefreshed) {
+        let msg = "Your";
+        const items = [];
+        if (data.scholarshipsRefreshed) items.push("Scholarships");
+        if (data.collegesRefreshed) items.push("College Recommendations");
+        if (data.jobsRefreshed) items.push("Jobs");
+        if (data.tasksRefreshed) items.push("Dashboard Tasks");
+        if (data.resumeRefreshed) items.push("Resume");
+        
+        if (items.length === 1) {
+          msg += " " + items[0] + " has been updated based on your new profile information.";
+        } else {
+          const lastItem = items.pop();
+          msg += " " + items.join(", ") + ", and " + lastItem + " have been updated based on your new profile information.";
+        }
+        
+        toast.success(msg, { duration: 5000 });
+      } else {
+        toast.success("Profile saved successfully.");
+      }
+
+      const { useRouter } = await import("next/navigation");
+      window.location.reload(); // Hard reload guarantees Dashboard and layout are refreshed without needing complex state architecture
     } catch (error) {
-      alert("Failed to update profile.");
+      const { toast } = await import("sonner");
+      toast.error("Failed to update profile.");
     } finally {
       setIsSaving(false);
     }
@@ -236,20 +264,22 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
         <div className="flex-1 space-y-6 min-w-0">
 
           {/* Personal Information Card */}
-          {/* <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-              <User className="w-5 h-5 text-violet-600" />
-              <h2 className="text-lg font-bold text-slate-900">Personal Information</h2>
+          {isEditing && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+                <User className="w-5 h-5 text-violet-600" />
+                <h2 className="text-lg font-bold text-slate-900">Personal Information</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-6 gap-x-8">
+                {renderField("First Name", "student_first_name", formData.student_first_name)}
+                {renderField("Last Name", "student_last_name", formData.student_last_name)}
+                {renderField("Mobile Number", "student_phone", formData.student_phone, "tel")}
+                {renderField("State", "state", formData.state)}
+                {renderField("Gender", "gender", formData.gender)}
+                {renderField("Ethnicity", "ethnicity", formData.ethnicity, "text", "Comma separated", true)}
+              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-6 gap-x-8">
-              {renderField("First Name", "student_first_name", formData.student_first_name)}
-              {renderField("Last Name", "student_last_name", formData.student_last_name)}
-              {renderField("Mobile Number", "student_phone", formData.student_phone, "tel")}
-              {renderField("State", "state", formData.state)}
-              {renderField("Gender", "gender", formData.gender)}
-              {renderField("Ethnicity", "ethnicity", formData.ethnicity, "text", "Comma separated", true)}
-            </div>
-          </div> */}
+          )}
 
           {/* Educational Information Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm">

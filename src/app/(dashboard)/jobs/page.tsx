@@ -1,4 +1,5 @@
 import { getPersonalizedJobsAction } from "@/app/actions/career-ai";
+import { getCareerArticles } from "@/app/actions/career";
 import { JobsDashboard } from "./JobsDashboard";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -30,8 +31,10 @@ export default async function JobsPage() {
 
   // For initial load, we'll fetch personalized jobs on the server
   let initialJobs = [];
+  let articles = [];
   try {
     initialJobs = await getPersonalizedJobsAction();
+    articles = await getCareerArticles();
   } catch (error) {
     console.error("Failed to load personalized jobs on server:", error);
   }
@@ -66,7 +69,7 @@ export default async function JobsPage() {
         </a>
       </div>
 
-      <JobsDashboard initialJobs={initialJobs} trackedJobMap={trackedJobMap} />
+      <JobsDashboard initialJobs={initialJobs} trackedJobMap={trackedJobMap} initialArticles={articles} />
     </div>
   );
 }

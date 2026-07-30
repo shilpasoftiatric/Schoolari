@@ -11,7 +11,7 @@ export type GradeLevel =
 
 export type AwardLevel = "School" | "Regional" | "State" | "National";
 
-export type ResumeTemplateTheme = "harvard" | "modern" | "executive";
+export type ResumeTemplateTheme = "classic" | "modern" | "executive" | "college" | "internship";
 
 export interface ResumeHeader {
   first_name: string;

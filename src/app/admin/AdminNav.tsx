@@ -3,19 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, GraduationCap, Settings, PlaySquare } from "lucide-react";
+import { LayoutDashboard, Users, GraduationCap, Settings, PlaySquare, Mail, Megaphone, HeartHandshake, UserCog, CreditCard, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "@/app/actions/auth";
+import { hasPermission, NAV_PERMISSIONS, type StaffRole } from "@/lib/rbac";
 
-const NAV_ITEMS = [
+const ALL_NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users / Members", icon: Users },
   { href: "/admin/scholarships", label: "Scholarships", icon: GraduationCap },
+  { href: "/admin/coaching", label: "Coaching", icon: HeartHandshake },
+  { href: "/admin/messages", label: "Messages", icon: Mail },
+  { href: "/admin/content", label: "Content Manager", icon: Megaphone },
+  { href: "/admin/career", label: "Career Center", icon: Briefcase },
   { href: "/admin/income", label: "Earn While You Learn", icon: PlaySquare },
+  { href: "/admin/payments", label: "Payments & Members", icon: CreditCard },
+  { href: "/admin/staff", label: "Staff Management", icon: UserCog },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
-export function AdminNav() {
+export function AdminNav({ role }: { role: StaffRole }) {
   const pathname = usePathname();
   const [selectedHref, setSelectedHref] = useState(pathname);
 
@@ -23,11 +30,18 @@ export function AdminNav() {
     setSelectedHref(pathname);
   }, [pathname]);
 
+  // Filter nav items based on what this role is allowed to see
+  const visibleItems = ALL_NAV_ITEMS.filter((item) => {
+    const requiredPermission = NAV_PERMISSIONS[item.href];
+    if (!requiredPermission) return true; // No permission needed → always show
+    return hasPermission(role, requiredPermission);
+  });
+
   return (
     <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-      {NAV_ITEMS.map((item) => {
+      {visibleItems.map((item) => {
         const Icon = item.icon;
-        const isActive = selectedHref === item.href;
+        const isActive = selectedHref === item.href || selectedHref.startsWith(item.href + "/");
 
         return (
           <Link
@@ -46,7 +60,6 @@ export function AdminNav() {
           </Link>
         );
       })}
-
     </nav>
   );
 }

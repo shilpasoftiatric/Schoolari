@@ -126,10 +126,20 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
 
             {/* Left Column: Job Description */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">About the Role</h3>
-                <div className="prose prose-sm max-w-none text-slate-600 whitespace-pre-wrap">
+              <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-bl-full -z-0 opacity-50"></div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4 relative z-10">About the Role</h3>
+                <div className="prose prose-sm max-w-none text-slate-600 whitespace-pre-wrap relative z-10">
                   {job.job_description}
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col items-center justify-center text-center relative z-10 bg-slate-50/50 rounded-xl p-4">
+                  <p className="text-sm text-slate-500 mb-3">
+                    This is a preview provided by our job partners. To view the full job description and requirements, please continue to the original posting.
+                  </p>
+                  <Button onClick={handleApply} variant="outline" className="w-full sm:w-auto border-violet-200 text-violet-700 hover:bg-violet-50">
+                    Read Full Details & Apply <ExternalLink className="w-4 h-4 ml-2" />
+                  </Button>
                 </div>
               </div>
             </div>

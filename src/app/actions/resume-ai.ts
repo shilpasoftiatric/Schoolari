@@ -8,7 +8,6 @@ import {
   ATSTailorResult
 } from "@/types/resume";
 import { formatPhoneE164 } from "@/lib/phone";
-
 export async function generateResumeFromProfileAction(
   resumeType: "academic" | "professional" | "both" = "professional"
 ): Promise<ResumeDocument> {
@@ -61,7 +60,7 @@ GOLDEN RULES (CRITICAL):
       ? "Professional Resume — Jobs & Internships"
       : "Academic & Professional Resume"
   }",
-  "template_theme": "harvard",
+  "template_theme": "classic",
   "header": {
     "first_name": "string",
     "last_name": "string",
@@ -165,7 +164,7 @@ Generate a complete, ATS-clean US Student Resume Document JSON object strictly a
           ? "Professional Resume — Jobs & Internships"
           : "Academic & Professional Resume"),
       resume_type: resumeType,
-      template_theme: parsed.template_theme || "harvard",
+      template_theme: parsed.template_theme || "classic",
       header: parsed.header || {
         first_name: profile.student_first_name || "Student",
         last_name: profile.student_last_name || "",
@@ -250,6 +249,168 @@ Provide the 3 STAR method variations in JSON format.`;
   }
 }
 
+export async function importResumeWithAIAction(formData: FormData): Promise<ResumeDocument> {
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("You must be signed in to import a resume.");
+  }
+
+  const file = formData.get("file") as File;
+  if (!file) throw new Error("No file uploaded");
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  let rawText = "";
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    try {
+      const PDFParser = require("pdf2json");
+      rawText = await new Promise<string>((resolve, reject) => {
+        // @ts-ignore
+        const pdfParser = new PDFParser(null, 1);
+        pdfParser.on("pdfParser_dataError", (errData: any) => reject(errData.parserError));
+        pdfParser.on("pdfParser_dataReady", () => {
+          resolve(pdfParser.getRawTextContent());
+        });
+        pdfParser.parseBuffer(buffer);
+      });
+    } catch (e: any) {
+      console.error("PDF Parse Error:", e);
+      throw new Error("Could not parse PDF. Ensure it is a valid text-based PDF.");
+    }
+  } else {
+    rawText = buffer.toString("utf-8");
+  }
+
+  if (!rawText || rawText.trim() === "") {
+    throw new Error("Could not extract any text from the file.");
+  }
+
+  const systemPrompt = `You are an expert Harvard Career Coach, ATS Resume Writer, and Strict Fact-Checker for US students.
+Your task is to parse the uploaded raw resume text and map it into an ATS-compatible, 1-page US Student Resume JSON object.
+Crucially, you must identify weak or passive bullet points in their experience/extracurriculars and REWRITE them into strong STAR (Situation, Task, Action, Result) bullets using strong action verbs, while NEVER inventing metrics, facts, or leadership roles. 
+
+GOLDEN RULES (CRITICAL):
+1. NEVER invent companies, internships, volunteer work, awards, dates, leadership, achievements, GPA, or metrics. Everything must come directly from the raw resume text.
+2. If a bullet point is weak (e.g. "Helped customers"), rewrite it to be professional and action-oriented (e.g. "Assisted customers by resolving inquiries and providing product recommendations").
+3. Only use "Leadership" if explicitly stated (Club Member ≠ Team Leader).
+4. All data must follow the US Education System (e.g., 9th Grade (Freshman), College Junior). Use US GPA scales (4.0/5.0+). Phone format: +1 (XXX) XXX-XXXX.
+5. Identify the student's experience level and set student_experience_level.
+6. Return ONLY a valid JSON object matching this exact TypeScript structure:
+{
+  "student_experience_level": "High School Student | College Student | No Experience | Some Experience | Experienced",
+  "missing_information": ["List any specific facts missing that would improve the resume, like dates, role titles, or specific tasks."],
+  "title": "Imported Resume — AI Improved",
+  "template_theme": "classic",
+  "header": {
+    "first_name": "string",
+    "last_name": "string",
+    "email": "string",
+    "phone": "string",
+    "city_state": "string",
+    "summary": "string",
+    "target_job_or_internship": "string",
+    "college_or_career_goals": "string"
+  },
+  "education": [
+    {
+      "id": "edu-1",
+      "institution": "string",
+      "grade_level_or_degree": "string",
+      "graduation_year": "string",
+      "gpa_unweighted": "string",
+      "gpa_weighted": "string",
+      "honors_coursework": "string",
+      "location": "string"
+    }
+  ],
+  "experience": [
+    {
+      "id": "exp-1",
+      "title": "string",
+      "organization": "string",
+      "location": "string",
+      "start_date": "string",
+      "end_date": "string",
+      "is_current": true,
+      "bullets": ["string (make these strong STAR bullets)"]
+    }
+  ],
+  "extracurriculars": [
+    {
+      "id": "ext-1",
+      "activity": "string",
+      "role": "string",
+      "start_date": "string",
+      "end_date": "string",
+      "hours_per_week": "string",
+      "bullets": ["string (make these strong STAR bullets)"]
+    }
+  ],
+  "awards": [
+    {
+      "id": "awd-1",
+      "title": "string",
+      "issuer": "string",
+      "year": "string",
+      "level": "School",
+      "description": "string"
+    }
+  ],
+  "skills": {
+    "technical": ["string"],
+    "soft": ["string"],
+    "languages": ["string"],
+    "certifications": ["string"]
+  }
+}`;
+
+  const userPrompt = `Raw Resume Text:
+"""
+${rawText}
+"""
+
+Parse this text, improve the bullet points, and return the structured JSON.`;
+
+  try {
+    const rawJson = await callAI({
+      systemPrompt,
+      userPrompt,
+      provider: "claude",
+      jsonMode: true
+    });
+
+    const parsed = JSON.parse(rawJson);
+    return {
+      id: "resume-" + Date.now(),
+      title: parsed.title || "Imported Resume — AI Improved",
+      resume_type: "both",
+      template_theme: parsed.template_theme || "classic",
+      header: parsed.header || {},
+      education: parsed.education || [],
+      experience: parsed.experience || [],
+      extracurriculars: parsed.extracurriculars || [],
+      awards: parsed.awards || [],
+      skills: parsed.skills || {
+        technical: [],
+        soft: [],
+        languages: [],
+        certifications: []
+      },
+      student_experience_level: parsed.student_experience_level || "Unknown",
+      missing_information: parsed.missing_information || [],
+      last_modified: new Date().toISOString()
+    };
+  } catch (error: any) {
+    console.error("AI Import Resume Error:", error);
+    throw new Error("Failed to parse and improve resume using Claude AI.");
+  }
+}
+
 export async function tailorResumeToJobAIAction(
   resumeDoc: ResumeDocument,
   jobTitleOrDescription: string
@@ -291,7 +452,8 @@ Provide ATS analysis JSON.`;
       systemPrompt,
       userPrompt,
       provider: "claude",
-      jsonMode: true
+      jsonMode: true,
+      temperature: 0
     });
 
     const parsed = JSON.parse(rawJson);

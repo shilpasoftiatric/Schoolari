@@ -51,7 +51,7 @@ const NAV_GROUPS = [
     items: [
       { label: "Jobs & Internships", icon: Briefcase, href: "/jobs" },
       { label: "Earn Income", icon: DollarSign, href: "/income", disabled: false },
-      { label: "College Coach", icon: GraduationCap, href: "/coaching", disabled: true },
+      { label: "College Coach", icon: GraduationCap, href: "/coaching", disabled: false },
     ],
   },
   {

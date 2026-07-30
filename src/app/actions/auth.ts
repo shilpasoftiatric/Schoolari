@@ -3,6 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { canAccessAdmin } from "@/lib/rbac";
 
 export async function signUp(formData: FormData) {
   const supabase = await createClient();
@@ -67,10 +68,10 @@ export async function signIn(formData: FormData) {
         .eq("id", data.user.id)
         .single();
 
-      if (profile?.role !== "admin") {
-        // Not an admin, sign them out and throw error
+      if (!canAccessAdmin(profile?.role)) {
+        // Not a staff member, sign them out
         await supabase.auth.signOut();
-        return { error: "Access denied. You do not have administrator privileges." };
+        return { error: "Access denied. You do not have staff privileges." };
       }
 
       redirect("/admin/dashboard");
@@ -85,7 +86,7 @@ export async function signIn(formData: FormData) {
         .eq("id", data.user.id)
         .single();
 
-      if (profile?.role === "admin") {
+      if (canAccessAdmin(profile?.role)) {
         await supabase.auth.signOut();
         return { error: "This is the member portal. Please use the admin login page." };
       }
