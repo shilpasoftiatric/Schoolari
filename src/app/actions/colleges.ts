@@ -4,6 +4,8 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 import { callAI } from "@/lib/ai";
+import twilio from "twilio";
+import { formatPhoneE164 } from "@/lib/phone";
 
 // Helper to get the correct user ID (student's ID if a parent is logged in)
 async function getMasterIdAndAdmin(user: any) {
@@ -295,6 +297,7 @@ export async function scheduleCollegeReminder(collegeName: string, dateStr: stri
 
   const dueDate = new Date(`${dateStr}T${timeStr || '09:00'}`);
 
+  // Create internal task
   const { error } = await supabaseAdmin
     .from("tasks")
     .insert([{
@@ -307,6 +310,90 @@ export async function scheduleCollegeReminder(collegeName: string, dateStr: stri
     }]);
 
   if (error) throw new Error(error.message);
+
+  // Fetch profile for phone number
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("phone, student_first_name")
+    .eq("id", masterId)
+    .single();
+
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+
+  if (accountSid && authToken && messagingServiceSid && profile?.phone) {
+    const e164Phone = formatPhoneE164(profile.phone);
+    if (e164Phone) {
+      const client = twilio(accountSid, authToken);
+      const studentName = profile.student_first_name || "there";
+
+      // 1. Generate Google Calendar Link
+      const encodedTitle = encodeURIComponent(`Apply to ${collegeName}`);
+      
+      // Use "Floating Time" by formatting the local time components without a 'Z'
+      const formatFloatingDate = (d: Date) => {
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+      };
+      
+      const eventDateStr = formatFloatingDate(dueDate);
+      const endDueDate = new Date(dueDate.getTime() + 60 * 60 * 1000); 
+      const endDateStr = formatFloatingDate(endDueDate);
+      const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${eventDateStr}/${endDateStr}`;
+
+      // 2. Send Immediate SMS
+      const immediateMessage = `Hi ${studentName}! You committed to applying to ${collegeName} on ${dateStr}. Tap here to add the deadline to your calendar so you don't forget: ${calendarLink}\n\nReply STOP to unsubscribe.`;
+      
+      try {
+        await client.messages.create({
+          body: immediateMessage,
+          messagingServiceSid,
+          to: e164Phone
+        });
+      } catch (err: any) {
+        console.error("Twilio immediate SMS error:", err.message);
+      }
+
+      // 3. Schedule the Reminder SMS
+      const now = new Date();
+      const diffDays = (dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24);
+      let sendAtDate: Date | null = null;
+      
+      if (diffDays > 7) {
+        sendAtDate = new Date(dueDate.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days before
+      } else if (diffDays > 2) {
+        sendAtDate = new Date(dueDate.getTime() - 1 * 24 * 60 * 60 * 1000); // 1 day before
+      } else if (diffDays > 0.5) {
+        sendAtDate = new Date(dueDate);
+        sendAtDate.setHours(9, 0, 0, 0); // Morning of
+        if (sendAtDate < now) sendAtDate = null;
+      }
+
+      if (sendAtDate) {
+        // Twilio requires sendAt to be >15 mins and <35 days in the future
+        const minSendAt = new Date(now.getTime() + 16 * 60 * 1000);
+        const maxSendAt = new Date(now.getTime() + 34 * 24 * 60 * 60 * 1000);
+        
+        if (sendAtDate < minSendAt) sendAtDate = minSendAt;
+        if (sendAtDate < maxSendAt) {
+          const scheduledMessage = `Reminder: Your application for ${collegeName} is due soon! Review your materials at members.schoolari.app/colleges. Good luck! 🎓`;
+          
+          try {
+            await client.messages.create({
+              body: scheduledMessage,
+              messagingServiceSid,
+              sendAt: sendAtDate,
+              scheduleType: 'fixed',
+              to: e164Phone
+            });
+          } catch (err: any) {
+            console.error("Twilio scheduled SMS error:", err.message);
+          }
+        }
+      }
+    }
+  }
 
   revalidatePath("/colleges");
   revalidatePath("/dashboard");

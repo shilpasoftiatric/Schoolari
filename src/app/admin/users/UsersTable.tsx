@@ -6,7 +6,7 @@ import { updateUserRole, createUserMember, updateUserBasicInfo, resetUserPasswor
 import { cancelSubscription } from "@/app/actions/admin-payments";
 import { sendAdminSms } from "@/app/actions/sms";
 import { formatPhoneUS } from "@/lib/phone";
-import { ROLE_LABELS, STAFF_ROLES } from "@/lib/rbac";
+import { ROLE_LABELS, STAFF_ROLES, type StaffRole } from "@/lib/rbac";
 import {
   Accordion,
   AccordionContent,
@@ -16,6 +16,12 @@ import {
 import { PhoneInput } from "@/components/ui/input";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
+
+const PLAN_NAMES: Record<string, string> = {
+  [process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER || ""]: "Starter",
+  [process.env.NEXT_PUBLIC_STRIPE_PRICE_SCHOLAR || ""]: "Scholar",
+  [process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE || ""]: "Elite",
+};
 
 function UserActions({
   user,
@@ -85,9 +91,11 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
       <div>
         <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${user.role === 'admin'
           ? 'bg-amber-50 text-amber-700 border-amber-200'
+          : user.role !== 'user'
+          ? 'bg-violet-50 text-violet-700 border-violet-200'
           : 'bg-slate-100 text-slate-600 border-slate-200'
           }`}>
-          {user.role === 'admin' ? 'Admin' : 'Member'}
+          {user.role === 'admin' ? 'Admin' : user.role !== 'user' ? ROLE_LABELS[user.role as StaffRole] || user.role : 'Member'}
         </span>
       </div>
       <div className="hidden md:block">
@@ -103,20 +111,20 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
   );
 }
 
-function ParentSection({ user, actions }: { user: any, actions: React.ReactNode }) {
+function ParentSection({ user, actions, isPrimary = false }: { user: any, actions: React.ReactNode, isPrimary?: boolean }) {
   const hasParent = user.parent_first_name || user.parent_email;
 
   if (!hasParent) {
     return (
-      <div className="p-6 bg-slate-50 border-t border-slate-100 text-center text-slate-500 text-sm">
+      <div className={`p-6 bg-slate-50 text-center text-slate-500 text-sm ${!isPrimary ? "border-t border-slate-100" : ""}`}>
         No linked parent found.
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 bg-slate-50/80 border-t border-slate-100">
-      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Linked Parent</h4>
+    <div className={`p-4 sm:p-6 ${!isPrimary ? "bg-slate-50/80 border-t border-slate-100" : ""}`}>
+      {!isPrimary && <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Linked Parent</h4>}
       <div className="grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 items-center w-full text-left">
         <div>
           <p className="font-semibold text-slate-800">{user.parent_first_name ? `${user.parent_first_name} ${user.parent_last_name}` : "—"}</p>
@@ -144,7 +152,42 @@ function ParentSection({ user, actions }: { user: any, actions: React.ReactNode 
   );
 }
 
-function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onManage }: any) {
+function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onManage, filterRole }: any) {
+  if (filterRole === "student" || filterRole === "parent") {
+    // Return a flat row without accordion wrapper
+    return (
+      <div className="border border-slate-200 rounded-xl bg-white shadow-sm mb-3 overflow-hidden p-4 sm:p-6 transition-all hover:border-slate-300">
+        {filterRole === "student" ? (
+          <StudentSection
+            user={user}
+            actions={
+              <UserActions
+                user={user}
+                handleRoleChange={handleRoleChange}
+                isPending={isPending}
+                onSendSms={() => onSendSms(user, "student")}
+                onManage={() => onManage(user)}
+                roleOption={true}
+              />
+            }
+          />
+        ) : (
+          <ParentSection
+            user={user}
+            isPrimary={true}
+            actions={
+              <UserActions
+                user={user}
+                onSendSms={() => onSendSms(user, "parent")}
+                onManage={() => onManage(user)}
+              />
+            }
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <AccordionItem value={user.id} className="border border-slate-200 rounded-xl bg-white shadow-sm mb-3 overflow-hidden data-[state=open]:border-violet-200 data-[state=open]:shadow-md transition-all">
       <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors [&[data-state=open]]:bg-slate-50/50">
@@ -179,6 +222,7 @@ function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onMan
 
 export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
   const [search, setSearch] = useState("");
+  const [filterRole, setFilterRole] = useState<"all" | "student" | "parent">("all");
   const [isPending, startTransition] = useTransition();
 
   // Create Modal state
@@ -306,19 +350,29 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
   const [smsLoading, setSmsLoading] = useState(false);
   const [smsStatus, setSmsStatus] = useState({ type: "", msg: "" });
 
-  const filteredUsers = initialUsers.filter((u) =>
-    u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.phone?.toLowerCase().includes(search.toLowerCase()) ||
-    u.first_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.student_first_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.student_last_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.student_email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.student_phone?.toLowerCase().includes(search.toLowerCase()) ||
-    u.parent_first_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.parent_last_name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.parent_email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.parent_phone?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = initialUsers.filter((u) => {
+    let matchesRole = true;
+    if (filterRole === "student") {
+      matchesRole = u.role === "user" && u.account_type !== "staff" && u.account_type !== "admin";
+    } else if (filterRole === "parent") {
+      matchesRole = u.role === "user" && (u.account_type === "parent" || !!u.parent_first_name || !!u.parent_email);
+    }
+    if (!matchesRole) return false;
+    
+    return (
+      u.email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.phone?.toLowerCase().includes(search.toLowerCase()) ||
+      u.first_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.student_first_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.student_last_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.student_email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.student_phone?.toLowerCase().includes(search.toLowerCase()) ||
+      u.parent_first_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.parent_last_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.parent_email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.parent_phone?.toLowerCase().includes(search.toLowerCase())
+    );
+  });
 
   const handleRoleChange = (userId: string, newRole: "admin" | "user") => {
     startTransition(async () => {
@@ -388,8 +442,28 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center justify-between gap-4">
-        <div className="relative w-full max-w-sm">
+      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col sm:flex-row items-center gap-4 w-full">
+        <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+          <button
+            onClick={() => setFilterRole("all")}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterRole === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => setFilterRole("student")}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterRole === "student" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            Students
+          </button>
+          <button
+            onClick={() => setFilterRole("parent")}
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all ${filterRole === "parent" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          >
+            Parents
+          </button>
+        </div>
+        <div className="relative w-full max-w-sm ml-auto">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -401,7 +475,7 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
         </div>
         <button
           onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-semibold transition-colors shrink-0"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-sm font-bold transition-colors w-full sm:w-auto shrink-0"
         >
           <Plus className="w-4 h-4" /> Add Member
         </button>
@@ -429,6 +503,7 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
               handleRoleChange={handleRoleChange}
               onSendSms={triggerSendSms}
               onManage={triggerManage}
+              filterRole={filterRole}
             />
           ))
         )}
@@ -666,7 +741,14 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                   <div className="space-y-6">
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                       <p className="text-sm text-slate-500">Subscription Status</p>
-                      <p className="text-lg font-bold text-slate-900 capitalize">{manageUser.subscription_status || "No active subscription"}</p>
+                      <p className="text-lg font-bold text-slate-900 capitalize">
+                        {manageUser.subscription_status || "No active subscription"}
+                        {manageUser.stripe_price_id && manageUser.subscription_status === 'active' && (
+                          <span className="text-slate-500 font-normal ml-2">
+                            ({PLAN_NAMES[manageUser.stripe_price_id] || "Unknown Plan"})
+                          </span>
+                        )}
+                      </p>
                     </div>
                     {manageUser.subscription_status === "active" && (
                       <div className="p-4 border border-red-100 bg-red-50 rounded-xl flex items-center justify-between">

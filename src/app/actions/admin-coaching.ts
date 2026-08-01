@@ -11,11 +11,13 @@ export async function createSession(formData: FormData) {
   const session_date = formData.get("session_date") as string;
   const meeting_link = formData.get("meeting_link") as string;
   const session_type = formData.get("session_type") as string;
+  const duration_minutes = parseInt(formData.get("duration_minutes") as string) || 45;
 
   const { error } = await adminClient.from("coaching_sessions").insert({
     title,
     description,
     session_date: new Date(session_date).toISOString(),
+    duration_minutes,
     meeting_link,
     session_type
   });

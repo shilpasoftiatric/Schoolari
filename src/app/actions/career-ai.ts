@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getRawJobsAndInternships, getResume } from "./career";
 import { callAI } from "@/lib/ai";
 import { revalidatePath } from "next/cache";
+import twilio from "twilio";
+import { formatPhoneE164 } from "@/lib/phone";
 
 export async function getPersonalizedJobsAction() {
   const supabase = await createClient();
@@ -160,7 +162,7 @@ ${JSON.stringify(resume?.content || {}, null, 2)}`;
   }
 }
 
-export async function saveJobToTrackerAction(jobData: any, status: string = "Not Started", dueDate?: string) {
+export async function saveJobToTrackerAction(jobData: any, status: string = "Not Started", dueDate?: string, dueTime?: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -199,6 +201,102 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
       });
     if (error) throw new Error(error.message);
   }
+
+  // --- NEW TWILIO SMS LOGIC ---
+  if (status === "Not Started") {
+    // Attempt to send an SMS
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("phone, student_first_name")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.phone) {
+      const e164Phone = formatPhoneE164(profile.phone);
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+
+      if (e164Phone && accountSid && authToken && messagingServiceSid) {
+        try {
+          const client = twilio(accountSid, authToken);
+          const studentName = profile.student_first_name || "there";
+          const employerName = jobData.employer_name || "the company";
+          const jobTitle = jobData.job_title || "the job";
+          
+          let immediateMessage = "";
+          let finalDueDate: Date | null = null;
+          
+          if (dueDate) {
+            finalDueDate = new Date(`${dueDate}T${dueTime || '09:00'}`);
+            
+            // Generate Floating Time Google Calendar Link
+            const encodedTitle = encodeURIComponent(`Apply to ${employerName} - ${jobTitle}`);
+            const formatFloatingDate = (d: Date) => {
+              const pad = (n: number) => n.toString().padStart(2, '0');
+              return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+            };
+            
+            const eventDateStr = formatFloatingDate(finalDueDate);
+            const endDueDate = new Date(finalDueDate.getTime() + 60 * 60 * 1000); 
+            const endDateStr = formatFloatingDate(endDueDate);
+            const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${eventDateStr}/${endDateStr}`;
+            
+            immediateMessage = `Hi ${studentName}! You committed to applying to ${employerName} on ${dueDate}. Tap here to add the deadline to your calendar so you don't forget: ${calendarLink}\n\nReply STOP to unsubscribe.`;
+          } else {
+            immediateMessage = `Hi ${studentName}! Reminder: You committed to applying to ${employerName}. Track your progress at members.schoolari.app/jobs. Good luck! 💼\n\nReply STOP to unsubscribe.`;
+          }
+
+          // Send Immediate SMS
+          await client.messages.create({
+            body: immediateMessage,
+            messagingServiceSid,
+            to: e164Phone
+          });
+          
+          // Schedule the Reminder SMS
+          if (finalDueDate) {
+            const now = new Date();
+            const diffDays = (finalDueDate.getTime() - now.getTime()) / (1000 * 3600 * 24);
+            let sendAtDate: Date | null = null;
+            
+            if (diffDays > 7) {
+              sendAtDate = new Date(finalDueDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+            } else if (diffDays > 2) {
+              sendAtDate = new Date(finalDueDate.getTime() - 1 * 24 * 60 * 60 * 1000);
+            } else if (diffDays > 0.5) {
+              sendAtDate = new Date(finalDueDate);
+              sendAtDate.setHours(9, 0, 0, 0);
+              if (sendAtDate < now) sendAtDate = null;
+            }
+
+            if (sendAtDate) {
+              const minSendAt = new Date(now.getTime() + 16 * 60 * 1000);
+              const maxSendAt = new Date(now.getTime() + 34 * 24 * 60 * 60 * 1000);
+              
+              if (sendAtDate < minSendAt) sendAtDate = minSendAt;
+              if (sendAtDate < maxSendAt) {
+                const scheduledMessage = `Reminder: Your application for ${employerName} is due soon! Review your materials at members.schoolari.app/jobs. You've got this! 💼`;
+                
+                await client.messages.create({
+                  body: scheduledMessage,
+                  messagingServiceSid,
+                  sendAt: sendAtDate,
+                  scheduleType: 'fixed',
+                  to: e164Phone
+                }).catch(err => {
+                  console.error("Twilio scheduling error (jobs):", err.message);
+                });
+              }
+            }
+          }
+        } catch (err: any) {
+          console.error("[saveJobToTrackerAction] Twilio error:", err.message);
+        }
+      }
+    }
+  }
+
 
   // Clear profile AI dashboard cache so dashboard reflects updated tracker items immediately
   const { createAdminClient } = await import("@/lib/supabase/server");

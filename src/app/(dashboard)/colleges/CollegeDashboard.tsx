@@ -199,6 +199,9 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
               <Input type="date" value={reminderDate} onChange={(e) => setReminderDate(e.target.value)} className="rounded-xl text-sm" />
               <Input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)} className="rounded-xl text-sm" />
             </div>
+            <p className="text-[10px] text-slate-500 leading-tight text-center">
+              You'll get an immediate calendar link & a scheduled text via Twilio SMS.
+            </p>
             <div className="flex gap-2">
               <Button onClick={() => setReminderOpen(false)} variant="outline" className="flex-1 rounded-xl text-sm font-bold">Cancel</Button>
               <Button onClick={handleSetReminder} disabled={settingReminder} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-bold">

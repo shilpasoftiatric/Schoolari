@@ -337,14 +337,14 @@ export async function setScholarshipAction(
 // ─────────────────────────────────────────────────────────────────────────────
 // NEW: sendScholarshipReminder — reuses existing Twilio infrastructure
 // ─────────────────────────────────────────────────────────────────────────────
-export async function sendScholarshipReminder(scholarshipId: string) {
+export async function sendScholarshipReminder(scholarshipId: string, dateStr?: string, timeStr?: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
   // Fetch user phone and scholarship details in parallel
   const [profileRes, scholarshipRes] = await Promise.all([
-    supabase.from("profiles").select("phone, first_name").eq("id", user.id).single(),
+    supabase.from("profiles").select("phone, student_first_name").eq("id", user.id).single(),
     supabase.from("scholarships").select("name, deadline").eq("id", scholarshipId).single()
   ]);
 
@@ -359,22 +359,90 @@ export async function sendScholarshipReminder(scholarshipId: string) {
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
-  if (!accountSid || !authToken || !twilioPhone) {
-    console.warn("Twilio credentials not configured — skipping SMS.");
+  if (!accountSid || !authToken || !messagingServiceSid) {
+    console.warn("Twilio credentials or Messaging Service SID not configured — skipping SMS.");
     return { success: true, smsSent: false };
   }
 
   try {
-    const deadlineStr = scholarship.deadline
-      ? new Date(scholarship.deadline).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-      : "the upcoming deadline";
-
-    const message = `Hi ${profile.student_first_name || "there"}! Reminder: Apply to "${scholarship.name}" by ${deadlineStr}. Track your progress at members.schoolari.app/scholarships. Good luck! 🎓\n\nReply STOP to unsubscribe.`;
-
     const client = twilio(accountSid, authToken);
-    await client.messages.create({ body: message, from: twilioPhone, to: e164Phone });
+    const studentName = profile.student_first_name || "there";
+    
+    // Default to the scholarship deadline if the user didn't pick a date
+    let reminderDateStr = dateStr;
+    if (!reminderDateStr && scholarship.deadline) {
+      reminderDateStr = new Date(scholarship.deadline).toISOString().split('T')[0];
+    }
+    
+    let immediateMessage = "";
+    let dueDate: Date | null = null;
+    
+    if (reminderDateStr) {
+      dueDate = new Date(`${reminderDateStr}T${timeStr || '09:00'}`);
+      
+      // 1. Generate Google Calendar Link using Floating Time
+      const encodedTitle = encodeURIComponent(`Apply to ${scholarship.name}`);
+      const formatFloatingDate = (d: Date) => {
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+      };
+      
+      const eventDateStr = formatFloatingDate(dueDate);
+      const endDueDate = new Date(dueDate.getTime() + 60 * 60 * 1000); 
+      const endDateStr = formatFloatingDate(endDueDate);
+      const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${eventDateStr}/${endDateStr}`;
+      
+      immediateMessage = `Hi ${studentName}! You committed to applying to "${scholarship.name}" on ${reminderDateStr}. Tap here to add the deadline to your calendar so you don't forget: ${calendarLink}\n\nReply STOP to unsubscribe.`;
+    } else {
+      immediateMessage = `Hi ${studentName}! Reminder: You committed to applying to "${scholarship.name}". Track your progress at members.schoolari.app/scholarships. Good luck! 🎓\n\nReply STOP to unsubscribe.`;
+    }
+
+    // 2. Send Immediate SMS
+    await client.messages.create({
+      body: immediateMessage,
+      messagingServiceSid,
+      to: e164Phone
+    });
+    
+    // 3. Schedule the Reminder SMS (if we have a dueDate)
+    if (dueDate) {
+      const now = new Date();
+      const diffDays = (dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24);
+      let sendAtDate: Date | null = null;
+      
+      if (diffDays > 7) {
+        sendAtDate = new Date(dueDate.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days before
+      } else if (diffDays > 2) {
+        sendAtDate = new Date(dueDate.getTime() - 1 * 24 * 60 * 60 * 1000); // 1 day before
+      } else if (diffDays > 0.5) {
+        sendAtDate = new Date(dueDate);
+        sendAtDate.setHours(9, 0, 0, 0); // Morning of
+        if (sendAtDate < now) sendAtDate = null;
+      }
+
+      if (sendAtDate) {
+        // Twilio requires sendAt to be >15 mins and <35 days in the future
+        const minSendAt = new Date(now.getTime() + 16 * 60 * 1000);
+        const maxSendAt = new Date(now.getTime() + 34 * 24 * 60 * 60 * 1000);
+        
+        if (sendAtDate < minSendAt) sendAtDate = minSendAt;
+        if (sendAtDate < maxSendAt) {
+          const scheduledMessage = `Reminder: Your scholarship application for "${scholarship.name}" is due soon! Review your materials at members.schoolari.app/scholarships. You've got this! 🎓`;
+          
+          await client.messages.create({
+            body: scheduledMessage,
+            messagingServiceSid,
+            sendAt: sendAtDate,
+            scheduleType: 'fixed',
+            to: e164Phone
+          }).catch(err => {
+            console.error("Twilio scheduling error (scholarship):", err.message);
+          });
+        }
+      }
+    }
 
     return { success: true, smsSent: true };
   } catch (err: any) {
@@ -383,4 +451,3 @@ export async function sendScholarshipReminder(scholarshipId: string) {
     return { success: true, smsSent: false };
   }
 }
-

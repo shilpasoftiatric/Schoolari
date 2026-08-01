@@ -62,12 +62,12 @@ export async function POST(req: Request) {
       targetId = profile.linked_student_id;
     }
 
-    // Insert enrollment
-    const { error: enrollError } = await supabase
+    // Insert enrollment using admin client to bypass RLS (authorization is already handled above)
+    const { error: enrollError } = await adminSupabase
       .from("coaching_enrollments")
       .insert({
         session_id: sessionId,
-        student_id: targetId,
+        user_id: targetId,
         attendance_status: 'registered'
       });
 

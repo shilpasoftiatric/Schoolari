@@ -475,6 +475,46 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["student_video_progress"]["Row"]>;
         Relationships: any[];
       };
+      coaching_sessions: {
+        Row: {
+          id: string;
+          title: string;
+          description: string;
+          session_date: string;
+          duration_minutes: number;
+          meeting_link: string;
+          session_type: string;
+          created_at: string;
+        };
+        Insert: {
+          title: string;
+          description: string;
+          session_date: string;
+          duration_minutes: number;
+          meeting_link: string;
+          session_type: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["coaching_sessions"]["Row"]>;
+        Relationships: any[];
+      };
+      coaching_enrollments: {
+        Row: {
+          id: string;
+          session_id: string;
+          user_id: string;
+          attendance_status: string;
+          internal_notes: string;
+          created_at: string;
+        };
+        Insert: {
+          session_id: string;
+          user_id: string;
+          attendance_status?: string;
+          internal_notes?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["coaching_enrollments"]["Row"]>;
+        Relationships: any[];
+      };
     };
     Views: {
       [_ in never]: never;

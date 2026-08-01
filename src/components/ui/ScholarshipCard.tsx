@@ -26,8 +26,9 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
   const [processing, setProcessing] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<string>("");
+  const [targetTime, setTargetTime] = useState<string>("");
 
-  const handleAction = async (action: "will_apply" | "applied" | "won", dueDate?: string) => {
+  const handleAction = async (action: "will_apply" | "applied" | "won", dueDate?: string, dueTime?: string) => {
     if (processing) return;
     setProcessing(true);
 
@@ -50,7 +51,7 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
 
       // Send SMS reminder for "I Will Apply"
       if (action === "will_apply") {
-        const smsResult = await sendScholarshipReminder(scholarship.id);
+        const smsResult = await sendScholarshipReminder(scholarship.id, dueDate, dueTime);
         const smsNote = smsResult.smsSent
           ? " We'll send you a reminder before the deadline."
           : "";
@@ -255,15 +256,27 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <label className="text-sm font-medium mb-2 block text-slate-700">Target Date</label>
-              <Input 
-                type="date" 
-                value={targetDate} 
-                onChange={(e) => setTargetDate(e.target.value)} 
-                min={new Date().toISOString().split('T')[0]}
-              />
+              <label className="text-sm font-medium mb-2 block text-slate-700">Set Application Reminder</label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input 
+                  type="date" 
+                  value={targetDate} 
+                  onChange={(e) => setTargetDate(e.target.value)} 
+                  min={new Date().toISOString().split('T')[0]}
+                  className="rounded-xl text-sm"
+                />
+                <Input 
+                  type="time" 
+                  value={targetTime} 
+                  onChange={(e) => setTargetTime(e.target.value)} 
+                  className="rounded-xl text-sm"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 leading-tight text-center mt-3">
+                You'll get an immediate calendar link & a scheduled text via Twilio SMS.
+              </p>
               {scholarship.deadline && (
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-slate-500 mt-3 text-center">
                   Official deadline: {new Date(scholarship.deadline).toLocaleDateString()}
                 </p>
               )}
@@ -273,7 +286,7 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
                 Cancel
               </Button>
               <Button 
-                onClick={() => handleAction("will_apply", targetDate)} 
+                onClick={() => handleAction("will_apply", targetDate, targetTime)} 
                 disabled={processing || !targetDate}
                 className="bg-violet-600 hover:bg-violet-700 text-white"
               >

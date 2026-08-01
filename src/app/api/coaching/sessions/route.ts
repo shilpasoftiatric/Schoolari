@@ -24,7 +24,7 @@ export async function GET() {
     }
 
     // Use admin client to bypass RLS so students can see the catalog
-    // Subtract 24 hours to prevent timezone offsets from hiding today's sessions
+    // Fetch sessions that started within the last 24 hours (or in the future)
     const bufferDate = new Date();
     bufferDate.setHours(bufferDate.getHours() - 24);
 
@@ -38,11 +38,11 @@ export async function GET() {
       throw new Error(`Failed to fetch sessions: ${sessionsError.message}`);
     }
 
-    // Fetch the user's enrollments
-    const { data: enrollments, error: enrollmentsError } = await supabase
+    // Fetch the user's enrollments using admin client to bypass RLS
+    const { data: enrollments, error: enrollmentsError } = await adminSupabase
       .from("coaching_enrollments")
       .select("session_id, attendance_status")
-      .eq("student_id", targetId);
+      .eq("user_id", targetId);
 
     if (enrollmentsError) {
       throw new Error(`Failed to fetch enrollments: ${enrollmentsError.message}`);
@@ -52,18 +52,29 @@ export async function GET() {
 
     // Map sessions to include enrollment status
     // Also, hide the meeting_link if the user is not enrolled
-    const mappedSessions = sessions?.map(session => {
-      const isEnrolled = enrolledSessionIds.includes(session.id);
-      return {
-        ...session,
-        isEnrolled,
-        meeting_link: isEnrolled ? session.meeting_link : null
-      };
-    });
+    // Filter out sessions that have already ended based on duration_minutes
+    const now = Date.now();
+    const mappedSessions = (sessions || [])
+      .filter(session => {
+        const sessionTime = new Date(session.session_date).getTime();
+        const durationMs = (session.duration_minutes || 45) * 60 * 1000;
+        return sessionTime + durationMs > now;
+      })
+      .map(session => {
+        const isEnrolled = enrolledSessionIds.includes(session.id);
+        return {
+          ...session,
+          isEnrolled,
+          meeting_link: isEnrolled ? session.meeting_link : null
+        };
+      });
 
-    return NextResponse.json({ sessions: mappedSessions || [] });
+    return NextResponse.json({ sessions: mappedSessions });
   } catch (error: any) {
     console.error("Coaching Sessions API Error:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

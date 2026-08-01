@@ -28,6 +28,7 @@ export function JobsDashboard({ initialJobs, trackedJobMap, initialArticles }: {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<string>("");
+  const [targetTime, setTargetTime] = useState<string>("");
   const [jobPendingAction, setJobPendingAction] = useState<any | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -36,7 +37,7 @@ export function JobsDashboard({ initialJobs, trackedJobMap, initialArticles }: {
     setLikedJobs(prev => ({ ...prev, [jobId]: !prev[jobId] }));
   };
 
-  const handleJobAction = async (job: any, action: "will_apply" | "applied" | "won", dueDate?: string) => {
+  const handleJobAction = async (job: any, action: "will_apply" | "applied" | "won", dueDate?: string, dueTime?: string) => {
     if (processingId) return;
     setProcessingId(job.job_id);
 
@@ -55,7 +56,7 @@ export function JobsDashboard({ initialJobs, trackedJobMap, initialArticles }: {
     setTracked((prev: any) => ({ ...prev, [job.job_id]: STATUS_MAP[action] }));
 
     try {
-      await saveJobToTrackerAction(job, STATUS_MAP[action], dueDate);
+      await saveJobToTrackerAction(job, STATUS_MAP[action], dueDate, dueTime);
 
       if (action === "will_apply") {
         toast.success(`Saved to tracker! We'll send you a reminder.`);
@@ -245,13 +246,25 @@ export function JobsDashboard({ initialJobs, trackedJobMap, initialArticles }: {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <label className="text-sm font-medium mb-2 block text-slate-700">Target Date</label>
-            <Input
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              min={new Date().toISOString().split('T')[0]}
-            />
+            <label className="text-sm font-medium mb-2 block text-slate-700">Set Application Reminder</label>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="rounded-xl text-sm"
+              />
+              <Input
+                type="time"
+                value={targetTime}
+                onChange={(e) => setTargetTime(e.target.value)}
+                className="rounded-xl text-sm"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 leading-tight text-center mt-3">
+              You'll get an immediate calendar link & a scheduled text via Twilio SMS.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={!!processingId}>
@@ -260,7 +273,7 @@ export function JobsDashboard({ initialJobs, trackedJobMap, initialArticles }: {
             <Button
               onClick={() => {
                 if (jobPendingAction) {
-                  handleJobAction(jobPendingAction, "will_apply", targetDate);
+                  handleJobAction(jobPendingAction, "will_apply", targetDate, targetTime);
                 }
               }}
               disabled={!!processingId || !targetDate}

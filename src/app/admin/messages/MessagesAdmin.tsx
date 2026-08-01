@@ -47,6 +47,12 @@ export function MessagesAdmin({
     );
   });
 
+  const getStudentName = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return "Student";
+    return user.student_first_name ? `${user.student_first_name} ${user.student_last_name}` : user.first_name || "Student";
+  };
+
   const handleSend = () => {
     if (!title.trim() || !content.trim()) {
       toast.error("Please fill in the title and content.");
@@ -135,7 +141,7 @@ export function MessagesAdmin({
           {readingMessage ? (
             <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4">
               <div>
-                <p className="text-xs font-bold text-slate-500 uppercase">Message from Student</p>
+                <p className="text-xs font-bold text-slate-500 uppercase">Message from {getStudentName(readingMessage.user_id)}</p>
                 <p className="text-sm font-bold text-slate-900 mt-1">{readingMessage.title}</p>
                 <p className="text-sm text-slate-700 mt-2 bg-white p-3 rounded-lg border border-slate-200">{readingMessage.content}</p>
               </div>
@@ -324,7 +330,7 @@ export function MessagesAdmin({
                     <div className="flex-1 overflow-hidden">
                       <p className="font-bold text-sm text-slate-900 truncate">
                         {isStudent ? (
-                           <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded mr-2 text-[10px] uppercase">From Student</span>
+                           <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded mr-2 text-[10px] uppercase">From {getStudentName(msg.user_id)}</span>
                         ) : null}
                         {displayTitle}
                       </p>
