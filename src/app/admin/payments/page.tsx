@@ -25,7 +25,7 @@ export default async function AdminPaymentsPage() {
   const { data: subscribers } = await adminClient
     .from("profiles")
     .select(
-      "id, student_first_name, student_last_name, student_email, first_name, last_name, stripe_customer_id, stripe_subscription_id, stripe_price_id, subscription_status, created_at"
+      "id, student_first_name, student_last_name, student_email, first_name, parent_first_name, parent_last_name, parent_email, stripe_customer_id, stripe_subscription_id, stripe_price_id, subscription_status, created_at"
     )
     .not("stripe_subscription_id", "is", null)
     .order("created_at", { ascending: false });
@@ -59,9 +59,9 @@ export default async function AdminPaymentsPage() {
     ...s,
     plan_name: PLAN_NAMES[s.stripe_price_id || ""] || "Unknown Plan",
     display_name: s.student_first_name
-      ? `${s.student_first_name} ${s.student_last_name}`
-      : `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Unknown",
-    display_email: s.student_email || "",
+      ? `${s.student_first_name} ${s.student_last_name || ""}`
+      : `${s.first_name || s.parent_first_name || ""} ${s.parent_last_name || ""}`.trim() || "Unknown",
+    display_email: s.student_email || s.parent_email || "",
   }));
 
   const availablePlans = Object.entries(PLAN_NAMES)
