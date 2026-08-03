@@ -5,6 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { getStudentDashboardData } from "@/services/data-fetcher";
 import { canAccessAdmin } from "@/lib/rbac";
+import { getPlanFromPriceId } from "@/lib/subscription";
 import { 
   calculateWorkflowStates, 
   calculateOverallProgress, 
@@ -52,11 +53,12 @@ export default async function DashboardLayout({
   };
 
   const settings = await getSiteSettings();
+  const plan = getPlanFromPriceId(userProfile?.stripe_price_id ?? null);
 
   return (
     <div className="fixed inset-0 flex overflow-hidden bg-slate-50 print:static print:inset-auto print:overflow-visible print:bg-white print:h-auto">
       <div className="hidden lg:flex h-full print:hidden">
-        <Sidebar siteName={settings.site_name} progressData={progressData} />
+        <Sidebar siteName={settings.site_name} progressData={progressData} plan={plan} />
       </div>
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden print:overflow-visible print:h-auto">
         <div className="print:hidden">

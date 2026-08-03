@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { Application } from "@/types/supabase";
+import { getStudentDashboardData } from "@/services/data-fetcher";
 
 export async function updateApplicationStatus(applicationId: string, status: Application["status"]) {
   const supabase = await createClient();
@@ -10,11 +11,13 @@ export async function updateApplicationStatus(applicationId: string, status: App
 
   if (!user) throw new Error("Unauthorized");
 
+  const { masterId } = await getStudentDashboardData(user.id);
+
   const { error } = await supabase
     .from("tracker_items")
     .update({ status: status, updated_at: new Date().toISOString() })
     .eq("id", applicationId)
-    .eq("user_id", user.id);
+    .eq("user_id", masterId);
 
   if (error) {
     console.error("Error updating application status:", error);
@@ -40,11 +43,13 @@ export async function deleteApplication(applicationId: string) {
 
   if (!user) throw new Error("Unauthorized");
 
+  const { masterId } = await getStudentDashboardData(user.id);
+
   const { error } = await supabase
     .from("tracker_items")
     .delete()
     .eq("id", applicationId)
-    .eq("user_id", user.id);
+    .eq("user_id", masterId);
 
   if (error) {
     console.error("Error deleting application:", error);

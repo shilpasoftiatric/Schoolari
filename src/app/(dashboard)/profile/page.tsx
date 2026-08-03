@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { StudentProfile } from "./StudentProfile";
 
 import { getProfile } from "@/app/actions/profile";
+import { getSubscriptionInfo } from "@/app/actions/subscription";
 
 export const metadata = {
   title: "My Profile",
@@ -15,6 +16,7 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
 
   const profile = await getProfile();
+  const subscriptionInfo = await getSubscriptionInfo();
 
   if (!profile) {
     return (
@@ -26,7 +28,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">
-      <StudentProfile profile={profile} email={user.email || ""} />
+      <StudentProfile profile={profile} email={user.email || ""} subscriptionInfo={subscriptionInfo} />
     </div>
   );
 }

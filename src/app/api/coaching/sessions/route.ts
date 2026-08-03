@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
 
 export async function GET() {
   try {
@@ -9,6 +10,15 @@ export async function GET() {
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Plan check: coaching requires Elite
+    const plan = await getUserPlan();
+    if (!canAccessFeature(plan, "coaching")) {
+      return NextResponse.json(
+        { error: "Coaching requires the Elite plan. Please upgrade to access this feature." },
+        { status: 403 }
+      );
     }
 
     // Determine the student ID (if parent is logged in, use linked student)
@@ -78,3 +88,4 @@ export async function GET() {
     );
   }
 }
+

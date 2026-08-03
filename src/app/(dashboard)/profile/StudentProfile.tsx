@@ -8,8 +8,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SubscriptionCard } from "@/components/ui/SubscriptionCard";
 
-export function StudentProfile({ profile, email }: { profile: any; email: string }) {
+export function StudentProfile({
+  profile,
+  email,
+  subscriptionInfo,
+}: {
+  profile: any;
+  email: string;
+  subscriptionInfo?: {
+    plan: any;
+    planInfo: any;
+    status: string | null;
+    renewalDate: string | null;
+    hasSubscription: boolean;
+  } | null;
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ ...profile });
@@ -258,10 +273,24 @@ export function StudentProfile({ profile, email }: { profile: any; email: string
             </div>
 
           </div>
+
+          {/* Subscription Card */}
+          {subscriptionInfo && (
+            <div className="px-6 pb-6 border-t border-slate-100 pt-5">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Subscription</p>
+              <SubscriptionCard
+                plan={subscriptionInfo.plan}
+                status={subscriptionInfo.status}
+                renewalDate={subscriptionInfo.renewalDate}
+                hasSubscription={subscriptionInfo.hasSubscription}
+              />
+            </div>
+          )}
         </div>
 
         {/* Right Main Content */}
         <div className="flex-1 space-y-6 min-w-0">
+
 
           {/* Personal Information Card */}
           {isEditing && (

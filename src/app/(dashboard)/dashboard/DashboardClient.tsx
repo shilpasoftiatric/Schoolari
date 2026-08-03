@@ -4,7 +4,7 @@ import Swal from "sweetalert2";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Trophy, Bookmark, FileEdit, GraduationCap, ArrowRight, Lightbulb, Bell, Banknote, ListTodo, Flame, Send, FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, Users, Laptop, Video, Wallet, BarChart3, Loader2, FileText, X, PlusCircle, ChevronRight, ChevronLeft, Target } from "lucide-react";
+import { Search, Trophy, Bookmark, FileEdit, GraduationCap, ArrowRight, Lightbulb, Bell, Banknote, ListTodo, Flame, Send, FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, Users, Laptop, Video, Wallet, BarChart3, Loader2, FileText, X, PlusCircle, ChevronRight, ChevronLeft, Target, Lock } from "lucide-react";
 import { useTransition } from "react";
 import { completeTask, moveTaskToTracker, skipTask } from "@/app/actions/tasks";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -12,8 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { canAccessFeature, type SubscriptionPlan } from "@/lib/subscription";
 import DashboardSkeleton from "@/components/skeletons/DashboardSkeleton";
 import { ScholarshipCard } from "@/components/ui/ScholarshipCard";
+
+import { UpgradeFlowModal } from "@/components/ui/UpgradeFlowModal";
 import { searchScholarships } from "@/app/actions/scholarships";
 import {
   Dialog,
@@ -286,10 +289,29 @@ function DashboardSection({
   );
 }
 
-export function DashboardClient({ initialData, firstName, streak = 1, userGoals = [], globalTasks = [] }: { initialData: any, firstName: string, streak?: number, userGoals?: string[], globalTasks?: any[] }) {
+export function DashboardClient({
+  initialData,
+  firstName,
+  streak = 1,
+  userGoals = [],
+  globalTasks = [],
+  trackerItems = [],
+  plan = null,
+  createdAt = null,
+}: {
+  initialData: any;
+  firstName: string;
+  streak?: number;
+  userGoals?: string[];
+  globalTasks?: any[];
+  trackerItems?: any[];
+  plan?: import("@/lib/subscription").SubscriptionPlan;
+  createdAt?: string | null;
+}) {
   const [data, setData] = useState<any>(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState("");
+  const [upsellDismissed, setUpsellDismissed] = useState(false);
 
   const [trackerCategoryFilter, setTrackerCategoryFilter] = useState<string>("all");
   const [trackerCurrentPage, setTrackerCurrentPage] = useState<number>(1);
@@ -298,6 +320,8 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showEliteUpgradeModal, setShowEliteUpgradeModal] = useState(false);
+  const [showScholarUpgradeModal, setShowScholarUpgradeModal] = useState(false);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -376,6 +400,26 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
     deadlines: []
   };
 
+  const renderLockedOverlay = (featureName: string, targetPlan: "scholar" | "elite") => (
+    <div className="absolute inset-0 z-20 bg-white/40 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
+        <Lock className="w-5 h-5 text-slate-400" />
+      </div>
+      <h3 className="font-bold text-slate-800 text-sm mb-1">{featureName} is Locked</h3>
+      <p className="text-xs text-slate-600 mb-4 font-medium">Upgrade to {targetPlan === 'elite' ? 'Elite' : 'Scholar'} to unlock {featureName.toLowerCase()}.</p>
+      <Button 
+        onClick={() => {
+          if (targetPlan === 'elite') setShowEliteUpgradeModal(true);
+          else setShowScholarUpgradeModal(true);
+        }}
+        size="sm" 
+        className="rounded-full bg-violet-600 hover:bg-violet-700 text-xs font-bold px-6 shadow-sm"
+      >
+        Upgrade to Unlock
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-8 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -400,13 +444,74 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
         </Button>
       </div>
 
+      {/* Elite Upsell Card — shown to non-Elite users after 7-14 days of activity */}
+      {plan !== "elite" && !upsellDismissed && (() => {
+        const daysSinceJoin = createdAt
+          ? Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
+        if (daysSinceJoin < 7) return null;
+        const dismissed = typeof window !== "undefined" && localStorage.getItem("elite_upsell_dismissed") === "true";
+        if (dismissed) return null;
+        return (
+          <div className="relative bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 rounded-3xl p-6 shadow-xl shadow-amber-200 text-white overflow-hidden">
+            <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
+            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <button
+              onClick={() => {
+                setUpsellDismissed(true);
+                if (typeof window !== "undefined") localStorage.setItem("elite_upsell_dismissed", "true");
+              }}
+              className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-5">
+              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 ring-4 ring-white/30">
+                <GraduationCap className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1">🎉 You've been with us for {createdAt ? Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0} days!</p>
+                <h2 className="text-xl font-extrabold mb-1">Ready to take your future to the next level?</h2>
+                <p className="text-white/80 text-sm max-w-lg">
+                  Unlock <strong>1-on-1 coaching</strong>, direct messaging with your personal advisor, and done-with-you application support — everything you need to win scholarships and get into your dream school.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowEliteUpgradeModal(true)}
+                className="shrink-0 bg-white text-amber-600 font-bold py-3 px-6 rounded-xl hover:bg-amber-50 transition-colors shadow-lg text-sm whitespace-nowrap"
+              >
+                Upgrade to Elite →
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      <UpgradeFlowModal
+        isOpen={showEliteUpgradeModal}
+        onClose={() => setShowEliteUpgradeModal(false)}
+        targetPlan="elite"
+        featureName="1-on-1 Coaching & Support"
+      />
+      <UpgradeFlowModal
+        isOpen={showScholarUpgradeModal}
+        onClose={() => setShowScholarUpgradeModal(false)}
+        targetPlan="scholar"
+        featureName="Advanced Features"
+      />
+
       <Card className="shadow-sm border-slate-100">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">Progress Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            {data.stats?.map((s: any, i: number) => {
+          <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6">
+            {data.stats?.filter((s: any) => {
+              if (s.label === "Essays Drafted" && !canAccessFeature(plan, 'essays')) return false;
+              if (s.label === "Jobs Applied" && !canAccessFeature(plan, 'jobs')) return false;
+              return true;
+            }).map((s: any, i: number) => {
               const Icon = iconMap[s.label] || Trophy;
               return (
                 <div key={i} className="flex items-center gap-3">
@@ -427,7 +532,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
 
 
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="flex flex-col md:flex-row flex-wrap gap-6 [&>*]:flex-1 [&>*]:min-w-[320px]">
         <DashboardSection
           title="Scholarships"
           icon={Bookmark}
@@ -439,16 +544,18 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
           emptyTip='Start by searching for scholarships. When you find one you are interested in, click "I Will Apply" and select the date you plan to submit your application. Once you save it, your scholarship will automatically appear here and in your tracker so you can stay organized and never miss an important deadline.'
           onRefresh={() => generateDashboard(false)}
         />
-        <DashboardSection
-          title="Essays"
-          icon={FileEdit}
-          colorClass="text-violet-600"
-          borderClass="border-violet-100"
-          bgClass="bg-violet-50/50"
-          sectionData={data.essays}
-          category="essay"
-          onRefresh={() => generateDashboard(false)}
-        />
+        {canAccessFeature(plan, 'essays') && (
+          <DashboardSection
+            title="Essays"
+            icon={FileEdit}
+            colorClass="text-violet-600"
+            borderClass="border-violet-100"
+            bgClass="bg-violet-50/50"
+            sectionData={data.essays}
+            category="essay"
+            onRefresh={() => generateDashboard(false)}
+          />
+        )}
         <DashboardSection
           title="Colleges"
           icon={GraduationCap}
@@ -459,7 +566,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
           category="college"
           onRefresh={() => generateDashboard(false)}
         />
-        {coachTasks.length > 0 && (
+        {coachTasks.length > 0 && canAccessFeature(plan, 'coaching') && (
           <DashboardSection
             title="Coach Action Items"
             icon={ListTodo}
@@ -482,10 +589,11 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
           return 0;
         };
 
-        const allTrackerItems = data.tracker || [];
+        // Use live trackerItems from DB (fixes sync bug with sidebar tracker)
+        const allTrackerItems = trackerItems || [];
         const filteredTrackerItems = allTrackerItems.filter((item: any) => {
           if (trackerCategoryFilter === "all") return true;
-          const cat = (item.category || "scholarship").toLowerCase();
+          const cat = (item.reference_type || "scholarship").toLowerCase();
           return cat === trackerCategoryFilter.toLowerCase();
         });
 
@@ -521,9 +629,9 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
                 >
                   <option value="all">All Items</option>
                   <option value="scholarship">Scholarships</option>
-                  <option value="essay">Essays</option>
                   <option value="college">Colleges</option>
-                  <option value="job">Jobs</option>
+                  {canAccessFeature(plan, 'essays') && <option value="essay">Essays</option>}
+                  {canAccessFeature(plan, 'jobs') && <option value="job">Jobs</option>}
                 </select>
               </div>
             </CardHeader>
@@ -542,7 +650,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
                     <TableBody>
                       {paginatedItems.map((row: any, i: number) => {
                         const rowProgress = calculateProgress(row.status);
-                        const itemCategory = (row.category || "scholarship").toLowerCase();
+                        const itemCategory = (row.reference_type || "scholarship").toLowerCase();
                         return (
                           <TableRow 
                             key={row.id || i} 
@@ -554,7 +662,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
                           >
                             <TableCell className="font-semibold text-slate-800 group-hover:text-violet-700 transition-colors">
                               <div className="flex items-center gap-2">
-                                <span>{row.name}</span>
+                                <span>{row.title}</span>
                                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
                                   {itemCategory}
                                 </span>
@@ -566,7 +674,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
                               </span>
                             </TableCell>
                             <TableCell className={cn("text-sm font-semibold", row.urgent ? "text-red-500 animate-pulse" : "text-slate-500")}>
-                              {row.deadline}
+                              {row.due_date ? new Date(row.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '-'}
                             </TableCell>
                             <TableCell>
                               {rowProgress === 100 ? (
@@ -650,62 +758,65 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
         )}
 
         {/* Essay Prompts */}
-        {data.essay_prompts && data.essay_prompts.length > 0 && (
-          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100 flex flex-col">
-            <CardHeader className="pb-2">
+        {((data.essay_prompts && data.essay_prompts.length > 0) || !canAccessFeature(plan, 'essays')) && (
+          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100 flex flex-col min-h-[150px]">
+            {!canAccessFeature(plan, 'essays') && renderLockedOverlay("Essay Prompts", "scholar")}
+            <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'essays') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
                 <FileEdit className="w-4 h-4 text-violet-500" />Essay Prompts
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 relative z-10">
-              {data.essay_prompts.map((prompt: any, i: number) => (
+            <CardContent className={cn("space-y-3 relative z-10", !canAccessFeature(plan, 'essays') && "blur-sm")}>
+              {(data.essay_prompts || [{topic: "Topic 1", advice: "Tip"}, {topic: "Topic 2", advice: "Tip"}]).map((prompt: any, i: number) => (
                 <div key={i} className="flex flex-col gap-1 bg-white/60 p-3 rounded-xl backdrop-blur-sm border border-violet-100/50">
                   <span className="text-sm font-bold text-slate-800">{prompt.topic}</span>
                   <span className="text-xs text-slate-600 italic">Tip: {prompt.advice}</span>
                 </div>
               ))}
             </CardContent>
-            <FileEdit className="absolute -bottom-4 -right-4 w-24 h-24 text-violet-200 opacity-60" />
+            <FileEdit className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-violet-200 opacity-60", !canAccessFeature(plan, 'essays') && "blur-sm")} />
           </Card>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 items-stretch">
         {/* Resume Tips */}
-        {data.resume_tips && data.resume_tips.length > 0 && (
-          <Card className="h-fit shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100 flex flex-col">
-            <CardHeader className="pb-2">
+        {((data.resume_tips && data.resume_tips.length > 0) || !canAccessFeature(plan, 'resume')) && (
+          <Card className="h-fit shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100 flex flex-col min-h-[150px]">
+            {!canAccessFeature(plan, 'resume') && renderLockedOverlay("Resume Tips", "scholar")}
+            <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'resume') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
                 <FileText className="w-4 h-4 text-amber-500" />Resume Tips
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 relative z-10">
+            <CardContent className={cn("space-y-3 relative z-10", !canAccessFeature(plan, 'resume') && "blur-sm")}>
               <ul className="list-disc list-outside ml-4 text-sm text-slate-700 space-y-2 bg-white/60 p-4 rounded-xl backdrop-blur-sm border border-amber-100/50">
-                {data.resume_tips.map((tip: string, i: number) => (
+                {(data.resume_tips || ["Tip 1", "Tip 2"]).map((tip: string, i: number) => (
                   <li key={i}>{tip}</li>
                 ))}
               </ul>
             </CardContent>
-            <FileText className="absolute -bottom-4 -right-4 w-24 h-24 text-amber-200 opacity-60" />
+            <FileText className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-amber-200 opacity-60", !canAccessFeature(plan, 'resume') && "blur-sm")} />
           </Card>
         )}
 
         {/* ── Row 6: Ways to Earn (Earn While You Learn) ── */}
-        {data.income_ideas && data.income_ideas.length > 0 && (
-          <Card className="h-full shadow-sm border-emerald-100 bg-emerald-50/20 relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 flex flex-col">
-            <CardHeader className="pb-2">
+        {((data.income_ideas && data.income_ideas.length > 0) || !canAccessFeature(plan, 'income')) && (
+          <Card className="h-full shadow-sm border-emerald-100 bg-emerald-50/20 relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 flex flex-col min-h-[150px]">
+            {!canAccessFeature(plan, 'income') && renderLockedOverlay("Ways to Earn", "scholar")}
+            <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'income') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-emerald-800">
                 <Banknote className="w-5 h-5 text-emerald-600" />
                 Ways to Earn
               </CardTitle>
             </CardHeader>
-            <CardContent className="relative z-10">
+            <CardContent className={cn("relative z-10", !canAccessFeature(plan, 'income') && "blur-sm")}>
                 {/* AI Ideas */}
-                {data.income_ideas && data.income_ideas.length > 0 && (
+                {((data.income_ideas && data.income_ideas.length > 0) || !canAccessFeature(plan, 'income')) && (
                   <div className="space-y-3">
                     <h4 className="text-[10px] font-extrabold text-emerald-600/70 uppercase tracking-wider">AI Suggestions</h4>
                     <div className="space-y-3">
-                      {data.income_ideas.map((idea: any, i: number) => (
+                      {(data.income_ideas || [{opportunity: "Idea 1", difficulty: "Easy", how_to_start: "Start here"}]).map((idea: any, i: number) => (
                         <div key={i} className="flex flex-col gap-1.5 p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-emerald-100/50 hover:bg-emerald-50/80 transition-colors shadow-sm">
                           <span className="text-sm font-bold text-emerald-900">{idea.opportunity}</span>
                           <span className="text-xs text-slate-600 font-medium">Difficulty: {idea.difficulty}</span>
@@ -716,7 +827,7 @@ export function DashboardClient({ initialData, firstName, streak = 1, userGoals 
                   </div>
                 )}
             </CardContent>
-            <Banknote className="absolute -bottom-4 -right-4 w-24 h-24 text-emerald-200 opacity-60" />
+            <Banknote className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-emerald-200 opacity-60", !canAccessFeature(plan, 'income') && "blur-sm")} />
           </Card>
         )}
       </div>

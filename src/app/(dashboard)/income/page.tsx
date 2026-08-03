@@ -1,12 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
 import { VideoLibrary } from "./VideoLibrary";
 import { redirect } from "next/navigation";
+import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
+import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
 
 export const metadata = {
   title: "Earn While You Learn",
 };
 
 export default async function IncomePage() {
+  const plan = await getUserPlan();
+  if (!canAccessFeature(plan, "income")) {
+    return (
+      <LockedFeaturePage
+        featureName="Earn While You Learn"
+        requiredPlan="scholar"
+        description="Watch expert videos, build valuable skills, and unlock income opportunities — available on the Scholar plan."
+      />
+    );
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -39,3 +52,4 @@ export default async function IncomePage() {
     </div>
   );
 }
+

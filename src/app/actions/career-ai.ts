@@ -1,13 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getStudentDashboardData } from "@/services/data-fetcher";
 import { getRawJobsAndInternships, getResume } from "./career";
 import { callAI } from "@/lib/ai";
 import { revalidatePath } from "next/cache";
 import twilio from "twilio";
 import { formatPhoneE164 } from "@/lib/phone";
+import { requireFeatureAccess } from "@/lib/subscription-server";
 
 export async function getPersonalizedJobsAction() {
+  await requireFeatureAccess("jobs");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -168,11 +171,13 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
 
   if (!user) throw new Error("Unauthorized");
 
+  const { masterId } = await getStudentDashboardData(user.id);
+
   // Check if it already exists
   const { data: existing } = await supabase
     .from("tracker_items")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", masterId)
     .eq("reference_type", "job")
     .eq("reference_id", jobData.job_id)
     .maybeSingle();
@@ -187,7 +192,7 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
     const { error } = await supabase
       .from("tracker_items")
       .insert({
-        user_id: user.id,
+        user_id: masterId,
         reference_type: "job",
         reference_id: jobData.job_id,
         title: `${jobData.job_title} at ${jobData.employer_name}`,
@@ -311,3 +316,4 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
   revalidatePath("/dashboard");
   return { success: true };
 }
+

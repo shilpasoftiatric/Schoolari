@@ -3,12 +3,25 @@ import { redirect } from "next/navigation";
 import { PenTool, Plus, FileText, Clock, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { createEssay } from "@/app/actions/essays";
+import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
+import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
 
 export const metadata = {
   title: "Essay Workspace",
 };
 
 export default async function EssaysDashboardPage() {
+  const plan = await getUserPlan();
+  if (!canAccessFeature(plan, "essays")) {
+    return (
+      <LockedFeaturePage
+        featureName="AI Essay Workspace"
+        requiredPlan="scholar"
+        description="Write, brainstorm, and perfect your scholarship essays with our AI-powered workspace — available on the Scholar plan."
+      />
+    );
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -95,3 +108,4 @@ export default async function EssaysDashboardPage() {
     </div>
   );
 }
+

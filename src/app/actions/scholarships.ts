@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
+import { getStudentDashboardData } from "@/services/data-fetcher";
 import twilio from "twilio";
 import { formatPhoneE164 } from "@/lib/phone";
 import { addReminder } from "./reminders";
@@ -268,11 +269,13 @@ export async function setScholarshipAction(
   const { data: schData } = await supabase.from("scholarships").select("name, deadline").eq("id", scholarshipId).single();
   if (!schData) throw new Error("Scholarship not found");
 
+  const { masterId } = await getStudentDashboardData(user.id);
+
   // Check if it exists in tracker
   const { data: existing } = await supabase
     .from("tracker_items")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", masterId)
     .eq("reference_id", scholarshipId)
     .eq("reference_type", "scholarship")
     .single();
@@ -290,7 +293,7 @@ export async function setScholarshipAction(
     const res = await supabase
       .from("tracker_items")
       .insert({
-        user_id: user.id,
+        user_id: masterId,
         reference_id: scholarshipId,
         reference_type: "scholarship",
         title: schData.name,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +16,15 @@ export async function POST(req: Request) {
 
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Plan check: coaching requires Elite
+    const plan = await getUserPlan();
+    if (!canAccessFeature(plan, "coaching")) {
+      return NextResponse.json(
+        { error: "Coaching access requires the Elite plan. Please upgrade." },
+        { status: 403 }
+      );
     }
 
     // Fetch session details using admin client to bypass RLS
@@ -40,24 +50,7 @@ export async function POST(req: Request) {
       targetId = profile.linked_student_id;
     }
 
-    // Membership Plan Enforcement
-    const priceId = profile?.stripe_price_id;
-    const isElite = priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE;
-    const isScholar = priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_SCHOLAR;
-
-    // Soft limits applied for number of sessions; hard enforcement for access tier
-    if (session.session_type === "individual" && !isElite) {
-      return NextResponse.json(
-        { error: "Individual sessions require the Elite (Premium) plan." },
-        { status: 403 }
-      );
-    } else if (session.session_type === "group" && !isElite && !isScholar) {
-      return NextResponse.json(
-        { error: "Group sessions require the Scholar or Elite plan." },
-        { status: 403 }
-      );
-    }
-
+    // The plan check already enforces Elite above; no extra session_type check needed here
     if (profile?.account_type === 'parent' && profile?.linked_student_id) {
       targetId = profile.linked_student_id;
     }
@@ -85,3 +78,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }
+

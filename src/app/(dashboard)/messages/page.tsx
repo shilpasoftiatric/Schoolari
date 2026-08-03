@@ -2,10 +2,23 @@ import { createClient } from "@/lib/supabase/server";
 import { MessagesClient } from "./MessagesClient";
 import { redirect } from "next/navigation";
 import { MessageSquare } from "lucide-react";
+import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
+import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
 
 export const dynamic = "force-dynamic";
 
 export default async function MessagesPage() {
+  const plan = await getUserPlan();
+  if (!canAccessFeature(plan, "messages")) {
+    return (
+      <LockedFeaturePage
+        featureName="Direct Messaging & Done-With-You Support"
+        requiredPlan="elite"
+        description="Message your coach directly and get personalized done-with-you support for applications, essays, and more — available on the Elite plan."
+      />
+    );
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -47,3 +60,4 @@ export default async function MessagesPage() {
     </div>
   );
 }
+

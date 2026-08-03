@@ -4,12 +4,25 @@ import { JobsDashboard } from "./JobsDashboard";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
+import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
+import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
 
 export const metadata = {
   title: "Jobs & Internships",
 };
 
 export default async function JobsPage() {
+  const plan = await getUserPlan();
+  if (!canAccessFeature(plan, "jobs")) {
+    return (
+      <LockedFeaturePage
+        featureName="Jobs & Internships"
+        requiredPlan="scholar"
+        description="Discover AI-personalized job and internship opportunities matched to your major and career interests — available on the Scholar plan."
+      />
+    );
+  }
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -73,3 +86,4 @@ export default async function JobsPage() {
     </div>
   );
 }
+

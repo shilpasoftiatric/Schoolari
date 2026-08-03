@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getStudentDashboardData } from "@/services/data-fetcher";
 
 export async function completeTask(taskId: string, taskTitle?: string) {
   const supabase = await createClient();
@@ -60,6 +61,8 @@ export async function moveTaskToTracker(taskId: string, title: string, category:
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, error: "Unauthorized" };
 
+  const { masterId } = await getStudentDashboardData(user.id);
+
   const { error: delError } = await supabase
     .from("tasks")
     .delete()
@@ -74,7 +77,7 @@ export async function moveTaskToTracker(taskId: string, title: string, category:
   const { error: insError } = await supabase
     .from("tracker_items")
     .insert({
-      user_id: user.id,
+      user_id: masterId,
       reference_type: category,
       title: title,
       status: "Not Started",

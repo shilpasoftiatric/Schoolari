@@ -235,7 +235,7 @@ export async function POST(req: Request) {
       force = body.force;
     } catch (e) { }
 
-    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId, globalTasks, trackerItems } = await getStudentDashboardData(user.id);
+    const { profile, documents: docs, essays, savedColleges, applications: apps, resume, masterId, globalTasks, trackerItems, matchedScholarshipsCount } = await getStudentDashboardData(user.id);
 
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
@@ -250,7 +250,8 @@ export async function POST(req: Request) {
       completedEssaysCount: essays.filter((e: any) => e.status === "completed").length,
       savedCollegesCount: savedColleges.length,
       appliedScholarshipsCount: apps.filter((a: any) => a.status === "Submitted").length,
-      savedScholarshipsCount: apps.length
+      savedScholarshipsCount: apps.length,
+      matchedScholarshipsCount: matchedScholarshipsCount
     };
 
     const currentState = {
@@ -294,6 +295,13 @@ export async function POST(req: Request) {
         progress: 0,
         urgent: false
       }));
+
+      cachedData.stats = [
+        { label: "Scholarships Matched", sub: "Total Matches", value: String(progressStats.matchedScholarshipsCount), color: "text-emerald-500", bg: "bg-emerald-50" },
+        { label: "Applied Scholarship Applications", sub: "Submitted", value: String(progressStats.appliedScholarshipsCount), color: "text-blue-500", bg: "bg-blue-50" },
+        { label: "Essays Drafted", sub: "Drafts", value: String(progressStats.essaysCount), color: "text-violet-500", bg: "bg-violet-50" },
+        { label: "Colleges Saved", sub: "Shortlist", value: String(progressStats.savedCollegesCount), color: "text-amber-500", bg: "bg-amber-50" }
+      ];
       
       return NextResponse.json(cachedData);
     }
@@ -344,7 +352,7 @@ IMPORTANT: Generate only the exact JSON requested.`;
     generatedJson = {
       ...generatedJson,
       stats: [
-        { label: "Scholarships Matched", sub: "Total Matches", value: "12", color: "text-emerald-500", bg: "bg-emerald-50" },
+        { label: "Scholarships Matched", sub: "Total Matches", value: String(progressStats.matchedScholarshipsCount), color: "text-emerald-500", bg: "bg-emerald-50" },
         { label: "Applied Scholarship Applications", sub: "Submitted", value: String(progressStats.appliedScholarshipsCount), color: "text-blue-500", bg: "bg-blue-50" },
         { label: "Essays Drafted", sub: "Drafts", value: String(progressStats.essaysCount), color: "text-violet-500", bg: "bg-violet-50" },
         { label: "Colleges Saved", sub: "Shortlist", value: String(progressStats.savedCollegesCount), color: "text-amber-500", bg: "bg-amber-50" }

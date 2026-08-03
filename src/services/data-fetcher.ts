@@ -97,6 +97,14 @@ export const getStudentDashboardData = cache(async (userId: string) => {
   // Global Dashboard Tasks
   const { data: globalTasks } = await supabaseAdmin.from("tasks").select("*").eq("user_id", masterId).order("created_at", { ascending: false });
 
+  // Basic Match Count
+  const stateQuery = masterProfile.state ? `eligible_states.ilike.%${masterProfile.state}%,eligible_states.ilike.%all%` : `eligible_states.ilike.%all%`;
+  const { count: matchedScholarshipsCount } = await supabaseAdmin
+    .from("scholarships")
+    .select("*", { count: "exact", head: true })
+    .eq("is_active", true)
+    .or(stateQuery);
+
   return {
     profile: masterProfile,
     userProfile: userProfile,
@@ -107,6 +115,7 @@ export const getStudentDashboardData = cache(async (userId: string) => {
     resume: resumeRes.data || null,
     trackerItems: trackerRes.data || [],
     globalTasks: globalTasks || [],
+    matchedScholarshipsCount: matchedScholarshipsCount || 0,
     masterId
   };
 });

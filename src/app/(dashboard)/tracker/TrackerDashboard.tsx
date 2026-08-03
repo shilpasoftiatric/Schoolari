@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, Calendar, CheckCircle2, XCircle, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
+import { canAccessFeature, type SubscriptionPlan } from "@/lib/subscription";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import Swal from "@/lib/swal";
@@ -36,10 +37,9 @@ const CATEGORIES = [
   { id: "essay", label: "Essays" },
   { id: "college", label: "Colleges" },
   { id: "job", label: "Jobs" },
-  // { id: "custom", label: "Tasks" },
 ];
 
-export function TrackerDashboard({ initialApplications }: { initialApplications: any[] }) {
+export function TrackerDashboard({ initialApplications, plan = 'starter' }: { initialApplications: any[], plan?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialType = searchParams?.get("type") || "all";
@@ -50,6 +50,12 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
 
   const activeColumns = getColumnsForCategory(activeCategory);
+  
+  const visibleCategories = CATEGORIES.filter((c) => {
+    if (c.id === 'essay' && !canAccessFeature(plan as SubscriptionPlan, 'essays')) return false;
+    if (c.id === 'job' && !canAccessFeature(plan as SubscriptionPlan, 'jobs')) return false;
+    return true;
+  });
 
   useEffect(() => {
     const typeFromUrl = searchParams?.get("type");
@@ -145,7 +151,7 @@ export function TrackerDashboard({ initialApplications }: { initialApplications:
     <div className="space-y-4">
       {/* Category Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
-        {CATEGORIES.map((cat) => (
+        {visibleCategories.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}

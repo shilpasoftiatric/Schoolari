@@ -3,12 +3,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { callAI } from "@/lib/ai";
+import { requireFeatureAccess } from "@/lib/subscription-server";
 
 // ─────────────────────────────────────────
 // INCOME GOALS CRUD
 // ─────────────────────────────────────────
 
 export async function getIncomeGoals() {
+  await requireFeatureAccess("income");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -245,3 +247,4 @@ export async function markVideoComplete(videoId: string) {
   revalidatePath("/income");
   revalidatePath(`/income/watch/${videoId}`);
 }
+

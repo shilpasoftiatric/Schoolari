@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DashboardClient } from "./DashboardClient";
 import { calculateWorkflowStates, isDashboardStateEqual } from "@/services/task-engine";
 import { getStudentDashboardData } from "@/services/data-fetcher";
+import { getPlanFromPriceId } from "@/lib/subscription";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Dashboard " };
@@ -36,6 +37,9 @@ export default async function DashboardPage() {
     }
   }
 
+  const plan = getPlanFromPriceId(dbData.userProfile?.stripe_price_id ?? null);
+  const createdAt = dbData.userProfile?.created_at || null;
+
   return (
     <DashboardClient
       initialData={initialData}
@@ -43,6 +47,9 @@ export default async function DashboardPage() {
       streak={profile?.current_streak || 1}
       userGoals={profile?.schoolari_goals || []}
       globalTasks={dbData.globalTasks || []}
+      trackerItems={dbData.trackerItems || []}
+      plan={plan}
+      createdAt={createdAt}
     />
   );
 }

@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TrackerDashboard } from "./TrackerDashboard";
 
+import { getStudentDashboardData } from "@/services/data-fetcher";
+
 export const metadata = {
   title: "Tracker",
 };
@@ -11,6 +13,8 @@ export default async function TrackerPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+  const { masterId, profile } = await getStudentDashboardData(user.id);
 
   // Fetch universal tracker items
   const { data: applications, error } = await supabase
@@ -24,7 +28,7 @@ export default async function TrackerPage() {
       title,
       due_date
     `)
-    .eq("user_id", user.id)
+    .eq("user_id", masterId)
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -47,7 +51,7 @@ export default async function TrackerPage() {
         </p>
       </div>
 
-      <TrackerDashboard initialApplications={applications || []} />
+      <TrackerDashboard initialApplications={applications || []} plan={profile?.subscription_tier || 'starter'} />
     </div>
   );
 }

@@ -3,8 +3,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireFeatureAccess } from "@/lib/subscription-server";
 
 export async function createEssay(title: string, topic: string, content: string = "") {
+  await requireFeatureAccess("essays");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -34,6 +36,7 @@ export async function createEssay(title: string, topic: string, content: string 
 }
 
 export async function updateEssay(id: string, updates: { title?: string; topic?: string; content?: string; status?: "completed" | "in_progress" | "draft" }) {
+  await requireFeatureAccess("essays");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -58,6 +61,7 @@ export async function updateEssay(id: string, updates: { title?: string; topic?:
 }
 
 export async function deleteEssay(id: string) {
+  await requireFeatureAccess("essays");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -77,3 +81,4 @@ export async function deleteEssay(id: string) {
   revalidatePath("/dashboard");
   redirect("/essays");
 }
+

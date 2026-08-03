@@ -4,6 +4,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { ResumeDocument, UserResumesPayload } from "@/types/resume";
 import { formatPhoneE164 } from "@/lib/phone";
+import { requireFeatureAccess } from "@/lib/subscription-server";
 
 /**
  * Migrate legacy single-resume format ({ personal, academic } or basic object)
@@ -129,6 +130,7 @@ function migrateLegacyResumeContent(rawContent: any, userProfile?: any): UserRes
 }
 
 export async function getResumesAction(): Promise<UserResumesPayload> {
+  await requireFeatureAccess("resume");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -177,6 +179,7 @@ export async function getResumesAction(): Promise<UserResumesPayload> {
 }
 
 export async function saveResumesAction(payload: UserResumesPayload): Promise<{ success: boolean }> {
+  await requireFeatureAccess("resume");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -223,6 +226,7 @@ export async function exportResumeToVaultAction(
   filename: string,
   isPdf: boolean = false
 ): Promise<{ success: boolean; documentId: string }> {
+  await requireFeatureAccess("resume");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -277,3 +281,4 @@ export async function exportResumeToVaultAction(
   revalidatePath("/dashboard");
   return { success: true, documentId: insertedData.id };
 }
+
