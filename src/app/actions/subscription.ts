@@ -22,11 +22,10 @@ export async function upgradeSubscriptionPlan(newPriceId: string) {
 
   if (!user) throw new Error("Unauthorized");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("stripe_subscription_id, stripe_price_id, subscription_status")
-    .eq("id", user.id)
-    .single();
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const dbData = await getStudentDashboardData(user.id);
+  const profile = dbData.userProfile;
+  const ownerId = dbData.subscriptionOwnerId || user.id;
 
   if (!profile) throw new Error("Profile not found");
   if (!profile.stripe_subscription_id) {
@@ -82,7 +81,7 @@ export async function upgradeSubscriptionPlan(newPriceId: string) {
         stripe_price_id: newPriceId,
         subscription_status: updated.status,
       })
-      .eq("id", user.id);
+      .eq("id", ownerId);
 
     revalidatePath("/profile");
     revalidatePath("/dashboard");

@@ -119,7 +119,7 @@ export async function saveOnboardingStep(step: number, data: any) {
           finalInviteLink = newAuthUser.properties?.action_link || finalInviteLink;
         }
 
-        await sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", finalInviteLink, "student");
+        sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", finalInviteLink, "student").catch(e => console.error("Invite email failed", e));
       }
     }
   }
@@ -151,7 +151,7 @@ export async function saveOnboardingStep(step: number, data: any) {
   // Trigger integrations when moving past Step 1
   if (step === 2 && updatedProfile) {
     // 1. Sync Constant Contact (fire and forget)
-    await syncOnboardingContacts(
+    syncOnboardingContacts(
       updatedProfile.student_email || "", updatedProfile.student_first_name || "", updatedProfile.student_last_name || "",
       updatedProfile.parent_email || "", updatedProfile.parent_first_name || "", updatedProfile.parent_last_name || ""
     ).catch(console.error);
@@ -218,7 +218,7 @@ export async function saveOnboardingStep(step: number, data: any) {
           console.error("Error creating parent account link:", createError.message);
         }
 
-        await sendInviteEmail(parentEmail, parentFirstName || "", studentFirstName || "", finalInviteLink, "parent");
+        sendInviteEmail(parentEmail, parentFirstName || "", studentFirstName || "", finalInviteLink, "parent").catch(e => console.error("Invite email failed", e));
       }
     } catch (e) {
       console.error("Error setting up secondary account during onboarding", e);
@@ -356,31 +356,31 @@ export async function updateProfile(updates: any) {
   let resumeNeedsRefresh = false;
 
   scholarshipFields.forEach(field => {
-    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify((existingProfile as any)?.[field])) {
       scholarshipsNeedRefresh = true;
     }
   });
 
   collegeFields.forEach(field => {
-    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify((existingProfile as any)?.[field])) {
       collegesNeedRefresh = true;
     }
   });
 
   jobFields.forEach(field => {
-    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify((existingProfile as any)?.[field])) {
       jobsNeedRefresh = true;
     }
   });
 
   taskFields.forEach(field => {
-    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify((existingProfile as any)?.[field])) {
       tasksNeedRefresh = true;
     }
   });
 
   resumeFields.forEach(field => {
-    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify(existingProfile?.[field])) {
+    if (safeUpdates[field] !== undefined && JSON.stringify(safeUpdates[field]) !== JSON.stringify((existingProfile as any)?.[field])) {
       resumeNeedsRefresh = true;
     }
   });

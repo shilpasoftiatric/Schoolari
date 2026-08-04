@@ -22,8 +22,8 @@ export const getStudentDashboardData = cache(async (userId: string) => {
         account_type: (user.user_metadata?.account_type as "student" | "parent") || "student",
         subscription_status: "active"
       };
-      const { data: createdProfile } = await supabaseAdmin.from("profiles").insert(defaultProfile).select("*").maybeSingle();
-      userProfile = createdProfile || defaultProfile;
+      const { data: createdProfile } = await supabaseAdmin.from("profiles").insert(defaultProfile as any).select("*").maybeSingle();
+      userProfile = createdProfile || (defaultProfile as any);
     }
   }
 
@@ -83,15 +83,18 @@ export const getStudentDashboardData = cache(async (userId: string) => {
   let effectivePriceId = null;
   let effectiveSubscriptionId = null;
   let effectiveCustomerId = null;
+  let subscriptionOwnerId = null;
   
   if (parentPaid) {
     effectivePriceId = parentProfile?.stripe_price_id || null;
     effectiveSubscriptionId = parentProfile?.stripe_subscription_id || null;
     effectiveCustomerId = parentProfile?.stripe_customer_id || null;
+    subscriptionOwnerId = parentProfile?.id || null;
   } else if (studentPaid) {
     effectivePriceId = studentProfile?.stripe_price_id || null;
     effectiveSubscriptionId = studentProfile?.stripe_subscription_id || null;
     effectiveCustomerId = studentProfile?.stripe_customer_id || null;
+    subscriptionOwnerId = studentProfile?.id || null;
   }
 
   // Make sure subscription_status is set to active if family has paid
@@ -140,7 +143,8 @@ export const getStudentDashboardData = cache(async (userId: string) => {
     trackerItems: trackerRes.data || [],
     globalTasks: globalTasks || [],
     matchedScholarshipsCount: matchedScholarshipsCount || 0,
-    masterId
+    masterId,
+    subscriptionOwnerId
   };
 });
 

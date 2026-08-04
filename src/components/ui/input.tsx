@@ -119,7 +119,7 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
   );
 
   return (
-    <div className={cn("flex items-center gap-2 relative", className)}>
+    <div className="flex items-center gap-2 relative">
       {/* Country Selector */}
       <div className="relative" ref={dropdownRef}>
         <button
@@ -200,7 +200,7 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
         maxLength={10}
         value={localNumber}
         onChange={handlePhoneChange}
-        className="flex-1 h-11 rounded-xl border-slate-200 bg-white focus-visible:ring-primary"
+        className={cn("flex-1 h-11 rounded-xl border-slate-200 bg-white focus-visible:ring-primary", className)}
         placeholder="(555) 123-4567"
         {...props}
       />

@@ -124,6 +124,12 @@ export default function OnboardingPage() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (error) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [error]);
+
   const [form, setForm] = useState({
     account_type: "",
     student_first_name: "",
