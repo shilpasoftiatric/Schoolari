@@ -119,19 +119,21 @@ export function UpgradeFlowModal({
       if (targetPlan === "scholar") priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_SCHOLAR!;
       if (targetPlan === "elite") priceId = process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE!;
 
-      await scheduleSubscriptionUpgrade(priceId);
+      const result = await scheduleSubscriptionUpgrade(priceId);
+      
+      if (result?.error) {
+        setError(result.error);
+        setIsProcessingScheduled(false);
+        return;
+      }
+
       setSuccessMessage(`Your plan will automatically upgrade to ${planInfo.label} on your next billing date.`);
       setTimeout(() => {
         onClose();
         setSuccessMessage(null);
       }, 3500);
     } catch (err: any) {
-      const msg = err.message || "";
-      if (msg.includes("missing at least one phase with a 'start_date'")) {
-        setError("You already have a pending plan change scheduled. Please wait for your next billing cycle.");
-      } else {
-        setError(msg || "Failed to schedule upgrade.");
-      }
+      setError(err.message || "Failed to schedule upgrade.");
     } finally {
       setIsProcessingScheduled(false);
     }

@@ -160,7 +160,7 @@ export async function scheduleSubscriptionUpgrade(targetPriceId: string) {
     .single();
 
   if (!profile?.stripe_subscription_id) {
-    throw new Error("No active subscription");
+    return { error: "No active subscription" };
   }
 
   const stripe = getStripe();
@@ -188,7 +188,7 @@ export async function scheduleSubscriptionUpgrade(targetPriceId: string) {
       : futurePhase.items[0].price.id;
     
     if (futurePriceId === targetPriceId) {
-      throw new Error("You already have an upgrade to this plan scheduled for your next billing cycle.");
+      return { error: "You already have an upgrade to this plan scheduled for your next billing cycle." };
     }
   }
 
@@ -197,6 +197,7 @@ export async function scheduleSubscriptionUpgrade(targetPriceId: string) {
     await stripe.subscriptionSchedules.update(schedule.id, {
       phases: [
         {
+          start_date: currentPhase.start_date,
           end_date: currentPhase.end_date,
           items: currentPhase.items.map(item => ({ 
             price: typeof item.price === 'string' ? item.price : item.price.id, 
@@ -211,12 +212,9 @@ export async function scheduleSubscriptionUpgrade(targetPriceId: string) {
   } catch (err: any) {
     console.error("Schedule update error:", err);
     if (err.message && err.message.includes("missing at least one phase with a `start_date`")) {
-      throw new Error("You already have a pending plan change scheduled. Please wait for your next billing cycle.");
+      return { error: "You already have a pending plan change scheduled. Please wait for your next billing cycle." };
     }
-    throw new Error(
-      "We couldn't schedule your upgrade. " + 
-      (err.message || "Please contact support.")
-    );
+    return { error: "We couldn't schedule your upgrade. " + (err.message || "Please contact support.") };
   }
 
   return { success: true };
@@ -232,15 +230,15 @@ export async function getSubscriptionInfo() {
 
   if (!user) throw new Error("Unauthorized");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("stripe_subscription_id, stripe_price_id, subscription_status")
-    .eq("id", user.id)
-    .single();
+  // Use the data fetcher so that we correctly inherit the "family" subscription state 
+  // (e.g. if the student paid but the parent is looking at the profile)
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const dbData = await getStudentDashboardData(user.id);
+  const profile = dbData.userProfile;
 
   if (!profile) return null;
 
-  const plan = getPlanFromPriceId(profile.stripe_price_id);
+  const plan = getPlanFromPriceId(profile.stripe_price_id ?? null);
   let renewalDate: string | null = null;
 
   if (profile.stripe_subscription_id) {

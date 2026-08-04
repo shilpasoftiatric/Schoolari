@@ -70,14 +70,14 @@ export function StudentProfile({
         if (data.jobsRefreshed) items.push("Jobs");
         if (data.tasksRefreshed) items.push("Dashboard Tasks");
         if (data.resumeRefreshed) items.push("Resume");
-        
+
         if (items.length === 1) {
           msg += " " + items[0] + " has been updated based on your new profile information.";
         } else {
           const lastItem = items.pop();
           msg += " " + items.join(", ") + ", and " + lastItem + " have been updated based on your new profile information.";
         }
-        
+
         toast.success(msg, { duration: 5000 });
       } else {
         toast.success("Profile saved successfully.");
@@ -166,7 +166,7 @@ export function StudentProfile({
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Student Profile</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
           <p className="text-sm text-slate-500">View and manage student information</p>
         </div>
         <div className="flex items-center gap-3">
@@ -223,7 +223,7 @@ export function StudentProfile({
               <div className="flex-1">
                 <p className="text-xs text-slate-500 mb-0.5">Email Address</p>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-900 break-all">{email}</p>
+                  <p className="text-sm font-medium text-slate-900 break-all">{formData.student_email || email}</p>
                   <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full shrink-0">Verified</span>
                 </div>
               </div>

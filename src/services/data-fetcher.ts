@@ -80,9 +80,33 @@ export const getStudentDashboardData = cache(async (userId: string) => {
   const masterId = studentProfile ? studentProfile.id : userId;
   const masterProfile = studentProfile || userProfile;
 
+  let effectivePriceId = null;
+  let effectiveSubscriptionId = null;
+  let effectiveCustomerId = null;
+  
+  if (parentPaid) {
+    effectivePriceId = parentProfile?.stripe_price_id || null;
+    effectiveSubscriptionId = parentProfile?.stripe_subscription_id || null;
+    effectiveCustomerId = parentProfile?.stripe_customer_id || null;
+  } else if (studentPaid) {
+    effectivePriceId = studentProfile?.stripe_price_id || null;
+    effectiveSubscriptionId = studentProfile?.stripe_subscription_id || null;
+    effectiveCustomerId = studentProfile?.stripe_customer_id || null;
+  }
+
   // Make sure subscription_status is set to active if family has paid
   if (masterProfile) {
     masterProfile.subscription_status = isFamilyPaid ? 'active' : null;
+    if (effectivePriceId) masterProfile.stripe_price_id = effectivePriceId;
+    if (effectiveSubscriptionId) masterProfile.stripe_subscription_id = effectiveSubscriptionId;
+    if (effectiveCustomerId) masterProfile.stripe_customer_id = effectiveCustomerId;
+  }
+  
+  if (userProfile) {
+    userProfile.subscription_status = isFamilyPaid ? 'active' : null;
+    if (effectivePriceId) userProfile.stripe_price_id = effectivePriceId;
+    if (effectiveSubscriptionId) userProfile.stripe_subscription_id = effectiveSubscriptionId;
+    if (effectiveCustomerId) userProfile.stripe_customer_id = effectiveCustomerId;
   }
 
   const [docsRes, essaysRes, collegesRes, appsRes, resumeRes, trackerRes] = await Promise.all([
