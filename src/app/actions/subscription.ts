@@ -107,11 +107,9 @@ export async function getUpgradePreview(targetPriceId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("stripe_subscription_id, stripe_customer_id")
-    .eq("id", user.id)
-    .single();
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const dbData = await getStudentDashboardData(user.id);
+  const profile = dbData.userProfile;
 
   if (!profile?.stripe_subscription_id || !profile?.stripe_customer_id) {
     throw new Error("No active subscription");
@@ -153,11 +151,9 @@ export async function scheduleSubscriptionUpgrade(targetPriceId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("stripe_subscription_id, stripe_customer_id")
-    .eq("id", user.id)
-    .single();
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const dbData = await getStudentDashboardData(user.id);
+  const profile = dbData.userProfile;
 
   if (!profile?.stripe_subscription_id) {
     return { error: "No active subscription" };
