@@ -59,7 +59,8 @@ Return ONLY a JSON array of the 15 best matching IDs.`;
       jsonMode: true
     });
 
-    const parsedIds = JSON.parse(aiResponse);
+    const cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
+    const parsedIds = JSON.parse(cleanedResponse);
     if (Array.isArray(parsedIds) && parsedIds.length > 0) {
       // Map the AI-selected IDs back to the original full job objects (with descriptions & links)
       return parsedIds
@@ -104,7 +105,8 @@ ${JSON.stringify(resume?.content || {}, null, 2)}`;
       jsonMode: true
     });
 
-    return JSON.parse(aiResponse);
+    const cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
+    return JSON.parse(cleanedResponse);
   } catch (error) {
     console.error("AI Resume match failed:", error);
     throw new Error("Failed to analyze resume match.");

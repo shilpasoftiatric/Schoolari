@@ -21,11 +21,9 @@ export async function getUserPlan(): Promise<SubscriptionPlan> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("stripe_price_id, subscription_status")
-    .eq("id", user.id)
-    .single();
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const dbData = await getStudentDashboardData(user.id);
+  const profile = dbData.userProfile;
 
   if (!profile) return null;
   if (
@@ -35,7 +33,7 @@ export async function getUserPlan(): Promise<SubscriptionPlan> {
     return null;
   }
 
-  return getPlanFromPriceId(profile.stripe_price_id);
+  return getPlanFromPriceId(profile.stripe_price_id ?? null);
 }
 
 // Server-side: throw if user cannot access a feature
