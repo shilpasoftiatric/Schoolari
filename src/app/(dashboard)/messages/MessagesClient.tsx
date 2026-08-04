@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useTransition } from "react";
-import { Send, Image as ImageIcon, FileText, CheckCircle2 } from "lucide-react";
+import { Send, Image as ImageIcon, FileText, CheckCircle2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { sendStudentMessage, markMessageAsRead } from "@/app/actions/coaching";

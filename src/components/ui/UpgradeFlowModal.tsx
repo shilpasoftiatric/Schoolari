@@ -37,6 +37,7 @@ export function UpgradeFlowModal({
   const [error, setError] = useState<string | null>(null);
   const [isProcessingImmediate, setIsProcessingImmediate] = useState(false);
   const [isProcessingScheduled, setIsProcessingScheduled] = useState(false);
+  const [showConfirmImmediate, setShowConfirmImmediate] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const planInfo = PLAN_INFO[targetPlan];
@@ -75,6 +76,14 @@ export function UpgradeFlowModal({
 
   if (!isOpen) return null;
 
+  const handleImmediateClick = () => {
+    if (!showConfirmImmediate) {
+      setShowConfirmImmediate(true);
+    } else {
+      handleImmediateUpgrade();
+    }
+  };
+
   const handleImmediateUpgrade = async () => {
     setIsProcessingImmediate(true);
     setError(null);
@@ -106,7 +115,7 @@ export function UpgradeFlowModal({
       }, 2000);
     } catch (err: any) {
       setError(err.message || "Upgrade failed.");
-      setIsProcessing(false);
+      setIsProcessingImmediate(false);
     }
   };
 
@@ -222,13 +231,21 @@ export function UpgradeFlowModal({
                     </div>
 
                     <button
-                      onClick={handleImmediateUpgrade}
+                      onClick={handleImmediateClick}
                       disabled={isProcessingImmediate || isProcessingScheduled}
-                      className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${color.bg} text-white font-bold py-3 rounded-xl hover:shadow-lg transition-all`}
+                      className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all`}
                     >
-                      {isProcessingImmediate ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                      Pay ${(previewData.amountDue / 100).toFixed(2)} Now
+                      {isProcessingImmediate ? <Loader2 className="w-4 h-4 animate-spin" /> : (showConfirmImmediate ? <CheckCircle2 className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
+                      {showConfirmImmediate ? `Confirm Charge of $${(previewData.amountDue / 100).toFixed(2)}` : `Pay $${(previewData.amountDue / 100).toFixed(2)} Now`}
                     </button>
+                    {showConfirmImmediate && !isProcessingImmediate && (
+                      <button 
+                        onClick={() => setShowConfirmImmediate(false)} 
+                        className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
 
                   {/* Option 2: Next Cycle */}
@@ -268,7 +285,3 @@ export function UpgradeFlowModal({
     </div>
   );
 }
-function setIsProcessing(arg0: boolean) {
-    throw new Error("Function not implemented.");
-}
-

@@ -46,34 +46,34 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "MAIN",
     items: [
-      { label: "Dashboard",    icon: LayoutDashboard, href: "/dashboard",    feature: "dashboard" },
-      { label: "Colleges",     icon: Landmark,        href: "/colleges",     feature: "colleges" },
-      { label: "Scholarships", icon: Search,          href: "/scholarships", feature: "scholarships" },
-      { label: "Tracker",      icon: ClipboardList,   href: "/tracker",      feature: "tracker" },
+      { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard", feature: "dashboard" },
+      { label: "Colleges", icon: Landmark, href: "/colleges", feature: "colleges" },
+      { label: "Scholarships", icon: Search, href: "/scholarships", feature: "scholarships" },
+      { label: "Tracker", icon: ClipboardList, href: "/tracker", feature: "tracker" },
     ],
   },
   {
     label: "ACADEMIC",
     items: [
-      { label: "Documents",      icon: FolderOpen, href: "/documents", feature: "documents" },
-      { label: "Essays",         icon: FileEdit,   href: "/essays",    feature: "essays" },
-      { label: "Resume Builder", icon: FileText,   href: "/resume",    feature: "resume" },
+      { label: "Documents", icon: FolderOpen, href: "/documents", feature: "documents" },
+      { label: "Essays", icon: FileEdit, href: "/essays", feature: "essays" },
+      { label: "Resume Builder", icon: FileText, href: "/resume", feature: "resume" },
     ],
   },
   {
     label: "CAREER & GROWTH",
     items: [
-      { label: "Jobs & Internships", icon: Briefcase,     href: "/jobs",    feature: "jobs" },
-      { label: "Earn Income",        icon: DollarSign,    href: "/income",  feature: "income" },
-      { label: "College Coach",      icon: GraduationCap, href: "/coaching",feature: "coaching" },
+      { label: "Jobs & Internships", icon: Briefcase, href: "/jobs", feature: "jobs" },
+      { label: "Earn Income", icon: DollarSign, href: "/income", feature: "income" },
+      { label: "College Coach", icon: GraduationCap, href: "/coaching", feature: "coaching" },
     ],
   },
   {
     label: "COMMUNITY",
     items: [
-      { label: "Community", icon: Users,        href: "/community", disabled: true },
-      { label: "Messages",  icon: MessageSquare,href: "/messages",  feature: "messages" },
-      { label: "Support",   icon: HelpCircle,   href: "/support",   disabled: true },
+      { label: "Community", icon: Users, href: "/community", disabled: true },
+      { label: "Messages", icon: MessageSquare, href: "/messages", disabled: true },
+      { label: "Support", icon: HelpCircle, href: "/support", disabled: true },
     ],
   },
   {
@@ -130,8 +130,8 @@ export default function Sidebar({ siteName = "Schoolari", progressData, plan }: 
       <div className={cn("flex flex-col h-full border-r border-slate-200 bg-slate-150 shrink-0 transition-all duration-300 ease-in-out relative print:hidden", isSidebarCollapsed ? "w-20" : "w-64")}>
         {/* Header / Logo Area */}
         <div className={cn("flex items-center border-b border-slate-200 transition-colors h-[76px]", isSidebarCollapsed ? "justify-center" : "justify-between pl-5 pr-2 hover:bg-slate-50")}>
-          <Link 
-            href="/dashboard" 
+          <Link
+            href="/dashboard"
             onClick={(e) => {
               if (isSidebarCollapsed) {
                 e.preventDefault();

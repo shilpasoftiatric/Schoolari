@@ -326,10 +326,15 @@ export default function OnboardingPage() {
     });
   };
 
-  const handleSkip = () => {
+  const handleSkip = (isParentSkip = false) => {
     setError("");
     startTransition(async () => {
-      const payload: any = { ...form, onboarding_complete: true };
+      const payload: any = { ...form };
+      if (isParentSkip) {
+        payload.parent_skipped_to_end = true;
+      } else {
+        payload.onboarding_complete = true;
+      }
       const result = await saveOnboardingStep(4, payload);
 
       if (result.error) {
@@ -425,7 +430,7 @@ export default function OnboardingPage() {
               <div className="mt-4 px-4 py-3 bg-violet-50 border border-violet-100 rounded-xl text-violet-700 text-sm font-medium flex flex-col justify-between items-start">
                 <p className="flex-1">Parents: You may skip this portion and have your student complete their profile. Your student will receive an email to create their account and start their journey to success with Schoolari.</p>
                 <Button
-                  onClick={handleSkip}
+                  onClick={() => handleSkip(true)}
                   disabled={isPending}
                   className="mt-4 self-end bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm font-bold whitespace-nowrap transition-colors"
                 >
@@ -748,7 +753,7 @@ export default function OnboardingPage() {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={handleSkip}
+                    onClick={() => handleSkip(false)}
                     className="h-12 rounded-xl font-semibold text-slate-500 px-6"
                     disabled={isPending}
                   >

@@ -43,7 +43,7 @@ export default async function MessagesPage() {
     .order("created_at", { ascending: true }); // chronological order for chat
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 relative -m-6 md:-m-8">
+    <div className="flex flex-col h-[calc(100vh-64px)] bg-slate-50 relative -m-4 sm:-m-6 lg:-m-8">
       <div className="flex items-center px-6 py-4 bg-white border-b border-slate-200 shrink-0">
         <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center mr-4">
           <MessageSquare className="w-5 h-5 text-violet-600" />
