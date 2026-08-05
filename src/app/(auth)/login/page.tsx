@@ -28,7 +28,7 @@ export default function LoginPage() {
     <div className="space-y-8">
       {/* Heading */}
       <div>
-        <h2 className="text-3xl font-extrabold text-slate-900">Welcome back dev 👋</h2>
+        <h2 className="text-3xl font-extrabold text-slate-900">Welcome back 👋</h2>
         <p className="text-slate-500 mt-2 text-sm">
           Sign in to continue your scholarship journey.
         </p>
