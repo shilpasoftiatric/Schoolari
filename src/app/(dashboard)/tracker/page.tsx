@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TrackerDashboard } from "./TrackerDashboard";
 
@@ -9,10 +9,11 @@ export const metadata = {
 };
 
 export default async function TrackerPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
   if (!user) redirect("/login");
+
+  const supabase = await createClient();
 
   const { masterId, profile } = await getStudentDashboardData(user.id);
 

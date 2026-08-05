@@ -14,7 +14,7 @@ export default async function StaffAdminPage() {
   const { data: staffMembers } = await adminClient
     .from("profiles")
     .select("*")
-    .in("role", ["super_admin", "administrator", "college_coach", "content_manager", "customer_support"])
+    .in("role", ["super_admin", "admin", "college_coach", "content_manager", "customer_support"])
     .order("created_at", { ascending: false });
 
   return (

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
 import { ShieldCheck, LogOut } from "lucide-react";
 import { AdminNav } from "./AdminNav";
 import { signOut } from "@/app/actions/auth";
@@ -8,13 +8,13 @@ import { canAccessAdmin, isStaffRole, ROLE_LABELS, ROLE_COLORS, type StaffRole }
 import { cn } from "@/lib/utils";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
   if (!user) {
     redirect("/login");
   }
 
+  const supabase = await createClient();
   // Verify Staff Role (any of the 5 staff roles)
   const { data: profile } = await supabase
     .from("profiles")

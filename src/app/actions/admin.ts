@@ -43,7 +43,7 @@ export async function updateUserRole(userId: string, newRole: string) {
 
   const { error } = await adminClient
     .from("profiles")
-    .update({ role: newRole })
+    .update({ role: newRole as any })
     .eq("id", userId);
 
   if (error) throw new Error(error.message);
@@ -299,7 +299,7 @@ export async function createEarnCategory(data: { name: string; description?: str
 
   const { error } = await adminClient
     .from("earn_categories")
-    .insert([{ name: data.name.trim(), description: data.description?.trim() || null, sort_order: nextOrder }]);
+    .insert([{ name: data.name.trim(), description: data.description?.trim() || "", sort_order: nextOrder }]);
 
   if (error) throw new Error(error.message);
   revalidatePath("/admin/income");
@@ -311,7 +311,7 @@ export async function updateEarnCategory(id: string, data: { name: string; descr
 
   const { error } = await adminClient
     .from("earn_categories")
-    .update({ name: data.name.trim(), description: data.description?.trim() || null })
+    .update({ name: data.name.trim(), description: data.description?.trim() || "" })
     .eq("id", id);
 
   if (error) throw new Error(error.message);
@@ -412,9 +412,9 @@ export async function createEarnVideo(payload: VideoPayload) {
     .insert([{
       category_id: payload.category_id,
       title: payload.title.trim(),
-      description: payload.description?.trim() || null,
+      description: payload.description?.trim() || "",
       video_type: payload.video_type,
-      youtube_url: payload.youtube_url?.trim() || null,
+      youtube_url: payload.youtube_url?.trim() || "",
       mp4_storage_path: payload.mp4_storage_path || null,
       thumbnail_url: payload.thumbnail_url || null,
       difficulty: payload.difficulty,
@@ -461,9 +461,9 @@ export async function updateEarnVideo(id: string, payload: VideoPayload) {
     .update({
       category_id: payload.category_id,
       title: payload.title.trim(),
-      description: payload.description?.trim() || null,
+      description: payload.description?.trim() || "",
       video_type: payload.video_type,
-      youtube_url: payload.youtube_url?.trim() || null,
+      youtube_url: payload.youtube_url?.trim() || "",
       mp4_storage_path: payload.mp4_storage_path || null,
       thumbnail_url: payload.thumbnail_url || null,
       difficulty: payload.difficulty,

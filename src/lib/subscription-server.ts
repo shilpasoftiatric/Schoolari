@@ -3,7 +3,7 @@
 // Do NOT import this from client components.
 // ─────────────────────────────────────────────────────────────
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
 import {
   getPlanFromPriceId,
   canAccessFeature,
@@ -17,8 +17,7 @@ export { getPlanFromPriceId, canAccessFeature, getMinPlanForFeature, PLAN_INFO }
 
 // Server-side: get current user plan
 export async function getUserPlan(): Promise<SubscriptionPlan> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
   if (!user) return null;
 
   const { getStudentDashboardData } = await import("@/services/data-fetcher");

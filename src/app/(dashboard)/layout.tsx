@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
 import { getSiteSettings } from "@/lib/settings";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
@@ -18,10 +18,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
-  if (error || !user) {
+  if (!user) {
     redirect("/login");
   }
 
@@ -35,6 +34,7 @@ export default async function DashboardLayout({
   }
 
   if (userProfile?.is_active === false) {
+    const supabase = await createClient();
     await supabase.auth.signOut();
     redirect("/login?error=account_suspended");
   }
