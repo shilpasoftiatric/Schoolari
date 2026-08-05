@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { canAccessAdmin } from "@/lib/rbac";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -57,7 +58,6 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-
   // Protect dashboard, onboarding, and admin routes
   if (!user) {
     if (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding") || pathname.startsWith("/pricing")) {
@@ -92,11 +92,14 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user) {
+    // Check if account is suspended
+    // We can query the profile to check both is_active and role
     // Only query profile for protected paths or auth pages
     if (
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/onboarding") ||
       pathname.startsWith("/pricing") ||
+      pathname.startsWith("/admin") ||
       pathname === "/login" ||
       pathname === "/signup"
     ) {
@@ -119,113 +122,153 @@ export async function proxy(request: NextRequest) {
         }
       );
 
-      const { data: profile, error: profileError } = await supabaseAdmin
+      const { data: profile } = await supabaseAdmin
         .from("profiles")
-        .select("id, account_type, subscription_status, onboarding_complete, linked_student_id")
+        .select("id, account_type, role, is_active, subscription_status, onboarding_complete, linked_student_id")
         .eq("id", user.id)
         .single();
 
-        console.log(`[Middleware] Fetched profile for ${user.id}:`, profile, "Error:", profileError);
+      console.log(`[Middleware/Proxy] Fetched profile for ${user.id}:`, profile);
 
-        if (profile) {
-          let familySubscriptionStatus = profile.subscription_status;
-          let familyOnboardingComplete = profile.onboarding_complete;
+      if (profile) {
+        // Account Suspension Check
+        if (profile.is_active === false) {
+          await supabase.auth.signOut();
+          const url = request.nextUrl.clone();
+          url.pathname = "/login";
+          url.searchParams.set("error", "account_suspended");
+          return NextResponse.redirect(url);
+        }
 
-          // If the user is a student, see if their parent paid
-          if (profile.account_type === 'student') {
-            // 1. Try to find parent by linked_student_id
-            let { data: parentProfile } = await supabaseAdmin
-              .from("profiles")
-              .select("subscription_status")
-              .eq("linked_student_id", user.id)
-              .maybeSingle();
-              
-            // 2. Fallback: Find parent by student_email
-            if (!parentProfile) {
-              const { data: fallbackParent } = await supabaseAdmin
+        // Role-Based Authorization
+        // Non-staff visiting /admin
+        if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+          if (!canAccessAdmin(profile.role)) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/dashboard";
+            return NextResponse.redirect(url);
+          }
+        }
+
+        // Staff visiting student/parent routes
+        if (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding") || pathname.startsWith("/pricing")) {
+          if (canAccessAdmin(profile.role)) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/admin/dashboard";
+            return NextResponse.redirect(url);
+          }
+        }
+
+        // Handle normal student/parent subscription checks and onboarding redirects
+        if (
+          pathname.startsWith("/dashboard") ||
+          pathname.startsWith("/onboarding") ||
+          pathname.startsWith("/pricing") ||
+          pathname === "/login" ||
+          pathname === "/signup"
+        ) {
+          // Skip these checks for staff users since they are handled above
+          if (!canAccessAdmin(profile.role)) {
+            let familySubscriptionStatus = profile.subscription_status;
+            let familyOnboardingComplete = profile.onboarding_complete;
+
+            // If the user is a student, see if their parent paid
+            if (profile.account_type === 'student') {
+              // 1. Try to find parent by linked_student_id
+              let { data: parentProfile } = await supabaseAdmin
                 .from("profiles")
                 .select("subscription_status")
-                .eq("student_email", user.email)
+                .eq("linked_student_id", user.id)
                 .maybeSingle();
-              parentProfile = fallbackParent;
-            }
-              
-            if (parentProfile && (parentProfile.subscription_status === 'active' || parentProfile.subscription_status === 'trialing')) {
-              familySubscriptionStatus = parentProfile.subscription_status;
-            }
-          } 
-          // If the user is a parent, the master onboarding state is on the student's profile
-          else if (profile.account_type === 'parent') {
-            let studentProfile = null;
-            
-            if (profile.linked_student_id) {
-              const { data } = await supabaseAdmin
-                .from("profiles")
-                .select("subscription_status, onboarding_complete")
-                .eq("id", profile.linked_student_id)
-                .maybeSingle();
-              studentProfile = data;
-            }
-            
-            // Fallback: Find student by parent_email
-            if (!studentProfile) {
-              const { data } = await supabaseAdmin
-                .from("profiles")
-                .select("subscription_status, onboarding_complete")
-                .eq("parent_email", user.email)
-                .maybeSingle();
-              studentProfile = data;
-            }
-              
-            if (studentProfile) {
-              if (studentProfile.subscription_status === 'active' || studentProfile.subscription_status === 'trialing') {
-                familySubscriptionStatus = studentProfile.subscription_status;
+                
+              // 2. Fallback: Find parent by student_email
+              if (!parentProfile) {
+                const { data: fallbackParent } = await supabaseAdmin
+                  .from("profiles")
+                  .select("subscription_status")
+                  .eq("student_email", user.email)
+                  .maybeSingle();
+                parentProfile = fallbackParent;
               }
-              familyOnboardingComplete = studentProfile.onboarding_complete;
+                
+              if (parentProfile && (parentProfile.subscription_status === 'active' || parentProfile.subscription_status === 'trialing')) {
+                familySubscriptionStatus = parentProfile.subscription_status;
+              }
+            } 
+            // If the user is a parent, the master onboarding state is on the student's profile
+            else if (profile.account_type === 'parent') {
+              let studentProfile = null;
+              
+              if (profile.linked_student_id) {
+                const { data } = await supabaseAdmin
+                  .from("profiles")
+                  .select("subscription_status, onboarding_complete")
+                  .eq("id", profile.linked_student_id)
+                  .maybeSingle();
+                studentProfile = data;
+              }
+              
+              // Fallback: Find student by parent_email
+              if (!studentProfile) {
+                const { data } = await supabaseAdmin
+                  .from("profiles")
+                  .select("subscription_status, onboarding_complete")
+                  .eq("parent_email", user.email)
+                  .maybeSingle();
+                studentProfile = data;
+              }
+                
+              if (studentProfile) {
+                if (studentProfile.subscription_status === 'active' || studentProfile.subscription_status === 'trialing') {
+                  familySubscriptionStatus = studentProfile.subscription_status;
+                }
+                familyOnboardingComplete = studentProfile.onboarding_complete;
+              }
+            }
+
+            const hasPaid = familySubscriptionStatus === "active" || familySubscriptionStatus === "trialing";
+            console.log(`[Middleware/Proxy] ${user.id} -> hasPaid: ${hasPaid}, familySub: ${familySubscriptionStatus}, onboarding: ${familyOnboardingComplete}`);
+
+            // If they haven't paid, they can only access pricing
+            if (!hasPaid && (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding"))) {
+              console.log(`[Middleware/Proxy] Redirecting ${user.id} to /pricing`);
+              const url = request.nextUrl.clone();
+              url.pathname = "/pricing";
+              return NextResponse.redirect(url);
+            }
+
+            // If they paid but haven't onboarded, force onboarding
+            if (hasPaid && !familyOnboardingComplete && pathname.startsWith("/dashboard")) {
+              console.log(`[Middleware/Proxy] Redirecting ${user.id} to /onboarding`);
+              const url = request.nextUrl.clone();
+              url.pathname = "/onboarding";
+              return NextResponse.redirect(url);
+            }
+
+            // If they finished onboarding, send them to dashboard instead of pricing/onboarding
+            if (hasPaid && familyOnboardingComplete && (pathname.startsWith("/onboarding") || pathname.startsWith("/pricing"))) {
+              console.log(`[Middleware/Proxy] Redirecting ${user.id} to /dashboard`);
+              const url = request.nextUrl.clone();
+              url.pathname = "/dashboard";
+              return NextResponse.redirect(url);
+            }
+
+            // Handle login/signup redirects
+            if (pathname === "/login" || pathname === "/signup") {
+              const url = request.nextUrl.clone();
+              if (!hasPaid) {
+                url.pathname = "/pricing";
+              } else if (!familyOnboardingComplete) {
+                url.pathname = "/onboarding";
+              } else {
+                url.pathname = "/dashboard";
+              }
+              return NextResponse.redirect(url);
             }
           }
-
-          const hasPaid = familySubscriptionStatus === "active" || familySubscriptionStatus === "trialing";
-          console.log(`[Middleware] ${user.id} -> hasPaid: ${hasPaid}, familySub: ${familySubscriptionStatus}, onboarding: ${familyOnboardingComplete}`);
-
-          // If they haven't paid, they can only access pricing
-          if (!hasPaid && (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding"))) {
-            console.log(`[Middleware] Redirecting ${user.id} to /pricing`);
-            const url = request.nextUrl.clone();
-            url.pathname = "/pricing";
-            return NextResponse.redirect(url);
-          }
-
-          // If they paid but haven't onboarded, force onboarding
-          if (hasPaid && !familyOnboardingComplete && pathname.startsWith("/dashboard")) {
-            console.log(`[Middleware] Redirecting ${user.id} to /onboarding`);
-            const url = request.nextUrl.clone();
-            url.pathname = "/onboarding";
-            return NextResponse.redirect(url);
-          }
-
-          // If they finished onboarding, send them to dashboard instead of pricing/onboarding
-          if (hasPaid && familyOnboardingComplete && (pathname.startsWith("/onboarding") || pathname.startsWith("/pricing"))) {
-            console.log(`[Middleware] Redirecting ${user.id} to /dashboard`);
-            const url = request.nextUrl.clone();
-            url.pathname = "/dashboard";
-          return NextResponse.redirect(url);
-        }
-
-        // Handle login/signup redirects
-        if (pathname === "/login" || pathname === "/signup") {
-          const url = request.nextUrl.clone();
-          if (!hasPaid) {
-            url.pathname = "/pricing";
-          } else if (!familyOnboardingComplete) {
-            url.pathname = "/onboarding";
-          } else {
-            url.pathname = "/dashboard";
-          }
-          return NextResponse.redirect(url);
         }
       } else {
-        console.log(`[Middleware] Profile missing for ${user.id}. Creating default profile...`);
+        console.log(`[Middleware/Proxy] Profile missing for ${user.id}. Creating default profile...`);
         
         const { error: healError } = await supabaseAdmin.from("profiles").upsert({
           id: user.id,
@@ -233,9 +276,9 @@ export async function proxy(request: NextRequest) {
         }, { onConflict: 'id' });
 
         if (healError) {
-          console.error(`[Middleware] FATAL: Failed to auto-heal profile for ${user.id}:`, healError);
+          console.error(`[Middleware/Proxy] FATAL: Failed to auto-heal profile for ${user.id}:`, healError);
         } else {
-          console.log(`[Middleware] Successfully auto-healed profile for ${user.id}`);
+          console.log(`[Middleware/Proxy] Successfully auto-healed profile for ${user.id}`);
         }
 
         if (

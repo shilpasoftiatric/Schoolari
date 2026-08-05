@@ -45,8 +45,8 @@ export interface Database {
           schoolari_goals: string[];
           college_recommendations_cache: any;
           linked_student_id: string | null;
-          account_type: "student" | "parent";
-          role: "user" | "admin";
+          account_type: "student" | "parent" | "staff";
+          role: "user" | "admin" | "super_admin" | "college_coach" | "content_manager" | "customer_support";
           state: string;
           grade_level: string;
           gpa_range: string;
@@ -77,6 +77,7 @@ export interface Database {
           job_task_index: number;
           created_at: string;
           updated_at: string;
+          is_active: boolean;
         };
         Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;

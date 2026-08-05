@@ -15,7 +15,7 @@ export function StaffAdmin({ initialStaff }: { initialStaff: any[] }) {
   // Form state
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
-  const [role, setRole] = useState<StaffRole>("administrator");
+  const [role, setRole] = useState<StaffRole>("admin");
 
   const filteredStaff = initialStaff.filter(s => 
     (s.email?.toLowerCase().includes(search.toLowerCase()) || 
@@ -31,7 +31,7 @@ export function StaffAdmin({ initialStaff }: { initialStaff: any[] }) {
         setShowCreateModal(false);
         setEmail("");
         setFirstName("");
-        setRole("administrator");
+        setRole("admin");
       } catch (error: any) {
         toast.error(error.message || "Failed to create account");
       }

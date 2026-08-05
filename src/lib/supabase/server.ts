@@ -42,3 +42,13 @@ export async function createAdminClient() {
     }
   );
 }
+
+import { cache } from "react";
+
+// Cached user retriever to deduplicate getUser calls during request rendering
+export const getAuthenticatedUser = cache(async () => {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+});
+

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { StudentProfile } from "./StudentProfile";
 
@@ -10,8 +10,7 @@ export const metadata = {
 };
 
 export default async function ProfilePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
   if (!user) redirect("/login");
 

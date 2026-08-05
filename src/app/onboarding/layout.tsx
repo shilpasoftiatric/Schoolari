@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
 
@@ -7,13 +7,13 @@ export default async function OnboardingLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
   if (!user) {
     redirect("/login");
   }
 
+  const supabase = await createClient();
   const { data: userProfile } = await supabase
     .from("profiles")
     .select("subscription_status, role")
