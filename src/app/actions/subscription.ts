@@ -3,7 +3,8 @@
 import Stripe from "stripe";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getPlanFromPriceId, PLAN_INFO } from "@/lib/subscription-server";
+import { getPlanFromPriceId, PLAN_INFO, getUserPlan } from "@/lib/subscription-server";
+import type { SubscriptionPlan } from "@/lib/subscription-server";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error("Missing STRIPE_SECRET_KEY");
@@ -257,5 +258,9 @@ export async function getSubscriptionInfo() {
     renewalDate,
     hasSubscription: !!profile.stripe_subscription_id,
   };
+}
+
+export async function getUserPlanAction(): Promise<SubscriptionPlan> {
+  return await getUserPlan();
 }
 

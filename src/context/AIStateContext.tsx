@@ -5,6 +5,9 @@ import { getResumesAction } from "@/app/actions/resume";
 import { getPersonalizedJobsAction } from "@/app/actions/career-ai";
 import { getCareerArticles } from "@/app/actions/career";
 import { toast } from "sonner";
+import { getUserPlanAction } from "@/app/actions/subscription";
+import { canAccessFeature } from "@/lib/subscription";
+import type { SubscriptionPlan } from "@/lib/subscription";
 
 export interface EssayCacheItem {
   brainstorm: string;
@@ -41,6 +44,7 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
   const [jobsData, setJobsData] = useState<any[] | null>(null);
   const [careerArticles, setCareerArticles] = useState<any[] | null>(null);
   const [isBackgroundPrefetching, setIsBackgroundPrefetching] = useState(false);
+  const [userPlan, setUserPlan] = useState<SubscriptionPlan | undefined>(undefined);
 
   const fetchingRef = useRef({ resume: false, jobs: false, articles: false });
 
@@ -63,9 +67,25 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  // Fetch user plan on mount
+  useEffect(() => {
+    const fetchPlan = async () => {
+      try {
+        const plan = await getUserPlanAction();
+        setUserPlan(plan);
+      } catch (err) {
+        console.error("Failed to fetch user plan for prefetching:", err);
+        setUserPlan(null);
+      }
+    };
+    fetchPlan();
+  }, []);
+
   // Prefetch Resume Data in background
   useEffect(() => {
     const fetchResume = async () => {
+      if (userPlan === undefined) return;
+      if (!canAccessFeature(userPlan, "resume")) return;
       if (resumeData || fetchingRef.current.resume) return;
       fetchingRef.current.resume = true;
       try {
@@ -78,11 +98,13 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
       }
     };
     fetchResume();
-  }, [resumeData]);
+  }, [resumeData, userPlan]);
 
   // Prefetch Personalized Jobs Data in background (uses Claude AI)
   useEffect(() => {
     const fetchJobs = async () => {
+      if (userPlan === undefined) return;
+      if (!canAccessFeature(userPlan, "jobs")) return;
       if (jobsData || fetchingRef.current.jobs) return;
       fetchingRef.current.jobs = true;
       try {
@@ -95,7 +117,7 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
       }
     };
     fetchJobs();
-  }, [jobsData]);
+  }, [jobsData, userPlan]);
 
   // Prefetch Career Articles in background
   useEffect(() => {

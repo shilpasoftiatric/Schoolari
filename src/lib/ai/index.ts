@@ -11,22 +11,29 @@ export interface AICallOptions {
 }
 
 export async function callAI({ systemPrompt, userPrompt, provider = 'claude', jsonMode = false, temperature }: AICallOptions): Promise<string> {
+  let responseText: string;
   if (provider === 'claude') {
     try {
-      return await callClaude(systemPrompt, userPrompt, temperature);
+      responseText = await callClaude(systemPrompt, userPrompt, temperature);
     } catch (err: any) {
       console.warn(`Claude API failed (${err.message || err}). Falling back to OpenAI...`);
-      return await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature);
+      responseText = await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature);
     }
   } else if (provider === 'openai') {
     try {
-      return await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature);
+      responseText = await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature);
     } catch (err: any) {
       console.warn(`OpenAI API failed (${err.message || err}). Falling back to Claude...`);
-      return await callClaude(systemPrompt, userPrompt, temperature);
+      responseText = await callClaude(systemPrompt, userPrompt, temperature);
     }
+  } else {
+    throw new Error(`Unsupported AI provider: ${provider}`);
   }
-  throw new Error(`Unsupported AI provider: ${provider}`);
+
+  if (jsonMode) {
+    responseText = cleanJsonString(responseText);
+  }
+  return responseText;
 }
 
 async function callOpenAI(systemPrompt: string, userPrompt: string, jsonMode: boolean, temperature?: number): Promise<string> {
@@ -95,4 +102,25 @@ async function callClaude(systemPrompt: string, userPrompt: string, temperature?
 
   const data = await response.json();
   return data.content[0].text;
+}
+
+function cleanJsonString(str: string): string {
+  const firstBrace = str.indexOf('{');
+  const firstBracket = str.indexOf('[');
+  let startIdx = -1;
+  let endIdx = -1;
+
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = str.lastIndexOf('}');
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = str.lastIndexOf(']');
+  }
+
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    return str.substring(startIdx, endIdx + 1).trim();
+  }
+
+  return str.replace(/```(?:json)?/g, '').trim();
 }
