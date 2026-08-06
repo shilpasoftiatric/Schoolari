@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useAIState } from "@/context/AIStateContext";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
 import {
@@ -68,11 +69,13 @@ interface ResumeBuilderClientProps {
   initialPayload: UserResumesPayload;
 }
 
-export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps) {
-  const [payload, setPayload] = useState<UserResumesPayload>(initialPayload);
+export function ResumeBuilderClient({ initialPayload = null }: { initialPayload?: UserResumesPayload | null }) {
+  const { resumeData, setResumeData } = useAIState();
+  const [payload, setPayload] = useState<UserResumesPayload | null>(initialPayload || resumeData);
   const [activeId, setActiveId] = useState<string>(
-    initialPayload.active_resume_id || initialPayload.resumes[0]?.id || ""
+    payload?.active_resume_id || payload?.resumes?.[0]?.id || ""
   );
+  const [loading, setLoading] = useState(!payload);
   const [resumeDropdownOpen, setResumeDropdownOpen] = useState(false);
 
   const [selectedSection, setSelectedSection] = useState<
@@ -118,6 +121,38 @@ export function ResumeBuilderClient({ initialPayload }: ResumeBuilderClientProps
     return () => el.removeEventListener("wheel", handleWheel);
   }, []);
   const [isImporting, setIsImporting] = useState(false);
+
+  useEffect(() => {
+    if (resumeData) {
+      setPayload(resumeData);
+      setActiveId((prev) => prev || resumeData.active_resume_id || resumeData.resumes[0]?.id || "");
+      setLoading(false);
+    } else if (!initialPayload) {
+      const fetchResume = async () => {
+        try {
+          const { getResumesAction } = await import("@/app/actions/resume");
+          const data = await getResumesAction();
+          setResumeData(data);
+          setPayload(data);
+          setActiveId((prev) => prev || data.active_resume_id || data.resumes[0]?.id || "");
+        } catch (err) {
+          console.error("Failed to load resume:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchResume();
+    }
+  }, [resumeData, initialPayload, setResumeData]);
+
+  if (loading || !payload) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-violet-500 gap-3">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="font-semibold animate-pulse">Loading resume workspace...</span>
+      </div>
+    );
+  }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

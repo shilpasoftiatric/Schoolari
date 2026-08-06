@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,13 +18,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useAIState } from "@/context/AIStateContext";
 
-export function JobsDashboard({ initialJobs, trackedJobMap, initialArticles }: { initialJobs: any[], trackedJobMap: any, initialArticles?: any[] }) {
-  const [jobs, setJobs] = useState(initialJobs);
+export function JobsDashboard({ 
+  initialJobs = null, 
+  trackedJobMap, 
+  initialArticles = null 
+}: { 
+  initialJobs?: any[] | null, 
+  trackedJobMap: any, 
+  initialArticles?: any[] | null 
+}) {
+  const { jobsData, setJobsData, careerArticles, setCareerArticles } = useAIState();
+  const [jobs, setJobs] = useState<any[] | null>(initialJobs || jobsData);
   const [tracked, setTracked] = useState(trackedJobMap);
   const [likedJobs, setLikedJobs] = useState<Record<string, boolean>>({});
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<"jobs" | "articles">("jobs");
+  const [articles, setArticles] = useState<any[] | null>(initialArticles || careerArticles);
+  const [loading, setLoading] = useState(!jobs || !articles);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<string>("");
@@ -75,6 +87,45 @@ export function JobsDashboard({ initialJobs, trackedJobMap, initialArticles }: {
       setTargetDate("");
     }
   };
+
+  useEffect(() => {
+    if (jobsData && careerArticles) {
+      setJobs(jobsData);
+      setArticles(careerArticles);
+      setLoading(false);
+    } else if (!initialJobs || !initialArticles) {
+      const fetchData = async () => {
+        try {
+          const { getPersonalizedJobsAction } = await import("@/app/actions/career-ai");
+          const { getCareerArticles } = await import("@/app/actions/career");
+          
+          const [j, a] = await Promise.all([
+            getPersonalizedJobsAction(),
+            getCareerArticles()
+          ]);
+          
+          setJobsData(j);
+          setCareerArticles(a);
+          setJobs(j);
+          setArticles(a);
+        } catch (err) {
+          console.error("Failed to load jobs:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchData();
+    }
+  }, [jobsData, careerArticles, initialJobs, initialArticles, setJobsData, setCareerArticles]);
+
+  if (loading || !jobs || !articles) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-violet-500 gap-3">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="font-semibold animate-pulse">Analyzing and personalizing jobs for you...</span>
+      </div>
+    );
+  }
 
   return (
     <>

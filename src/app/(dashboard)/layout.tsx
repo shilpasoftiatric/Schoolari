@@ -6,13 +6,14 @@ import Topbar from "@/components/layout/Topbar";
 import { getStudentDashboardData } from "@/services/data-fetcher";
 import { canAccessAdmin } from "@/lib/rbac";
 import { getPlanFromPriceId } from "@/lib/subscription";
-import { 
-  calculateWorkflowStates, 
-  calculateOverallProgress, 
-  getNextMilestone, 
-  getMotivationalMessage 
+import {
+  calculateWorkflowStates,
+  calculateOverallProgress,
+  getNextMilestone,
+  getMotivationalMessage
 } from "@/services/task-engine";
 import { Suspense } from "react";
+import { AIStateProvider } from "@/context/AIStateContext";
 
 function SidebarSkeleton() {
   return (
@@ -22,7 +23,7 @@ function SidebarSkeleton() {
         <div className="w-9 h-9 bg-slate-200 rounded-xl" />
         <div className="ml-3 h-5 w-24 bg-slate-200 rounded" />
       </div>
-      
+
       {/* Navigation list */}
       <div className="flex-1 p-3 space-y-6">
         <div className="h-12 bg-slate-200 rounded-2xl w-full" />
@@ -113,25 +114,27 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="fixed inset-0 flex overflow-hidden bg-slate-50 print:static print:inset-auto print:overflow-visible print:bg-white print:h-auto">
-      <div className="hidden lg:flex h-full print:hidden">
-        <Suspense fallback={<SidebarSkeleton />}>
-          <SidebarLoader userId={user.id} />
-        </Suspense>
-      </div>
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden print:overflow-visible print:h-auto">
-        <div className="print:hidden">
-          <Suspense fallback={<TopbarSkeleton />}>
-            <Topbar />
+    <AIStateProvider>
+      <div className="fixed inset-0 flex overflow-hidden bg-slate-50 print:static print:inset-auto print:overflow-visible print:bg-white print:h-auto">
+        <div className="hidden lg:flex h-full print:hidden">
+          <Suspense fallback={<SidebarSkeleton />}>
+            <SidebarLoader userId={user.id} />
           </Suspense>
         </div>
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 print:overflow-visible print:h-auto print:p-0 print:m-0">
-          <div className="max-w-7xl mx-auto print:max-w-none print:w-full print:m-0">
-            {children}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden print:overflow-visible print:h-auto">
+          <div className="print:hidden">
+            <Suspense fallback={<TopbarSkeleton />}>
+              <Topbar />
+            </Suspense>
           </div>
-        </main>
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8 print:overflow-visible print:h-auto print:p-0 print:m-0">
+            <div className="max-w-7xl mx-auto print:max-w-none print:w-full print:m-0">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </AIStateProvider>
   );
 }
 
