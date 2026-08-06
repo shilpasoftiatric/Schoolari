@@ -130,7 +130,7 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
       const currentHit = getCookie("claude-api-hit");
       if (currentHit && currentHit !== lastHit) {
         lastHit = currentHit;
-        toast.info("Claude API key is hit!");
+        // toast.info("Claude API key is hit!");
       }
     }, 1000);
 
