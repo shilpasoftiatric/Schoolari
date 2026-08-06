@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { getResumesAction } from "@/app/actions/resume";
 import { getPersonalizedJobsAction } from "@/app/actions/career-ai";
 import { getCareerArticles } from "@/app/actions/career";
@@ -42,6 +42,8 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
   const [careerArticles, setCareerArticles] = useState<any[] | null>(null);
   const [isBackgroundPrefetching, setIsBackgroundPrefetching] = useState(false);
 
+  const fetchingRef = useRef({ resume: false, jobs: false, articles: false });
+
   const updateEssayCache = (essayId: string, updates: Partial<EssayCacheItem>) => {
     setEssayCache((prev) => {
       const existing = prev[essayId] || {
@@ -64,12 +66,15 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
   // Prefetch Resume Data in background
   useEffect(() => {
     const fetchResume = async () => {
-      if (resumeData) return;
+      if (resumeData || fetchingRef.current.resume) return;
+      fetchingRef.current.resume = true;
       try {
         const data = await getResumesAction();
         setResumeData(data);
       } catch (err) {
         console.error("Prefetch resume failed:", err);
+      } finally {
+        fetchingRef.current.resume = false;
       }
     };
     fetchResume();
@@ -78,12 +83,15 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
   // Prefetch Personalized Jobs Data in background (uses Claude AI)
   useEffect(() => {
     const fetchJobs = async () => {
-      if (jobsData) return;
+      if (jobsData || fetchingRef.current.jobs) return;
+      fetchingRef.current.jobs = true;
       try {
         const data = await getPersonalizedJobsAction();
         setJobsData(data);
       } catch (err) {
         console.error("Prefetch jobs failed:", err);
+      } finally {
+        fetchingRef.current.jobs = false;
       }
     };
     fetchJobs();
@@ -92,12 +100,15 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
   // Prefetch Career Articles in background
   useEffect(() => {
     const fetchArticles = async () => {
-      if (careerArticles) return;
+      if (careerArticles || fetchingRef.current.articles) return;
+      fetchingRef.current.articles = true;
       try {
         const data = await getCareerArticles();
         setCareerArticles(data);
       } catch (err) {
         console.error("Prefetch articles failed:", err);
+      } finally {
+        fetchingRef.current.articles = false;
       }
     };
     fetchArticles();

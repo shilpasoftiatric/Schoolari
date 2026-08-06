@@ -94,27 +94,8 @@ export function JobsDashboard({
       setJobs(jobsData);
       setArticles(careerArticles);
       setLoading(false);
-    } else if (!initialJobs || !initialArticles) {
-      const fetchData = async () => {
-        try {
-          const [j, a] = await Promise.all([
-            getPersonalizedJobsAction(),
-            getCareerArticles()
-          ]);
-          
-          setJobsData(j);
-          setCareerArticles(a);
-          setJobs(j);
-          setArticles(a);
-        } catch (err) {
-          console.error("Failed to load jobs:", err);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchData();
     }
-  }, [jobsData, careerArticles, initialJobs, initialArticles, setJobsData, setCareerArticles]);
+  }, [jobsData, careerArticles]);
 
   if (loading || !jobs || !articles) {
     return (
