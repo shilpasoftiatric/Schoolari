@@ -11,30 +11,33 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import MobileNav from "./MobileNav";
+import { getPlanFromPriceId } from "@/lib/subscription";
+import { getStudentDashboardData } from "@/services/data-fetcher";
 
 export default async function Topbar() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   // Fetch profile and notifications
-  const [profileRes, notificationsRes] = await Promise.all([
-    user ? supabase.from("profiles").select("first_name").eq("id", user.id).single() : Promise.resolve({ data: null }),
+  const [dbData, notificationsRes] = await Promise.all([
+    user ? getStudentDashboardData(user.id) : Promise.resolve(null),
     user ? supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5) : Promise.resolve({ data: [] })
   ]);
 
-  const profile = profileRes.data;
+  const profile = dbData?.userProfile;
   const notifications = notificationsRes.data || [];
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const displayName = profile?.first_name || user?.email?.split("@")[0] || "Student";
   const initial = displayName.charAt(0).toUpperCase();
+  const plan = getPlanFromPriceId(profile?.stripe_price_id ?? null);
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between h-16 px-4 sm:px-6 bg-white border-b border-border shrink-0 print:hidden">
 
       <div className="flex items-center gap-4">
         {/* Mobile Navigation Toggle */}
-        <MobileNav />
+        <MobileNav plan={plan} siteName="Schoolari" />
       </div>
 
       {/* Right side */}

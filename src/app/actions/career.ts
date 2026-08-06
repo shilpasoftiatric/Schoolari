@@ -173,7 +173,7 @@ export async function getJobsAndInternships() {
 // In-memory cache for raw jobs
 const RAW_JOBS_CACHE: Record<string, { data: any[]; timestamp: number }> = {};
 
-export async function getRawJobsAndInternships() {
+export async function getRawJobsAndInternships(searchQuery?: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -190,7 +190,7 @@ export async function getRawJobsAndInternships() {
   const state = profile.state || "California";
   const interests = profile.career_interests || [];
 
-  const cacheKey = `${state}-${interests.join(",")}`;
+  const cacheKey = `${state}-${interests.join(",")}-${searchQuery || "default"}`;
   const now = Date.now();
   if (RAW_JOBS_CACHE[cacheKey] && now - RAW_JOBS_CACHE[cacheKey].timestamp < JOBS_CACHE_DURATION) {
     const cachedData = RAW_JOBS_CACHE[cacheKey].data;
@@ -206,9 +206,13 @@ export async function getRawJobsAndInternships() {
     let filteredJobs: any[] = [];
     
     if (appId && appKey) {
-      const query = interests.length > 0 ? interests.join(" ") : "";
-      const whatQuery = query ? `internship ${query}` : "internship";
-      const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=15&what=${encodeURIComponent(whatQuery)}&where=${encodeURIComponent(state)}&content-type=application/json`;
+      const query = searchQuery ? searchQuery : (interests.length > 0 ? interests.join(" ") : "");
+      const whatQuery = query ? `${query}` : "part time internship entry level";
+      
+      // Stage 1 Filters: exclude jobs that clearly require degrees or experience
+      const excludeQuery = "degree bachelors masters phd experience senior manager director lead";
+
+      const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=30&what=${encodeURIComponent(whatQuery)}&what_exclude=${encodeURIComponent(excludeQuery)}&where=${encodeURIComponent(state)}&content-type=application/json`;
 
       const res = await fetch(adzunaUrl, { method: "GET" });
       if (res.ok) {
@@ -234,14 +238,14 @@ export async function getRawJobsAndInternships() {
       filteredJobs = [
         {
           job_id: "mock_1",
-          job_title: "Software Engineering Intern",
-          employer_name: "Google",
-          employer_logo: "https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg",
+          job_title: "Store Team Member (Cashier/Stocker)",
+          employer_name: "Target",
+          employer_logo: null,
           job_city: "Mountain View",
           job_state: "CA",
-          job_employment_type: "INTERN",
-          job_description: "Join Google as a Software Engineering Intern! You will work on core products, write production-level code, and participate in design discussions. Requirements: Currently pursuing a BS/MS in Computer Science. Strong in algorithms and data structures. Familiar with Java, C++, or Python.",
-          job_apply_link: "https://careers.google.com"
+          job_employment_type: "PARTTIME",
+          job_description: "Join Target as a Store Team Member! You will help guests, run the register, and stock shelves. No experience required. Perfect for high school students.",
+          job_apply_link: "https://jobs.target.com"
         }
       ];
     }
@@ -272,7 +276,7 @@ export async function getRawJobsAndInternships() {
     RAW_JOBS_CACHE[cacheKey] = { data: filteredJobs, timestamp: now };
     return filteredJobs;
   } catch (error: any) {
-    console.error("TheMuse Fetch Error:", error);
+    console.error("Adzuna Fetch Error:", error);
     return [];
   }
 }

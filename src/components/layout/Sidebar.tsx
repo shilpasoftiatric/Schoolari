@@ -168,6 +168,7 @@ export default function Sidebar({ siteName = "Schoolari", progressData, plan }: 
           {/* Ask Schoolari AI Card */}
           <Link
             href="/ai"
+            prefetch={true}
             onClick={() => setSelectedHref("/ai")}
             title="Ask Schoolari AI"
             className={cn(
@@ -259,6 +260,7 @@ export default function Sidebar({ siteName = "Schoolari", progressData, plan }: 
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={true}
                     onClick={() => setSelectedHref(item.href)}
                     title={isSidebarCollapsed ? item.label : undefined}
                     className={cn(

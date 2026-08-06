@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar";
 import { usePathname } from "next/navigation";
+import type { SubscriptionPlan } from "@/lib/subscription";
 
-export default function MobileNav() {
+export default function MobileNav({ plan, siteName }: { plan?: SubscriptionPlan; siteName?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
@@ -54,7 +55,7 @@ export default function MobileNav() {
             
             {/* We render the Sidebar here. The original sidebar is w-64, border-r, h-full, shrink-0 */}
             <div className="h-full w-full overflow-hidden">
-              <Sidebar />
+              <Sidebar plan={plan} siteName={siteName} />
             </div>
           </div>
         </div>

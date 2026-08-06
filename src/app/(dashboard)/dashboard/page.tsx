@@ -37,8 +37,8 @@ export default async function DashboardPage() {
     }
   }
 
-  const plan = getPlanFromPriceId(dbData.userProfile?.stripe_price_id ?? null);
-  const createdAt = dbData.userProfile?.created_at || null;
+  const plan = getPlanFromPriceId(profile?.stripe_price_id ?? null);
+  const createdAt = profile?.created_at || null;
 
   return (
     <DashboardClient

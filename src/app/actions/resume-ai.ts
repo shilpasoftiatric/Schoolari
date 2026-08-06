@@ -153,7 +153,8 @@ Generate a complete, ATS-clean US Student Resume Document JSON object strictly a
       jsonMode: true
     });
 
-    const parsed = JSON.parse(rawJson);
+    const cleanedJson = rawJson.replace(/```(?:json)?/gi, "").trim();
+    const parsed = JSON.parse(cleanedJson);
     return {
       id: "resume-" + Date.now(),
       title:
@@ -235,7 +236,8 @@ Provide the 3 STAR method variations in JSON format.`;
       jsonMode: true
     });
 
-    const parsed = JSON.parse(responseJson);
+    const cleanedJson = responseJson.replace(/```(?:json)?/gi, "").trim();
+    const parsed = JSON.parse(cleanedJson);
     const cleanPlaceholders = (text: string) => text.replace(/\[.*?\]/g, '').replace(/\s+/g, ' ').trim();
 
     return {
@@ -384,7 +386,8 @@ Parse this text, improve the bullet points, and return the structured JSON.`;
       jsonMode: true
     });
 
-    const parsed = JSON.parse(rawJson);
+    const cleanedJson = rawJson.replace(/```(?:json)?/gi, "").trim();
+    const parsed = JSON.parse(cleanedJson);
     return {
       id: "resume-" + Date.now(),
       title: parsed.title || "Imported Resume — AI Improved",
@@ -456,7 +459,8 @@ Provide ATS analysis JSON.`;
       temperature: 0
     });
 
-    const parsed = JSON.parse(rawJson);
+    const cleanedJson = rawJson.replace(/```(?:json)?/gi, "").trim();
+    const parsed = JSON.parse(cleanedJson);
     return {
       ats_score: typeof parsed.ats_score === "number" ? parsed.ats_score : 78,
       matched_keywords: Array.isArray(parsed.matched_keywords) ? parsed.matched_keywords : ["Communication", "Teamwork"],

@@ -45,6 +45,23 @@ export function JobsDashboard({
   const [jobPendingAction, setJobPendingAction] = useState<any | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSearching) return;
+    setIsSearching(true);
+    try {
+      const results = await getPersonalizedJobsAction(searchQuery);
+      setJobs(results);
+    } catch (error) {
+      toast.error("Failed to search jobs. Please try again.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleLikeJob = (e: React.MouseEvent, jobId: string) => {
     e.stopPropagation();
     setLikedJobs(prev => ({ ...prev, [jobId]: !prev[jobId] }));
@@ -122,6 +139,24 @@ export function JobsDashboard({
           <FileText className="w-4 h-4" /> Career Resources
         </button>
       </div>
+
+      {activeTab === "jobs" && (
+        <div className="mb-6">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Search jobs, internships, or companies..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="rounded-lg border-slate-200 bg-white p-5"
+            />
+            <Button type="submit" disabled={isSearching} className="bg-violet-600 hover:bg-violet-700 text-white rounded-lg p-5">
+              {isSearching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Search
+            </Button>
+          </form>
+        </div>
+      )}
 
       {activeTab === "jobs" && (
         jobs.length === 0 ? (

@@ -130,7 +130,12 @@ function migrateLegacyResumeContent(rawContent: any, userProfile?: any): UserRes
 }
 
 export async function getResumesAction(): Promise<UserResumesPayload> {
-  await requireFeatureAccess("resume");
+  const { getUserPlan } = await import("@/lib/subscription-server");
+  const { canAccessFeature } = await import("@/lib/subscription");
+  const plan = await getUserPlan();
+  if (!canAccessFeature(plan, "resume")) {
+    return { resumes: [], active_resume_id: "" }; // Graceful return to avoid terminal spam
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

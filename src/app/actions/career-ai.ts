@@ -9,8 +9,13 @@ import twilio from "twilio";
 import { formatPhoneE164 } from "@/lib/phone";
 import { requireFeatureAccess } from "@/lib/subscription-server";
 
-export async function getPersonalizedJobsAction() {
-  await requireFeatureAccess("jobs");
+export async function getPersonalizedJobsAction(searchQuery?: string) {
+  const { getUserPlan } = await import("@/lib/subscription-server");
+  const { canAccessFeature } = await import("@/lib/subscription");
+  const plan = await getUserPlan();
+  if (!canAccessFeature(plan, "jobs")) {
+    return []; // Return empty instead of throwing to avoid terminal spam on background prefetch
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -25,8 +30,8 @@ export async function getPersonalizedJobsAction() {
 
   if (!profile) throw new Error("Profile not found");
 
-  // Get raw jobs from JSearch (this already caches)
-  const rawJobs = await getRawJobsAndInternships();
+  // Stage 1: Get raw jobs from Adzuna (which are already broadly filtered for entry level)
+  const rawJobs = await getRawJobsAndInternships(searchQuery);
 
   if (!rawJobs || rawJobs.length === 0) return [];
 
@@ -35,21 +40,26 @@ export async function getPersonalizedJobsAction() {
     id: job.job_id,
     title: job.job_title,
     company: job.employer_name,
-    type: job.job_employment_type
+    type: job.job_employment_type,
+    description: job.job_description.substring(0, 150) + "..." // Add short desc for better AI context
   }));
 
-  const systemPrompt = `You are a Career API for students. Your job is to analyze a list of job listings and find the best matches based on the student's profile.
-Respond ONLY with a JSON array of string IDs representing the top 15 most relevant jobs, ordered by relevance. Example: ["id1", "id2", "id3"]`;
+  const systemPrompt = `You are an AI Career Filter evaluating job listings for high school students (ages 14-18).
+Your goal is to KEEP ONLY jobs that are suitable for first-time job seekers with little to no experience.
+Prioritize jobs such as Retail, Restaurants/Fast Food, Customer Service, Cashier, Receptionist, Tutor, Camp Counselor, Childcare, Warehouse (light duty), Delivery (non-driving), Seasonal jobs, Internships, and Volunteer opportunities.
+Evaluate the job title and description. Exclude any job that appears to require a college degree, significant prior experience, or is unsafe/unrealistic for a high schooler.
+Respond ONLY with a JSON array of string IDs representing the top 15 most relevant and suitable jobs, ordered by relevance to the student's profile (if provided) and suitability for high schoolers.
+Example: ["id1", "id2", "id3"]`;
 
   const userPrompt = `Student Profile:
-Majors: ${profile.intended_major?.join(", ")}
-Career Interests: ${profile.career_interests?.join(", ")}
-Extracurriculars: ${profile.extracurricular_activities?.join(", ")}
+Majors: ${profile.intended_major?.join(", ") || "None"}
+Career Interests: ${profile.career_interests?.join(", ") || "None"}
+Extracurriculars: ${profile.extracurricular_activities?.join(", ") || "None"}
 
 Available Jobs:
 ${JSON.stringify(liteJobs)}
 
-Return ONLY a JSON array of the 15 best matching IDs.`;
+Return ONLY a JSON array of the best matching IDs suitable for high school students.`;
 
   try {
     const aiResponse = await callAI({
@@ -59,13 +69,21 @@ Return ONLY a JSON array of the 15 best matching IDs.`;
       jsonMode: true
     });
 
-    const cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
+    let cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
+    
+    // Extract only the JSON array part if Claude included conversational text
+    const startIndex = cleanedResponse.indexOf('[');
+    const endIndex = cleanedResponse.lastIndexOf(']');
+    if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
+      cleanedResponse = cleanedResponse.substring(startIndex, endIndex + 1);
+    }
+    
     const parsedIds = JSON.parse(cleanedResponse);
     if (Array.isArray(parsedIds) && parsedIds.length > 0) {
-      // Map the AI-selected IDs back to the original full job objects (with descriptions & links)
+      // Map the AI-selected IDs back to the original full job objects
       return parsedIds
         .map(id => rawJobs.find((job: any) => job.job_id === id))
-        .filter(Boolean); // Remove any undefined if AI hallucinated an ID
+        .filter(Boolean); // Remove any undefined
     }
     return rawJobs.slice(0, 15);
   } catch (error) {
