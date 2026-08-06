@@ -1,9 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { getResumesAction } from "@/app/actions/resume";
 import { getPersonalizedJobsAction } from "@/app/actions/career-ai";
 import { getCareerArticles } from "@/app/actions/career";
+import { toast } from "sonner";
 
 export interface EssayCacheItem {
   brainstorm: string;
@@ -60,24 +61,73 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const prefetchBackgroundData = async () => {
-    if (resumeData && jobsData && careerArticles) return; // Already pre-fetched
-    setIsBackgroundPrefetching(true);
-    try {
-      const [resume, jobs, articles] = await Promise.allSettled([
-        getResumesAction(),
-        getPersonalizedJobsAction(),
-        getCareerArticles()
-      ]);
+  // Prefetch Resume Data in background
+  useEffect(() => {
+    const fetchResume = async () => {
+      if (resumeData) return;
+      try {
+        const data = await getResumesAction();
+        setResumeData(data);
+      } catch (err) {
+        console.error("Prefetch resume failed:", err);
+      }
+    };
+    fetchResume();
+  }, [resumeData]);
 
-      if (resume.status === "fulfilled") setResumeData(resume.value);
-      if (jobs.status === "fulfilled") setJobsData(jobs.value);
-      if (articles.status === "fulfilled") setCareerArticles(articles.value);
-    } catch (err) {
-      console.error("Background prefetch failed:", err);
-    } finally {
-      setIsBackgroundPrefetching(false);
-    }
+  // Prefetch Personalized Jobs Data in background (uses Claude AI)
+  useEffect(() => {
+    const fetchJobs = async () => {
+      if (jobsData) return;
+      try {
+        const data = await getPersonalizedJobsAction();
+        setJobsData(data);
+      } catch (err) {
+        console.error("Prefetch jobs failed:", err);
+      }
+    };
+    fetchJobs();
+  }, [jobsData]);
+
+  // Prefetch Career Articles in background
+  useEffect(() => {
+    const fetchArticles = async () => {
+      if (careerArticles) return;
+      try {
+        const data = await getCareerArticles();
+        setCareerArticles(data);
+      } catch (err) {
+        console.error("Prefetch articles failed:", err);
+      }
+    };
+    fetchArticles();
+  }, [careerArticles]);
+
+  // Listen to the Claude API hit cookie
+  useEffect(() => {
+    let lastHit: string | null = null;
+    
+    const getCookie = (name: string) => {
+      if (typeof document === "undefined") return null;
+      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+      return match ? match[2] : null;
+    };
+
+    lastHit = getCookie("claude-api-hit");
+
+    const interval = setInterval(() => {
+      const currentHit = getCookie("claude-api-hit");
+      if (currentHit && currentHit !== lastHit) {
+        lastHit = currentHit;
+        toast.info("Claude API key is hit!");
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const prefetchBackgroundData = async () => {
+    // No-op: Background fetching is now handled automatically by useEffect hooks
   };
 
   return (

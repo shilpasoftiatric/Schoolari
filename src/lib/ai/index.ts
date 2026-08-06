@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+
 export type AIProvider = 'openai' | 'claude';
 
 export interface AICallOptions {
@@ -60,6 +62,13 @@ async function callOpenAI(systemPrompt: string, userPrompt: string, jsonMode: bo
 async function callClaude(systemPrompt: string, userPrompt: string, temperature?: number): Promise<string> {
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) throw new Error("CLAUDE_API_KEY is not set");
+
+  try {
+    const cookieStore = await cookies();
+    cookieStore.set("claude-api-hit", Date.now().toString(), { path: "/" });
+  } catch (e) {
+    // Ignore if cookies cannot be set (e.g. in a read-only context)
+  }
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

@@ -15,4 +15,4 @@ All features, workflows, data models, AI recommendations, form fields, UI copy, 
 5. **US Financial Aid Framework:** FAFSA, FSA ID, Student Aid Index (SAI), Pell Grants, Federal Work-Study, Merit/Institutional Scholarships, Cost of Attendance (COA).
 6. **US Formatting & Contact Standards:** USA Phone Format (`+1 (Area Code) 10-digit number`), all 50 US States & Territories, US Dollar ($) currency formatting.
 7. **US Career & Internship Standards:** JSearch / USAJOBS integrations, Work-Study opportunities, entry-level internships, and professional/academic resumes.
-
+8. **Git Commit and Push Policy:** DO NOT commit or push changes to Git yourself. Let the user review, check, and commit all changes manually in the terminal.
