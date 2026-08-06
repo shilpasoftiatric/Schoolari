@@ -79,6 +79,12 @@ export function ResumeBuilderClient({ initialPayload = null }: { initialPayload?
   const [loading, setLoading] = useState(!payload);
   const [resumeDropdownOpen, setResumeDropdownOpen] = useState(false);
 
+  // Saving & prefilling states
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPrefilling, setIsPrefilling] = useState(false);
+  const [isSavingVault, setIsSavingVault] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   const [selectedSection, setSelectedSection] = useState<
     "contact" | "education" | "experience" | "extracurriculars" | "awards" | "skills"
   >("contact");
@@ -189,12 +195,6 @@ export function ResumeBuilderClient({ initialPayload = null }: { initialPayload?
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
-
-  // Loading states
-  const [isSaving, setIsSaving] = useState(false);
-  const [isPrefilling, setIsPrefilling] = useState(false);
-  const [isSavingVault, setIsSavingVault] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const activeResume =
     payload.resumes.find((r) => r.id === activeId) || payload.resumes[0];
