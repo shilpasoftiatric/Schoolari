@@ -8,7 +8,8 @@ import { Briefcase, MapPin, Building, Heart, FileText, ChevronRight, Sparkles, L
 import { JobDetailPanel } from "@/app/(dashboard)/jobs/JobDetailPanel";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
-import { saveJobToTrackerAction } from "@/app/actions/career-ai";
+import { saveJobToTrackerAction, getPersonalizedJobsAction } from "@/app/actions/career-ai";
+import { getCareerArticles } from "@/app/actions/career";
 import {
   Dialog,
   DialogContent,
@@ -96,9 +97,6 @@ export function JobsDashboard({
     } else if (!initialJobs || !initialArticles) {
       const fetchData = async () => {
         try {
-          const { getPersonalizedJobsAction } = await import("@/app/actions/career-ai");
-          const { getCareerArticles } = await import("@/app/actions/career");
-          
           const [j, a] = await Promise.all([
             getPersonalizedJobsAction(),
             getCareerArticles()

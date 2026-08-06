@@ -1,6 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useState } from "react";
+import { getResumesAction } from "@/app/actions/resume";
+import { getPersonalizedJobsAction } from "@/app/actions/career-ai";
+import { getCareerArticles } from "@/app/actions/career";
 
 export interface EssayCacheItem {
   brainstorm: string;
@@ -61,10 +64,6 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
     if (resumeData && jobsData && careerArticles) return; // Already pre-fetched
     setIsBackgroundPrefetching(true);
     try {
-      const { getResumesAction } = await import("@/app/actions/resume");
-      const { getPersonalizedJobsAction } = await import("@/app/actions/career-ai");
-      const { getCareerArticles } = await import("@/app/actions/career");
-
       const [resume, jobs, articles] = await Promise.allSettled([
         getResumesAction(),
         getPersonalizedJobsAction(),

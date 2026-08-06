@@ -11,6 +11,7 @@ import {
   ATSTailorResult
 } from "@/types/resume";
 import {
+  getResumesAction,
   saveResumesAction,
   exportResumeToVaultAction
 } from "@/app/actions/resume";
@@ -130,7 +131,6 @@ export function ResumeBuilderClient({ initialPayload = null }: { initialPayload?
     } else if (!initialPayload) {
       const fetchResume = async () => {
         try {
-          const { getResumesAction } = await import("@/app/actions/resume");
           const data = await getResumesAction();
           setResumeData(data);
           setPayload(data);
