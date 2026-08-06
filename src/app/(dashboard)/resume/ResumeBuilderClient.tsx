@@ -134,22 +134,8 @@ export function ResumeBuilderClient({ initialPayload = null }: { initialPayload?
       setPayload(resumeData);
       setActiveId((prev) => prev || resumeData.active_resume_id || resumeData.resumes[0]?.id || "");
       setLoading(false);
-    } else if (!initialPayload) {
-      const fetchResume = async () => {
-        try {
-          const data = await getResumesAction();
-          setResumeData(data);
-          setPayload(data);
-          setActiveId((prev) => prev || data.active_resume_id || data.resumes[0]?.id || "");
-        } catch (err) {
-          console.error("Failed to load resume:", err);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchResume();
     }
-  }, [resumeData, initialPayload, setResumeData]);
+  }, [resumeData]);
 
   if (loading || !payload) {
     return (
@@ -201,6 +187,7 @@ export function ResumeBuilderClient({ initialPayload = null }: { initialPayload?
 
   const updateActiveResume = (updatedOrUpdater: ResumeDocument | ((prev: ResumeDocument) => ResumeDocument)) => {
     setPayload((prevPayload) => {
+      if (!prevPayload) return null;
       const active = prevPayload.resumes.find((r) => r.id === activeId);
       if (!active) return prevPayload;
       

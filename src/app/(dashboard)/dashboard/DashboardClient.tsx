@@ -313,6 +313,7 @@ export function DashboardClient({
   const [loading, setLoading] = useState(!initialData && !dashboardData);
   const [error, setError] = useState("");
   const [upsellDismissed, setUpsellDismissed] = useState(false);
+  const [hasTriggeredUpdate, setHasTriggeredUpdate] = useState(false);
 
   const [trackerCategoryFilter, setTrackerCategoryFilter] = useState<string>("all");
   const [trackerCurrentPage, setTrackerCurrentPage] = useState<number>(1);
@@ -323,6 +324,34 @@ export function DashboardClient({
   const [isSearching, setIsSearching] = useState(false);
   const [showEliteUpgradeModal, setShowEliteUpgradeModal] = useState(false);
   const [showScholarUpgradeModal, setShowScholarUpgradeModal] = useState(false);
+
+  async function generateDashboard(showSkeleton = true) {
+    try {
+      const hasExistingData = !!(dashboardData || initialData);
+      if (!hasExistingData && showSkeleton) {
+        setLoading(true);
+      }
+      const res = await fetch('/api/ai/generate-dashboard', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to generate AI data");
+
+      const currentData = dashboardData || initialData;
+      const isUpdated = !currentData || JSON.stringify(currentData._state) !== JSON.stringify(json._state);
+
+      if (hasExistingData && isUpdated) {
+        setLoading(true);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        setDashboardData(json);
+        setLoading(false);
+      } else {
+        setDashboardData(json);
+        setLoading(false);
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -366,12 +395,13 @@ export function DashboardClient({
     }
   }, [initialData, dashboardData, setDashboardData]);
 
-  // Clear cache and refetch if server indicates database cache is invalidated
+  // Trigger background fetch if server indicates database cache is invalidated
   useEffect(() => {
-    if (initialData === null && dashboardData !== null) {
-      setDashboardData(null);
+    if (initialData === null && !hasTriggeredUpdate) {
+      setHasTriggeredUpdate(true);
+      generateDashboard(false);
     }
-  }, [initialData, dashboardData, setDashboardData]);
+  }, [initialData, hasTriggeredUpdate]);
 
   const data = dashboardData || initialData;
 
@@ -387,20 +417,6 @@ export function DashboardClient({
       prefetchBackgroundData();
     }
   }, [data, loading, prefetchBackgroundData]);
-
-  const generateDashboard = async (showSkeleton = true) => {
-    try {
-      if (showSkeleton) setLoading(true);
-      const res = await fetch('/api/ai/generate-dashboard', { method: 'POST' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to generate AI data");
-      setDashboardData(json);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      if (showSkeleton) setLoading(false);
-    }
-  };
 
   if (loading) {
     return <DashboardSkeleton />;
