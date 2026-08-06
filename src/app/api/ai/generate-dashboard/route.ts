@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { callAI } from "@/lib/ai";
-import { isDashboardStateEqual, getTodayDateString } from "@/services/task-engine";
+import { isDashboardStateEqual, getTodayDateString, calculateWorkflowStates } from "@/services/task-engine";
 import { getStudentDashboardData } from "@/services/data-fetcher";
 import { MASTER_TASKS } from "@/config/master-tasks";
 
@@ -254,8 +254,17 @@ export async function POST(req: Request) {
       matchedScholarshipsCount: matchedScholarshipsCount
     };
 
+    const states = calculateWorkflowStates({
+      documents: docs,
+      essays,
+      savedColleges,
+      applications: apps,
+      resume,
+      profile
+    });
+
     const currentState = {
-      ...progressStats,
+      ...states,
       firstName: profile.student_first_name || "",
       lastGeneratedDate: getTodayDateString()
     };

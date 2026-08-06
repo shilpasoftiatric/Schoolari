@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { generateBrainstorm, reviewEssay, refineEssayDraft, improveEssayDraft } from "@/app/actions/ai";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useAIState } from "@/context/AIStateContext";
 
 const PROMPT_LIBRARY = [
   "Discuss an accomplishment, event, or realization that sparked a period of personal growth.",
@@ -45,8 +46,24 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
 
   const [activeTab, setActiveTab] = useState<"library" | "ai">("ai");
   const [aiOutput, setAiOutput] = useState("");
+  const [aiMode, setAiMode] = useState<"brainstorm" | "review" | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
+  const { essayCache, updateEssayCache } = useAIState();
+
+  // Restore cached AI outputs on mount
+  useEffect(() => {
+    const cached = essayCache[initialEssay?.id];
+    if (cached) {
+      if (cached.lastMode === "brainstorm" && cached.brainstormTopic === topic) {
+        setAiOutput(cached.brainstorm);
+        setAiMode("brainstorm");
+      } else if (cached.lastMode === "review" && cached.reviewContent === content) {
+        setAiOutput(cached.review);
+        setAiMode("review");
+      }
+    }
+  }, [initialEssay?.id]);
 
   // Follow-up actions state
   const [isRefineModalOpen, setIsRefineModalOpen] = useState(false);
@@ -119,12 +136,25 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
       setAiError("Please enter a topic or prompt first!");
       return;
     }
+    const cached = essayCache[initialEssay?.id];
+    if (cached && cached.brainstorm && cached.brainstormTopic === topic) {
+      setAiOutput(cached.brainstorm);
+      setAiMode("brainstorm");
+      setAiError("");
+      return;
+    }
     setAiLoading(true);
     setAiError("");
     setAiOutput("");
     try {
       const result = await generateBrainstorm(topic);
       setAiOutput(result);
+      setAiMode("brainstorm");
+      updateEssayCache(initialEssay.id, {
+        brainstorm: result,
+        brainstormTopic: topic,
+        lastMode: "brainstorm"
+      });
     } catch (err: any) {
       setAiError(err.message || "Failed to generate brainstorm.");
     } finally {
@@ -137,12 +167,25 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
       setAiError("Please write at least a few sentences before requesting a review.");
       return;
     }
+    const cached = essayCache[initialEssay?.id];
+    if (cached && cached.review && cached.reviewContent === content) {
+      setAiOutput(cached.review);
+      setAiMode("review");
+      setAiError("");
+      return;
+    }
     setAiLoading(true);
     setAiError("");
     setAiOutput("");
     try {
       const result = await reviewEssay(content);
       setAiOutput(result);
+      setAiMode("review");
+      updateEssayCache(initialEssay.id, {
+        review: result,
+        reviewContent: content,
+        lastMode: "review"
+      });
     } catch (err: any) {
       setAiError(err.message || "Failed to review essay.");
     } finally {

@@ -1,5 +1,4 @@
 import React from "react";
-import { getResumesAction } from "@/app/actions/resume";
 import { ResumeBuilderClient } from "./ResumeBuilderClient";
 import { Metadata } from "next";
 import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
@@ -25,7 +24,6 @@ export default async function ResumeBuilderPage() {
     );
   }
 
-  const initialPayload = await getResumesAction();
-  return <ResumeBuilderClient initialPayload={initialPayload} />;
+  return <ResumeBuilderClient />;
 }
 

@@ -7,7 +7,7 @@ export function getTodayDateString(): string {
 }
 
 export function isDashboardStateEqual(
-  currentState: WorkflowStates & { firstName: string, completedActionItemsCount?: number, lastGeneratedDate?: string },
+  currentState: WorkflowStates & { firstName: string, lastGeneratedDate?: string },
   cachedState: any
 ): boolean {
   if (!cachedState) return false;
@@ -21,7 +21,6 @@ export function isDashboardStateEqual(
     currentState.college === cachedState.college &&
     currentState.resume === cachedState.resume &&
     currentState.firstName === cachedState.firstName &&
-    currentState.completedActionItemsCount === cachedState.completedActionItemsCount &&
     // Cache expires at midnight — forces fresh AI call once per day for task rotation
     cachedState.lastGeneratedDate === today
   );

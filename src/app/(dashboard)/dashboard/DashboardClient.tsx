@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useAIState } from "@/context/AIStateContext";
 
 const STATUS_COLORS: Record<string, string> = {
   "In Progress": "bg-blue-100 text-blue-700",
@@ -73,30 +74,30 @@ function ScholarshipSearchSkeleton() {
   );
 }
 
-function DashboardSection({ 
-  title, 
-  icon: Icon, 
-  colorClass, 
-  borderClass, 
-  bgClass, 
-  sectionData, 
-  category, 
+function DashboardSection({
+  title,
+  icon: Icon,
+  colorClass,
+  borderClass,
+  bgClass,
+  sectionData,
+  category,
   emptyTip,
   onRefresh
-}: { 
-  title: string, 
-  icon: any, 
-  colorClass: string, 
-  borderClass: string, 
-  bgClass: string, 
-  sectionData: any, 
-  category: string, 
+}: {
+  title: string,
+  icon: any,
+  colorClass: string,
+  borderClass: string,
+  bgClass: string,
+  sectionData: any,
+  category: string,
   emptyTip?: string,
   onRefresh?: () => void
 }) {
   const completedTasks = sectionData?.tasks?.filter((t: any) => t.done).length || 0;
   const totalTasks = sectionData?.tasks?.length || 0;
-  
+
   const [isPending, startTransition] = useTransition();
   const [completedTaskIds, setCompletedTaskIds] = useState<Record<string, boolean>>({});
   const [trackerTaskModal, setTrackerTaskModal] = useState<{ id: string; title: string } | null>(null);
@@ -177,13 +178,13 @@ function DashboardSection({
                 const isOverdue = !isDone && t.due_date && new Date(t.due_date) < new Date();
                 return (
                   <div key={t.id || i} className="flex flex-col p-2 rounded-xl hover:bg-slate-50 transition-colors group">
-                    <div 
+                    <div
                       onClick={() => !isDone && handleComplete(t.id, t.title)}
                       className="flex items-start gap-2.5 cursor-pointer select-none"
                     >
-                      <button 
+                      <button
                         type="button"
-                        disabled={isPending || isDone} 
+                        disabled={isPending || isDone}
                         className={cn("mt-0.5 shrink-0 transition-colors cursor-pointer", isDone ? "text-emerald-500" : isOverdue ? "text-red-400 hover:text-emerald-500" : "text-slate-300 group-hover:text-emerald-500")}
                       >
                         {isDone ? (
@@ -203,13 +204,13 @@ function DashboardSection({
                             Skip <ArrowRight className="w-3 h-3" />
                           </button>
                         )}
-                        <button 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            setTrackerTaskModal({ id: t.id, title: t.title }); 
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTrackerTaskModal({ id: t.id, title: t.title });
                             setTrackerDueDate(new Date().toISOString().split("T")[0]);
-                          }} 
-                          disabled={isPending} 
+                          }}
+                          disabled={isPending}
                           className="hover:text-blue-500 flex items-center gap-1 cursor-pointer"
                         >
                           Move to Tracker <ArrowRight className="w-3 h-3" />
@@ -308,8 +309,8 @@ export function DashboardClient({
   plan?: import("@/lib/subscription").SubscriptionPlan;
   createdAt?: string | null;
 }) {
-  const [data, setData] = useState<any>(initialData);
-  const [loading, setLoading] = useState(!initialData);
+  const { dashboardData, setDashboardData, prefetchBackgroundData } = useAIState();
+  const [loading, setLoading] = useState(!initialData && !dashboardData);
   const [error, setError] = useState("");
   const [upsellDismissed, setUpsellDismissed] = useState(false);
 
@@ -336,7 +337,7 @@ export function DashboardClient({
         } finally {
           setIsSearching(false);
         }
-      }, 400); 
+      }, 400);
     }
     return () => clearTimeout(timeoutId);
   }, [searchQuery, isSearchModalOpen]);
@@ -358,11 +359,34 @@ export function DashboardClient({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSearchModalOpen]);
 
+  // Synchronize server initialData into context if context is empty
+  useEffect(() => {
+    if (initialData && !dashboardData) {
+      setDashboardData(initialData);
+    }
+  }, [initialData, dashboardData, setDashboardData]);
+
+  // Clear cache and refetch if server indicates database cache is invalidated
+  useEffect(() => {
+    if (initialData === null && dashboardData !== null) {
+      setDashboardData(null);
+    }
+  }, [initialData, dashboardData, setDashboardData]);
+
+  const data = dashboardData || initialData;
+
   useEffect(() => {
     if (!data) {
-      generateDashboard();
+      generateDashboard(true);
     }
-  }, []);
+  }, [data]);
+
+  // Trigger background pre-fetching when dashboard data is loaded
+  useEffect(() => {
+    if (data && !loading) {
+      prefetchBackgroundData();
+    }
+  }, [data, loading, prefetchBackgroundData]);
 
   const generateDashboard = async (showSkeleton = true) => {
     try {
@@ -370,7 +394,7 @@ export function DashboardClient({
       const res = await fetch('/api/ai/generate-dashboard', { method: 'POST' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to generate AI data");
-      setData(json);
+      setDashboardData(json);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -407,12 +431,12 @@ export function DashboardClient({
       </div>
       <h3 className="font-bold text-slate-800 text-sm mb-1">{featureName} is Locked</h3>
       <p className="text-xs text-slate-600 mb-4 font-medium">Upgrade to {targetPlan === 'elite' ? 'Elite' : 'Scholar'} to unlock {featureName.toLowerCase()}.</p>
-      <Button 
+      <Button
         onClick={() => {
           if (targetPlan === 'elite') setShowEliteUpgradeModal(true);
           else setShowScholarUpgradeModal(true);
         }}
-        size="sm" 
+        size="sm"
         className="rounded-full bg-violet-600 hover:bg-violet-700 text-xs font-bold px-6 shadow-sm"
       >
         Upgrade to Unlock
@@ -652,8 +676,8 @@ export function DashboardClient({
                         const rowProgress = calculateProgress(row.status);
                         const itemCategory = (row.reference_type || "scholarship").toLowerCase();
                         return (
-                          <TableRow 
-                            key={row.id || i} 
+                          <TableRow
+                            key={row.id || i}
                             onClick={() => {
                               window.location.href = `/tracker?type=${encodeURIComponent(itemCategory)}`;
                             }}
@@ -767,7 +791,7 @@ export function DashboardClient({
               </CardTitle>
             </CardHeader>
             <CardContent className={cn("space-y-3 relative z-10", !canAccessFeature(plan, 'essays') && "blur-sm")}>
-              {(data.essay_prompts || [{topic: "Topic 1", advice: "Tip"}, {topic: "Topic 2", advice: "Tip"}]).map((prompt: any, i: number) => (
+              {(data.essay_prompts || [{ topic: "Topic 1", advice: "Tip" }, { topic: "Topic 2", advice: "Tip" }]).map((prompt: any, i: number) => (
                 <div key={i} className="flex flex-col gap-1 bg-white/60 p-3 rounded-xl backdrop-blur-sm border border-violet-100/50">
                   <span className="text-sm font-bold text-slate-800">{prompt.topic}</span>
                   <span className="text-xs text-slate-600 italic">Tip: {prompt.advice}</span>
@@ -811,21 +835,21 @@ export function DashboardClient({
               </CardTitle>
             </CardHeader>
             <CardContent className={cn("relative z-10", !canAccessFeature(plan, 'income') && "blur-sm")}>
-                {/* AI Ideas */}
-                {((data.income_ideas && data.income_ideas.length > 0) || !canAccessFeature(plan, 'income')) && (
+              {/* AI Ideas */}
+              {((data.income_ideas && data.income_ideas.length > 0) || !canAccessFeature(plan, 'income')) && (
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-extrabold text-emerald-600/70 uppercase tracking-wider">AI Suggestions</h4>
                   <div className="space-y-3">
-                    <h4 className="text-[10px] font-extrabold text-emerald-600/70 uppercase tracking-wider">AI Suggestions</h4>
-                    <div className="space-y-3">
-                      {(data.income_ideas || [{opportunity: "Idea 1", difficulty: "Easy", how_to_start: "Start here"}]).map((idea: any, i: number) => (
-                        <div key={i} className="flex flex-col gap-1.5 p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-emerald-100/50 hover:bg-emerald-50/80 transition-colors shadow-sm">
-                          <span className="text-sm font-bold text-emerald-900">{idea.opportunity}</span>
-                          <span className="text-xs text-slate-600 font-medium">Difficulty: {idea.difficulty}</span>
-                          <span className="text-xs text-slate-600 leading-snug mt-1">{idea.how_to_start}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {(data.income_ideas || [{ opportunity: "Idea 1", difficulty: "Easy", how_to_start: "Start here" }]).map((idea: any, i: number) => (
+                      <div key={i} className="flex flex-col gap-1.5 p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-emerald-100/50 hover:bg-emerald-50/80 transition-colors shadow-sm">
+                        <span className="text-sm font-bold text-emerald-900">{idea.opportunity}</span>
+                        <span className="text-xs text-slate-600 font-medium">Difficulty: {idea.difficulty}</span>
+                        <span className="text-xs text-slate-600 leading-snug mt-1">{idea.how_to_start}</span>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
             </CardContent>
             <Banknote className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-emerald-200 opacity-60", !canAccessFeature(plan, 'income') && "blur-sm")} />
           </Card>
