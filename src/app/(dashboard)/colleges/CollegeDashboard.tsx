@@ -103,13 +103,19 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
       <div className="flex items-start gap-4 mb-4 relative z-10">
         {/* Logo */}
         <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
-          {rec.logo_url ? (
+          {rec.logo_url && !rec.logo_url.includes("clearbit.com") ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={rec.logo_url}
               alt={rec.college_name}
               className="w-10 h-10 object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).src = ""; (e.target as HTMLImageElement).style.display = "none"; }}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = "none";
+                if (target.parentElement) {
+                  target.parentElement.innerHTML = `<svg class="w-7 h-7 text-slate-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`;
+                }
+              }}
             />
           ) : (
             <GraduationCap className="w-7 h-7 text-slate-400" />
