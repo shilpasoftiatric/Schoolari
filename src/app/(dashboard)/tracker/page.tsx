@@ -52,7 +52,7 @@ export default async function TrackerPage() {
         </p>
       </div>
 
-      <TrackerDashboard initialApplications={applications || []} plan={profile?.subscription_tier || 'starter'} />
+      <TrackerDashboard initialApplications={applications || []} plan={(profile as any)?.subscription_tier || (profile as any)?.subscription_status || 'starter'} />
     </div>
   );
 }

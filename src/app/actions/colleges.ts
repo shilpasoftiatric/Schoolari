@@ -175,7 +175,7 @@ export async function getCollegeRecommendations(forceRefresh = false) {
 Respond ONLY with a valid JSON array of objects. Do not include any markdown formatting, backticks, or other text outside the JSON array.
 Each object must have exactly these keys:
 - "college_name": string
-- "logo_url": string (Use clearbit logo format: "https://logo.clearbit.com/DOMAIN.edu" using their official website domain)
+- "logo_url": string (Use favicon format: "https://www.google.com/s2/favicons?domain=DOMAIN.edu&sz=128" using their official website domain)
 - "city_state": string
 - "total_enrollment": number
 - "offers_major": boolean

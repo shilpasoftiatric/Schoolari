@@ -8,8 +8,7 @@ export async function getCoachingMessages() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    const { redirect } = await import("next/navigation");
-    redirect("/login");
+    return [];
   }
 
   const { data, error } = await supabase
