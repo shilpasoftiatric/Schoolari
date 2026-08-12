@@ -151,15 +151,21 @@ export async function healInvitedUserProfile(): Promise<{ redirectTo: string }> 
   // A parent invited them: parent profile has `linked_student_id = user.id`
   const { data: invitingParent } = await supabaseAdmin
     .from("profiles")
-    .select("id, subscription_status")
+    .select("id, subscription_status, stripe_subscription_id, stripe_customer_id, stripe_price_id")
     .eq("linked_student_id", user.id)
     .maybeSingle();
 
   if (invitingParent) {
-    // This user is the student. Fix their account_type.
+    // This user is the student. Fix their account_type and copy Stripe details.
     await supabaseAdmin
       .from("profiles")
-      .update({ account_type: "student" })
+      .update({ 
+        account_type: "student",
+        subscription_status: invitingParent.subscription_status,
+        stripe_subscription_id: invitingParent.stripe_subscription_id,
+        stripe_customer_id: invitingParent.stripe_customer_id,
+        stripe_price_id: invitingParent.stripe_price_id,
+      })
       .eq("id", user.id);
 
     const parentHasPaid =
@@ -188,17 +194,21 @@ export async function healInvitedUserProfile(): Promise<{ redirectTo: string }> 
   // The student recorded this user's email in `parent_email` on their profile.
   const { data: invitingStudentProfile } = user.email ? await supabaseAdmin
     .from("profiles")
-    .select("id, subscription_status, onboarding_complete")
+    .select("id, subscription_status, onboarding_complete, stripe_subscription_id, stripe_customer_id, stripe_price_id")
     .eq("parent_email", user.email)
     .maybeSingle() : { data: null };
 
   if (invitingStudentProfile) {
-    // This user is the parent. Fix their profile.
+    // This user is the parent. Fix their profile and copy Stripe details.
     await supabaseAdmin
       .from("profiles")
       .update({
         account_type: "parent",
         linked_student_id: invitingStudentProfile.id,
+        subscription_status: invitingStudentProfile.subscription_status,
+        stripe_subscription_id: invitingStudentProfile.stripe_subscription_id,
+        stripe_customer_id: invitingStudentProfile.stripe_customer_id,
+        stripe_price_id: invitingStudentProfile.stripe_price_id,
       })
       .eq("id", user.id);
 

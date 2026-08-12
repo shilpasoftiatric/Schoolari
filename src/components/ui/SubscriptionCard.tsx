@@ -103,10 +103,15 @@ export function SubscriptionCard({ plan, status, renewalDate, hasSubscription }:
                   <span className={`text-2xl font-extrabold ${color.text}`}>
                     {plan ? PLAN_INFO[plan].label : "Schoolari"} Plan
                   </span>
-                  {status === "active" || status === "trialing" ? (
+                  {status === "active" ? (
                     <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
                       <BadgeCheck className="w-3 h-3" />
                       Active
+                    </span>
+                  ) : status === "trialing" ? (
+                    <span className="flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
+                      <BadgeCheck className="w-3 h-3" />
+                      Trial
                     </span>
                   ) : status === "past_due" ? (
                     <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">Past Due</span>

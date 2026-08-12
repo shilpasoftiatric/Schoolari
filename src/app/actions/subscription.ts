@@ -47,17 +47,26 @@ export async function upgradeSubscriptionPlan(newPriceId: string) {
     : subscription.latest_invoice?.id;
 
   try {
-    const updated = await stripe.subscriptions.update(profile.stripe_subscription_id, {
+    const isTrialing = subscription.status === "trialing";
+    
+    const updateParams: Stripe.SubscriptionUpdateParams = {
       items: [{ id: subscriptionItemId, price: newPriceId }],
-      proration_behavior: "always_invoice",
-      payment_behavior: "pending_if_incomplete", // Require payment but allow us to send them to invoice url
       expand: ["latest_invoice"],
-    });
+    };
+
+    if (isTrialing) {
+      updateParams.proration_behavior = "none"; // No immediate charge, keep trial going
+    } else {
+      updateParams.proration_behavior = "always_invoice";
+      updateParams.payment_behavior = "pending_if_incomplete";
+    }
+
+    const updated = await stripe.subscriptions.update(profile.stripe_subscription_id, updateParams);
 
     const latestInvoice = updated.latest_invoice as Stripe.Invoice;
 
     // If the invoice requires payment (open status)
-    if (latestInvoice && latestInvoice.status === "open") {
+    if (latestInvoice && latestInvoice.status === "open" && !isTrialing) {
       if (latestInvoice.hosted_invoice_url) {
         return {
           success: true,
@@ -92,7 +101,7 @@ export async function upgradeSubscriptionPlan(newPriceId: string) {
       requiresPayment: false,
       newPlan: PLAN_INFO[newPlan].label,
       status: updated.status,
-      amountPaid,
+      amountPaid: isTrialing ? 0 : amountPaid,
     };
   } catch (error: any) {
     throw new Error(error.message || "Failed to upgrade subscription. Please check your payment method.");
@@ -119,6 +128,17 @@ export async function getUpgradePreview(targetPriceId: string) {
   const subscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
   const subscriptionItemId = subscription.items.data[0].id;
 
+  const isTrialing = subscription.status === "trialing";
+  
+  if (isTrialing) {
+    return {
+      amountDue: 0,
+      subtotal: 0,
+      nextBillingDate: new Date((subscription as any).current_period_end * 1000).toISOString(),
+      isTrialing: true,
+    };
+  }
+
   try {
     const invoice = await stripe.invoices.createPreview({
       customer: profile.stripe_customer_id,
@@ -136,6 +156,7 @@ export async function getUpgradePreview(targetPriceId: string) {
       amountDue: invoice.amount_due,
       subtotal: invoice.subtotal,
       nextBillingDate: new Date((subscription as any).current_period_end * 1000).toISOString(),
+      isTrialing: false,
     };
   } catch (err: any) {
     console.error("Preview error:", err);
@@ -237,10 +258,13 @@ export async function getSubscriptionInfo() {
   const plan = getPlanFromPriceId(profile.stripe_price_id ?? null);
   let renewalDate: string | null = null;
 
+  let stripeStatus = profile.subscription_status;
+
   if (profile.stripe_subscription_id) {
     try {
       const stripe = getStripe();
       const subscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
+      stripeStatus = subscription.status; // Use real Stripe status!
       renewalDate = new Date((subscription as any).current_period_end * 1000).toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
@@ -254,7 +278,7 @@ export async function getSubscriptionInfo() {
   return {
     plan,
     planInfo: plan ? PLAN_INFO[plan] : null,
-    status: profile.subscription_status,
+    status: stripeStatus,
     renewalDate,
     hasSubscription: !!profile.stripe_subscription_id,
   };
@@ -262,5 +286,57 @@ export async function getSubscriptionInfo() {
 
 export async function getUserPlanAction(): Promise<SubscriptionPlan> {
   return await getUserPlan();
+}
+
+/**
+ * Allows a user to cancel their own subscription (e.g. during trial)
+ */
+export async function cancelOwnSubscription() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Unauthorized");
+
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const dbData = await getStudentDashboardData(user.id);
+  const profile = dbData.userProfile;
+  const ownerId = dbData.subscriptionOwnerId || user.id;
+
+  if (!profile?.stripe_subscription_id) {
+    throw new Error("No active subscription found.");
+  }
+
+  const stripe = getStripe();
+  try {
+    const subscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
+
+    let immediate = false;
+    if (subscription.status === "trialing") {
+      // Cancel immediately for trials
+      await stripe.subscriptions.cancel(profile.stripe_subscription_id);
+      immediate = true;
+      
+      // Manually update DB so they lose access instantly without waiting for the webhook
+      const adminClient = await createAdminClient();
+      await adminClient.from("profiles").update({ 
+        subscription_status: "canceled"
+      }).eq("id", ownerId);
+    } else {
+      // Cancel at period end so they can finish their billed cycle
+      await stripe.subscriptions.update(profile.stripe_subscription_id, {
+        cancel_at_period_end: true,
+      });
+    }
+
+    // We don't immediately change status to 'canceled' since the webhook handles it,
+    // but the webhook will fire very quickly.
+    
+    revalidatePath("/profile");
+    revalidatePath("/dashboard");
+
+    return { success: true, immediate };
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to cancel subscription. Please contact support.");
+  }
 }
 

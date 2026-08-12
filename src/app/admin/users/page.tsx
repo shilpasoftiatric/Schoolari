@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { UsersTable } from "./UsersTable";
-import { ShieldCheck, Search } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 export default async function AdminUsersPage() {
   const adminClient = await createAdminClient();
@@ -22,14 +22,61 @@ export default async function AdminUsersPage() {
     );
   }
 
-  // Merge profile data with auth email
-  const mergedUsers = profiles?.map((profile) => {
+  // ─── Cross-linking Pass ──────────────────────────────────────────────────────
+  // Build a map so we can look up any profile by its id in O(1).
+  const profileMap = new Map<string, any>();
+  (profiles || []).forEach((p) => profileMap.set(p.id, p));
+
+  // For each parent profile, find the student they link to (via linked_student_id)
+  // and populate the student's parent_* fields AND the effective Stripe data.
+  // This ensures the admin panel always shows correct subscription info on the
+  // student row regardless of who actually paid.
+  const parentIdSet = new Set<string>(); // tracks parents that ARE already sub-rows
+
+  (profiles || []).forEach((profile) => {
+    if (profile.account_type === "parent" && profile.linked_student_id) {
+      const student = profileMap.get(profile.linked_student_id);
+      if (student) {
+        // Mark this parent as "linked" — do NOT render it as a standalone top-level row
+        parentIdSet.add(profile.id);
+
+        // Populate parent contact fields onto the student row so ParentSection renders
+        student.parent_first_name = student.parent_first_name || profile.parent_first_name || profile.first_name || "";
+        student.parent_last_name  = student.parent_last_name  || profile.parent_last_name  || "";
+        student.parent_email      = student.parent_email      || profile.parent_email       || "";
+        student.parent_phone      = student.parent_phone      || profile.parent_phone       || profile.phone || "";
+
+        // Determine effective Stripe data: student pays → student row has it already.
+        // If parent paid, mirror Stripe data onto the student object for the admin panel.
+        const parentHasStripe =
+          profile.subscription_status === "active" ||
+          profile.subscription_status === "trialing";
+        const studentHasStripe =
+          student.subscription_status === "active" ||
+          student.subscription_status === "trialing";
+
+        if (parentHasStripe && !studentHasStripe) {
+          student.stripe_customer_id     = profile.stripe_customer_id;
+          student.stripe_subscription_id = profile.stripe_subscription_id;
+          student.stripe_price_id        = profile.stripe_price_id;
+          student.subscription_status    = profile.subscription_status;
+          // Track who the subscription owner really is, so cancel works correctly
+          student._subscription_owner_id = profile.id;
+        }
+      }
+    }
+  });
+
+  // Merge profile data with auth email, and mark linked parents
+  const mergedUsers = (profiles || []).map((profile) => {
     const authUser = users.find((u) => u.id === profile.id);
     return {
       ...profile,
       email: authUser?.email || "Unknown Email",
+      // Flag tells the table not to render this profile as a standalone top-level row
+      _isLinkedParent: parentIdSet.has(profile.id),
     };
-  }) || [];
+  });
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">

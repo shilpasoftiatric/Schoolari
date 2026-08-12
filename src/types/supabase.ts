@@ -67,6 +67,9 @@ export interface Database {
           stripe_subscription_id: string | null;
           stripe_price_id: string | null;
           subscription_status: string | null;
+          trial_start_date: string | null;
+          trial_day5_sms_sent: boolean | null;
+          trial_day7_sms_sent: boolean | null;
           ai_dashboard_data: any;
           current_streak: number;
           longest_streak: number;

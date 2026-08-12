@@ -198,8 +198,10 @@ export function StudentProfile({
           <div className="h-32 bg-violet-600 relative">
             <div className="absolute top-4 right-4">
               <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-full shadow-sm">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-[11px] font-bold text-emerald-600">Active</span>
+                <div className={`w-2 h-2 rounded-full ${profile?.subscription_status === 'trialing' ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
+                <span className={`text-[11px] font-bold ${profile?.subscription_status === 'trialing' ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                  {profile?.subscription_status === 'trialing' ? 'Trial' : 'Active'}
+                </span>
               </div>
             </div>
           </div>

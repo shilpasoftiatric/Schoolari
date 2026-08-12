@@ -32,11 +32,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Get the user's email and name to pre-fill the checkout
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("first_name, stripe_customer_id")
+      .select("*")
       .eq("id", user.id)
       .single();
+
+    if (profileError) {
+      console.error("DEBUG: profile fetch error in checkout route:", profileError);
+    }
+
+    const activeStatuses = ["active", "trialing", "past_due", "unpaid"];
+    const hasHadTrial = activeStatuses.includes(profile?.subscription_status || "");
+    console.log("=== DEBUG CHECKOUT ===");
+    console.log("User:", user.id);
+    console.log("Profile Subscription Status:", profile?.subscription_status);
+    console.log("hasHadTrial Evaluated to:", hasHadTrial);
 
     // Prefer the request origin so the user is returned to the EXACT domain they started from (e.g., localhost vs member.localhost)
     const appUrl = requestOrigin(req) || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -52,12 +63,18 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
+      ...(hasHadTrial ? {} : {
+        subscription_data: {
+          trial_period_days: 7,
+        }
+      }),
       success_url: successUrl,
       cancel_url: cancelUrl,
       client_reference_id: user.id, // VERY IMPORTANT: links payment to Supabase user
       customer_email: profile?.stripe_customer_id ? undefined : user.email,
       customer: profile?.stripe_customer_id || undefined, // Use existing customer if present
     };
+    console.log("Session Params we are sending to Stripe:", JSON.stringify(sessionParams, null, 2));
 
     const stripeClient = getStripe();
     const session = await stripeClient.checkout.sessions.create(sessionParams);

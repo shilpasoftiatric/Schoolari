@@ -21,7 +21,7 @@ const hasTwilio = () =>
   !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
 
 const hasConstantContact = () =>
-  !!(process.env.CONSTANT_CONTACT_API_KEY && process.env.CONSTANT_CONTACT_ACCESS_TOKEN);
+  !!(process.env.CONSTANT_CONTACT_API_KEY && (process.env.CONSTANT_CONTACT_ACCESS_TOKEN || process.env.CONSTANT_CONTACT_REFRESH_TOKEN));
 
 async function sendTwilioSMS(to: string, message: string): Promise<void> {
   const url = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
@@ -96,12 +96,20 @@ export async function POST(req: Request) {
 
     // ── 2. Constant Contact ──────────────────────────────────────────────────
     if (hasConstantContact()) {
-      const parentsListId = process.env.CONSTANT_CONTACT_PARENTS_LIST_ID || "";
-      const studentsListId = process.env.CONSTANT_CONTACT_STUDENTS_LIST_ID || "";
+      const parentsListId = process.env.CONSTANT_CONTACT_PARENT_LIST || process.env.CONSTANT_CONTACT_PARENTS_LIST_ID || "";
+      const studentsListId = process.env.CONSTANT_CONTACT_STUDENT_LIST || process.env.CONSTANT_CONTACT_STUDENTS_LIST_ID || "";
+      const trialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID || "";
+
+      // Check if they are on a trial
+      const { data: profile } = await supabase.from('profiles').select('subscription_status').eq('id', user.id).single();
+      const isTrialing = profile?.subscription_status === 'trialing';
 
       try {
         if (parent_email && parentsListId) {
           await syncContact(parent_email, parent_first_name, parent_last_name, parentsListId);
+          if (isTrialing && trialListId) {
+            await syncContact(parent_email, parent_first_name, parent_last_name, trialListId);
+          }
         }
         results.cc_parent = "added";
       } catch (err: any) {
@@ -111,6 +119,9 @@ export async function POST(req: Request) {
       try {
         if (student_email && studentsListId) {
           await syncContact(student_email, student_first_name, student_last_name, studentsListId);
+          if (isTrialing && trialListId) {
+            await syncContact(student_email, student_first_name, student_last_name, trialListId);
+          }
         }
         results.cc_student = "added";
       } catch (err: any) {

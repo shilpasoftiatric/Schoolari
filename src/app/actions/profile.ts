@@ -3,7 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { formatPhoneE164 } from "@/lib/phone";
 import { redirect } from "next/navigation";
-import { syncOnboardingContacts } from "@/lib/constant-contact";
+import { syncOnboardingContacts, syncContact, CONSTANT_CONTACT_PARENT_LIST, CONSTANT_CONTACT_STUDENT_LIST } from "@/lib/constant-contact";
 import { sendWelcomeSMS } from "@/lib/twilio";
 import { sendInviteEmail, sendWelcomeEmail } from "@/lib/email";
 
@@ -118,8 +118,28 @@ export async function saveOnboardingStep(step: number, data: any) {
           await supabaseAdmin.from("profiles").update({ linked_student_id: targetId }).eq("id", user.id);
           finalInviteLink = newAuthUser.properties?.action_link || finalInviteLink;
         }
-
         sendInviteEmail(data.student_email, data.student_first_name || "", data.parent_first_name || "", finalInviteLink, "student").catch(e => console.error("Invite email failed", e));
+      }
+
+      // Mirror Stripe data to the newly linked student (whether newly invited or previously existing)
+      if (targetId !== user.id) {
+        const { data: parentStripe } = await supabaseAdmin
+          .from("profiles")
+          .select("stripe_customer_id, stripe_subscription_id, stripe_price_id, subscription_status")
+          .eq("id", user.id)
+          .single();
+
+        if (parentStripe?.subscription_status === 'active' || parentStripe?.subscription_status === 'trialing') {
+          await supabaseAdmin
+            .from("profiles")
+            .update({
+              stripe_customer_id: parentStripe.stripe_customer_id,
+              stripe_subscription_id: parentStripe.stripe_subscription_id,
+              stripe_price_id: parentStripe.stripe_price_id,
+              subscription_status: parentStripe.subscription_status
+            })
+            .eq("id", targetId);
+        }
       }
     }
   }
@@ -150,11 +170,44 @@ export async function saveOnboardingStep(step: number, data: any) {
 
   // Trigger integrations when moving past Step 1
   if (step === 2 && updatedProfile) {
-    // 1. Sync Constant Contact (fire and forget)
+    // 1. Sync Constant Contact — Student/Parent lists (fire and forget)
     syncOnboardingContacts(
       updatedProfile.student_email || "", updatedProfile.student_first_name || "", updatedProfile.student_last_name || "",
       updatedProfile.parent_email || "", updatedProfile.parent_first_name || "", updatedProfile.parent_last_name || ""
     ).catch(console.error);
+
+    // 2. If the payer is on a trial, sync real name to CC Trial List now that we have it.
+    //    The payer is always user.id (not targetId, which could be the linked student).
+    const ccTrialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID;
+    if (ccTrialListId) {
+      try {
+        const { data: payerProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("subscription_status, student_email, student_first_name, student_last_name, parent_email, parent_first_name, parent_last_name, account_type")
+          .eq("id", user.id)
+          .single();
+
+        if (payerProfile?.subscription_status === "trialing") {
+          // Sync the correct person (the payer) to the Trial List with their real name
+          const trialEmail = payerProfile.account_type === "parent"
+            ? (payerProfile.parent_email || updatedProfile.parent_email)
+            : (payerProfile.student_email || updatedProfile.student_email);
+          const trialFirst = payerProfile.account_type === "parent"
+            ? (payerProfile.parent_first_name || updatedProfile.parent_first_name || "")
+            : (payerProfile.student_first_name || updatedProfile.student_first_name || "");
+          const trialLast = payerProfile.account_type === "parent"
+            ? (payerProfile.parent_last_name || updatedProfile.parent_last_name || "")
+            : (payerProfile.student_last_name || updatedProfile.student_last_name || "");
+
+          if (trialEmail) {
+            console.log(`[Trial Sync] Syncing ${trialEmail} to CC Trial List with name: ${trialFirst} ${trialLast}`);
+            syncContact(trialEmail, trialFirst, trialLast, ccTrialListId).catch(console.error);
+          }
+        }
+      } catch (trialSyncError) {
+        console.error("[Trial Sync] Error syncing to CC Trial List:", trialSyncError);
+      }
+    }
 
     // 2. Send SMS and Invite
     try {
@@ -282,7 +335,6 @@ export async function getProfile() {
   return data;
 }
 
-import { syncContact, CONSTANT_CONTACT_PARENT_LIST, CONSTANT_CONTACT_STUDENT_LIST } from "@/lib/constant-contact";
 import { clearJobsCache } from "@/app/actions/career";
 
 export async function updateProfile(updates: any) {

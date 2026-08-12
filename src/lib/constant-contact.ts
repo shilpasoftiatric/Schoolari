@@ -164,6 +164,76 @@ export async function syncContact(email: string, firstName: string, lastName: st
   }
 }
 
+/**
+ * Removes a contact from a specific list by email.
+ * Fetches the contact first to get its ID and current memberships,
+ * then updates with the target list removed.
+ */
+export async function removeFromList(email: string, listIdToRemove: string) {
+  let token = await getValidAccessToken();
+  if (!token) {
+    console.warn("[CC removeFromList] Credentials missing. Skipping.");
+    return;
+  }
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  try {
+    let searchRes = await fetch(
+      `https://api.cc.email/v3/contacts?email=${encodeURIComponent(email)}&include=list_memberships`,
+      { headers }
+    );
+
+    if (searchRes.status === 401) {
+      token = await getValidAccessToken(true);
+      if (!token) return;
+      headers.Authorization = `Bearer ${token}`;
+      searchRes = await fetch(
+        `https://api.cc.email/v3/contacts?email=${encodeURIComponent(email)}&include=list_memberships`,
+        { headers }
+      );
+    }
+
+    if (!searchRes.ok) {
+      throw new Error(`[CC removeFromList] Failed to search: ${await searchRes.text()}`);
+    }
+
+    const searchData = await searchRes.json();
+    const contact = searchData.contacts?.[0];
+    if (!contact) {
+      console.log(`[CC removeFromList] Contact not found for ${email}. Nothing to remove.`);
+      return;
+    }
+
+    const newMemberships = (contact.list_memberships || []).filter(
+      (id: string) => id !== listIdToRemove
+    );
+
+    const updateRes = await fetch(`https://api.cc.email/v3/contacts/${contact.contact_id}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        email_address: { address: email },
+        first_name: contact.first_name || "",
+        last_name: contact.last_name || "",
+        update_source: "Account",
+        list_memberships: newMemberships,
+      }),
+    });
+
+    if (!updateRes.ok) {
+      throw new Error(`[CC removeFromList] Failed to update: ${await updateRes.text()}`);
+    }
+
+    console.log(`[CC removeFromList] Removed ${email} from list ${listIdToRemove}`);
+  } catch (error) {
+    console.error("[CC removeFromList Error]", error);
+  }
+}
+
 export async function syncOnboardingContacts(
   studentEmail: string, studentFirst: string, studentLast: string,
   parentEmail: string, parentFirst: string, parentLast: string

@@ -3,6 +3,7 @@ import { getSiteSettings } from "@/lib/settings";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
+import TrialBanner from "@/components/layout/TrialBanner";
 import { getStudentDashboardData } from "@/services/data-fetcher";
 import { canAccessAdmin } from "@/lib/rbac";
 import { getPlanFromPriceId } from "@/lib/subscription";
@@ -122,7 +123,10 @@ export default async function DashboardLayout({
           </Suspense>
         </div>
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden print:overflow-visible print:h-auto">
-          <div className="print:hidden">
+          <div className="print:hidden z-30">
+            <Suspense fallback={null}>
+              <TrialBanner />
+            </Suspense>
             <Suspense fallback={<TopbarSkeleton />}>
               <Topbar />
             </Suspense>

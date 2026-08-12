@@ -30,8 +30,9 @@ export async function cancelSubscription(stripeSubscriptionId: string, userId: s
       subscription_status: "canceled",
       stripe_subscription_id: null,
       stripe_price_id: null,
+      stripe_customer_id: null,
     })
-    .eq("id", userId);
+    .eq("stripe_subscription_id", stripeSubscriptionId);
 
   revalidatePath("/admin/payments");
   return { success: true, status: deleted.status };

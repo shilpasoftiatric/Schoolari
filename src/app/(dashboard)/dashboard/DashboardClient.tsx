@@ -501,10 +501,10 @@ export function DashboardClient({
                 setUpsellDismissed(true);
                 if (typeof window !== "undefined") localStorage.setItem("elite_upsell_dismissed", "true");
               }}
-              className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+              className="absolute top-4 right-4 z-20 p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
               aria-label="Dismiss"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 pointer-events-none" />
             </button>
             <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-5">
               <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 ring-4 ring-white/30">

@@ -173,8 +173,8 @@ export async function createUserMember(email: string, firstName: string, phone: 
     const { error: profileError } = await adminClient
       .from("profiles")
       .update({
-        first_name: firstName,
-        phone: phone,
+        student_first_name: firstName,
+        student_phone: phone,
         role: role
       })
       .eq("id", userId);
@@ -191,8 +191,8 @@ export async function createUserMember(email: string, firstName: string, phone: 
 }
 
 export async function updateUserBasicInfo(userId: string, data: {
-  first_name: string;
-  phone: string;
+  first_name?: string;
+  phone?: string;
   student_first_name: string;
   student_last_name: string;
   student_email: string;
@@ -205,9 +205,11 @@ export async function updateUserBasicInfo(userId: string, data: {
   await requirePermission("manage_users");
   const adminClient = await createAdminClient();
 
+  const { first_name, phone, ...validData } = data;
+
   const { error } = await adminClient
     .from("profiles")
-    .update(data)
+    .update(validData)
     .eq("id", userId);
 
   if (error) throw new Error(error.message);

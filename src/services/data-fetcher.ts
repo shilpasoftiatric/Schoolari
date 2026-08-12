@@ -20,7 +20,7 @@ export const getStudentDashboardData = cache(async (userId: string) => {
         student_last_name: user.user_metadata?.last_name || "",
         grade_level: "11th Grade (Junior)",
         account_type: (user.user_metadata?.account_type as "student" | "parent") || "student",
-        subscription_status: "active"
+        subscription_status: null // Do not default to active!
       };
       const { data: createdProfile } = await supabaseAdmin.from("profiles").insert(defaultProfile as any).select("*").maybeSingle();
       userProfile = createdProfile || (defaultProfile as any);

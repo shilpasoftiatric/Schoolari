@@ -16,6 +16,9 @@ const supabaseAdmin = createClient<Database>(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+import { getSupabaseAdmin, mirrorStripeSubscription } from "@/lib/stripe-mirror";
+import { syncContact } from "@/lib/constant-contact";
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sessionId = searchParams.get("session_id");
@@ -31,8 +34,8 @@ export async function GET(req: NextRequest) {
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    // Ensure it's paid
-    if (session.payment_status === "paid") {
+    // Ensure it's paid or a free trial
+    if (session.payment_status === "paid" || session.payment_status === "no_payment_required" || session.payment_status === "unpaid") {
       const userId = session.client_reference_id;
       const subscriptionId = session.subscription as string;
       const customerId = session.customer as string;
@@ -41,16 +44,37 @@ export async function GET(req: NextRequest) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = subscription.items.data[0].price.id;
 
-        // Force synchronous update in database so middleware lets them through
-        await supabaseAdmin
+        const stripePayload: any = {
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          stripe_price_id: priceId,
+          subscription_status: subscription.status, // Should be "active" or "trialing"
+        };
+
+        if (subscription.status === "trialing") {
+          stripePayload.trial_start_date = new Date().toISOString();
+        }
+
+        // 1. Save Stripe data to the payer's own profile (parent OR student)
+        const { data: profile } = await supabaseAdmin
           .from("profiles")
-          .upsert({
-            id: userId,
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subscriptionId,
-            stripe_price_id: priceId,
-            subscription_status: subscription.status, // Should be "active" or "trialing"
-          }, { onConflict: 'id' });
+          .upsert({ id: userId, ...stripePayload }, { onConflict: "id" })
+          .select()
+          .single();
+
+        // 2. Mirror to linked family members
+        await mirrorStripeSubscription(userId, stripePayload);
+
+        // 3. Sync to Constant Contact Trial List if trial started
+        if (subscription.status === "trialing" && profile) {
+          const email = profile.student_email || profile.parent_email || session.customer_details?.email;
+          const first = profile.first_name || profile.student_first_name || profile.parent_first_name || "Student";
+          const last = profile.student_last_name || profile.parent_last_name || "";
+          const ccTrialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID;
+          if (email && ccTrialListId) {
+            await syncContact(email, first, last, ccTrialListId).catch(console.error);
+          }
+        }
       }
 
       // Redirect successfully to onboarding using a standard redirect

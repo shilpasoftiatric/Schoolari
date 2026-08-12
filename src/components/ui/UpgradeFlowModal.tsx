@@ -33,7 +33,7 @@ export function UpgradeFlowModal({
   featureName,
 }: UpgradeFlowModalProps) {
   const [loadingPreview, setLoadingPreview] = useState(true);
-  const [previewData, setPreviewData] = useState<{ amountDue: number; nextBillingDate: string } | null>(null);
+  const [previewData, setPreviewData] = useState<{ amountDue: number; nextBillingDate: string; isTrialing?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isProcessingImmediate, setIsProcessingImmediate] = useState(false);
   const [isProcessingScheduled, setIsProcessingScheduled] = useState(false);
@@ -157,9 +157,9 @@ export function UpgradeFlowModal({
         <div className={`bg-gradient-to-br ${color.bg} px-6 pt-8 pb-8 relative shrink-0`}>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-white"
+            className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-white cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4 pointer-events-none" />
           </button>
 
           <div className="flex items-center gap-4 relative z-10">
@@ -203,12 +203,55 @@ export function UpgradeFlowModal({
                 </ul>
               </div>
 
-              {loadingPreview ? (
+              {loadingPreview && (
                 <div className="flex flex-col items-center justify-center py-8 text-slate-400">
                   <Loader2 className="w-8 h-8 animate-spin mb-2" />
                   <p className="text-sm">Calculating your prorated upgrade price...</p>
                 </div>
-              ) : previewData ? (
+              )}
+              
+              {!loadingPreview && previewData && previewData.isTrialing && (
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="border-2 border-violet-200 rounded-2xl p-5 bg-violet-50 relative">
+                    <div className="absolute -top-3 left-4 bg-violet-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">Free Upgrade During Trial</div>
+                    <h4 className="font-bold text-slate-800 text-lg mb-1 mt-1">Upgrade Now</h4>
+                    <p className="text-sm text-slate-500 mb-4">You are currently on a free trial until {new Date(previewData.nextBillingDate).toLocaleDateString()}. Switch to the {planInfo.label} plan today at no immediate cost.</p>
+                    
+                    <div className="bg-white rounded-xl p-3 mb-4 shadow-sm text-sm border border-violet-100">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-slate-500">Amount Due Today:</span>
+                        <span className="font-bold text-green-600">$0.00</span>
+                      </div>
+                      <div className="flex justify-between mb-3">
+                        <span className="text-slate-500">First Charge On ({new Date(previewData.nextBillingDate).toLocaleDateString()}):</span>
+                        <span className="font-semibold text-slate-700">{planInfo.price}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 leading-snug">
+                        * You won't be charged anything today. Your subscription will automatically renew at {planInfo.price} starting from your next billing date.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={handleImmediateClick}
+                      disabled={isProcessingImmediate || isProcessingScheduled}
+                      className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all`}
+                    >
+                      {isProcessingImmediate ? <Loader2 className="w-4 h-4 animate-spin" /> : (showConfirmImmediate ? <CheckCircle2 className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
+                      {showConfirmImmediate ? `Confirm Upgrade` : `Upgrade Now`}
+                    </button>
+                    {showConfirmImmediate && !isProcessingImmediate && (
+                      <button 
+                        onClick={() => setShowConfirmImmediate(false)} 
+                        className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!loadingPreview && previewData && !previewData.isTrialing && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Option 1: Immediate */}
                   <div className="border-2 border-slate-100 rounded-2xl p-5 hover:border-violet-200 transition-colors bg-slate-50 relative">
@@ -270,14 +313,14 @@ export function UpgradeFlowModal({
                     <button
                       onClick={handleScheduledUpgrade}
                       disabled={isProcessingImmediate || isProcessingScheduled}
-                      className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold py-3 rounded-xl transition-all"
+                      className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-bold py-2.5 rounded-xl transition-all mt-4"
                     >
                       {isProcessingScheduled ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}
                       Schedule Upgrade
                     </button>
                   </div>
                 </div>
-              ) : null}
+              )}
             </>
           )}
         </div>

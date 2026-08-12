@@ -47,3 +47,8 @@ export const sendReminderSMS = async (to: string, taskTitle: string, dueDate: st
   const message = `Schoolari Reminder: "${taskTitle}" is due on ${dueDate}. Log in to view details. Reply STOP to unsubscribe.`;
   return await sendSMS(to, message);
 };
+
+export const sendTrialEndingSMS = async (to: string, name: string, billedDate: string, manageLink: string) => {
+  const message = `Hi ${name}, your Schoolari 7-day free trial ends in 3 days. You will be billed on ${billedDate} to continue the service. Manage your subscription at ${manageLink}`;
+  return await sendSMS(to, message);
+};

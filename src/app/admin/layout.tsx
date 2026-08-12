@@ -6,6 +6,7 @@ import { signOut } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { canAccessAdmin, isStaffRole, ROLE_LABELS, ROLE_COLORS, type StaffRole } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
+export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getAuthenticatedUser();
@@ -16,13 +17,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const supabase = await createClient();
   // Verify Staff Role (any of the 5 staff roles)
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
-    .select("role, first_name")
+    .select("role, student_first_name, parent_first_name")
     .eq("id", user.id)
     .single();
 
-  const role = profile?.role;
+  if (error) {
+    console.error("[AdminLayout] Supabase Error:", error);
+  }
+
+  const role = profile?.role; 
+  console.log("[AdminLayout] user.id:", user.id, "role:", role);
 
   if (!canAccessAdmin(role)) {
     redirect("/dashboard");
@@ -46,7 +52,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminNav role={staffRole} />
         {/* Role Badge */}
         <div className="px-5 py-3 border-t border-slate-100 flex flex-row justify-between items-center">
-          <p className="text-xs text-slate-400 font-medium mb-1">{profile?.first_name || user.email}</p>
+          <p className="text-xs text-slate-400 font-medium mb-1">
+            {profile?.student_first_name || profile?.parent_first_name || user.email}
+          </p>
           <span className={cn("inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold", roleColor)}>
             {roleLabel}
           </span>

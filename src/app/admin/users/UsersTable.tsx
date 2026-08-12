@@ -332,7 +332,10 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
     if (!confirm("Cancel this subscription immediately?")) return;
     setIsSubmitting(true);
     try {
-      await cancelSubscription(manageUser.stripe_subscription_id, manageUser.id);
+      // Use _subscription_owner_id when a parent holds the subscription;
+      // otherwise fall back to the user's own id.
+      const ownerId = manageUser._subscription_owner_id || manageUser.id;
+      await cancelSubscription(manageUser.stripe_subscription_id, ownerId);
       toast.success("Subscription cancelled");
       setManageModalOpen(false);
     } catch (err: any) {
@@ -351,14 +354,19 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
   const [smsStatus, setSmsStatus] = useState({ type: "", msg: "" });
 
   const filteredUsers = initialUsers.filter((u) => {
+    // Never render linked parent profiles as standalone top-level rows.
+    // They are already shown as a sub-row inside their student's accordion.
+    if (u._isLinkedParent) return false;
+
     let matchesRole = true;
     if (filterRole === "student") {
-      matchesRole = u.role === "user" && u.account_type !== "staff" && u.account_type !== "admin";
+      matchesRole = u.role === "user" && u.account_type !== "staff" && u.account_type !== "admin" && u.account_type !== "parent";
     } else if (filterRole === "parent") {
-      matchesRole = u.role === "user" && (u.account_type === "parent" || !!u.parent_first_name || !!u.parent_email);
+      // Show profiles that have parent contact info embedded (cross-linked by page.tsx)
+      matchesRole = u.role === "user" && (!!u.parent_first_name || !!u.parent_email);
     }
     if (!matchesRole) return false;
-    
+
     return (
       u.email?.toLowerCase().includes(search.toLowerCase()) ||
       u.phone?.toLowerCase().includes(search.toLowerCase()) ||
