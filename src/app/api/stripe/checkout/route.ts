@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const activeStatuses = ["active", "trialing", "past_due", "unpaid"];
-    const hasHadTrial = activeStatuses.includes(profile?.subscription_status || "");
+    const hasHadTrial = !!profile?.trial_start_date || activeStatuses.includes(profile?.subscription_status || "");
     console.log("=== DEBUG CHECKOUT ===");
     console.log("User:", user.id);
     console.log("Profile Subscription Status:", profile?.subscription_status);

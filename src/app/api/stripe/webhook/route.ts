@@ -144,9 +144,7 @@ export async function POST(req: NextRequest) {
           stripeFields.stripe_customer_id = null;
         }
 
-        if (isCancelledDuringTrial) {
-          stripeFields.trial_start_date = null; // Clear trial start date to stop SMS reminders
-        }
+        // Trial start date remains in the DB permanently to track that the user used their trial
 
         // Find all profiles by subscription ID and update them
         const adminClient = getSupabaseAdmin();
