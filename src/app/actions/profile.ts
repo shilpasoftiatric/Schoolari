@@ -278,6 +278,39 @@ export async function saveOnboardingStep(step: number, data: any) {
     }
   }
 
+  // ── Seed top_3_schools into saved_colleges on onboarding completion ──
+  if (payload.onboarding_complete && updatedProfile) {
+    const schools: string[] = (updatedProfile.top_3_schools || []).filter(Boolean);
+    if (schools.length > 0) {
+      try {
+        // Fetch existing college names to avoid duplicates
+        const { data: existing } = await supabaseAdmin
+          .from("saved_colleges")
+          .select("college_name")
+          .eq("user_id", targetId);
+
+        const existingNames = new Set(
+          (existing || []).map((c: any) => c.college_name.toLowerCase())
+        );
+
+        const toInsert = schools
+          .filter((name) => !existingNames.has(name.toLowerCase()))
+          .map((name) => ({
+            user_id: targetId,
+            college_name: name,
+            status: "researching",
+            deadline: null,
+          }));
+
+        if (toInsert.length > 0) {
+          await supabaseAdmin.from("saved_colleges").insert(toInsert);
+        }
+      } catch (seedErr) {
+        console.error("[Onboarding] Failed to seed top_3_schools into saved_colleges:", seedErr);
+      }
+    }
+  }
+
   return { success: true };
 }
 
@@ -444,6 +477,36 @@ export async function updateProfile(updates: any) {
 
   if (error) {
     throw new Error(`Failed to update profile: ${error.message}`);
+  }
+
+  // ── Seed top_3_schools into saved_colleges ──
+  if (safeUpdates.top_3_schools) {
+    const schools: string[] = (safeUpdates.top_3_schools || []).filter(Boolean);
+    if (schools.length > 0) {
+      try {
+        const { data: existing } = await supabaseAdmin
+          .from("saved_colleges")
+          .select("college_name")
+          .eq("user_id", targetId);
+
+        const existingNames = new Set((existing || []).map((c: any) => c.college_name.toLowerCase()));
+
+        const toInsert = schools
+          .filter((name) => !existingNames.has(name.toLowerCase()))
+          .map((name) => ({
+            user_id: targetId,
+            college_name: name,
+            status: "researching",
+            deadline: null,
+          }));
+
+        if (toInsert.length > 0) {
+          await supabaseAdmin.from("saved_colleges").insert(toInsert);
+        }
+      } catch (seedErr) {
+        console.error("[Profile Update] Failed to seed top_3_schools into saved_colleges:", seedErr);
+      }
+    }
   }
 
   // Phase 2: Safe SSOT Resume Patching

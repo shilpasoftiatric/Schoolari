@@ -18,15 +18,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Plan check: coaching requires Elite
-    const plan = await getUserPlan();
-    if (!canAccessFeature(plan, "coaching")) {
-      return NextResponse.json(
-        { error: "Coaching access requires the Elite plan. Please upgrade." },
-        { status: 403 }
-      );
-    }
-
     // Fetch session details using admin client to bypass RLS
     const { data: session, error: sessionError } = await adminSupabase
       .from("coaching_sessions")
@@ -36,6 +27,16 @@ export async function POST(req: Request) {
 
     if (sessionError || !session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    // Plan check: 1:1 individual coaching requires Elite plan
+    const isIndividual = session.session_type === 'individual' || session.session_type === '1:1' || session.session_type === 'private';
+    const plan = await getUserPlan();
+    if (isIndividual && !canAccessFeature(plan, "coaching")) {
+      return NextResponse.json(
+        { error: "1-on-1 Coaching requires the Elite plan. Please upgrade." },
+        { status: 403 }
+      );
     }
 
     // Determine the student ID
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
       .from("coaching_enrollments")
       .insert({
         session_id: sessionId,
-        user_id: targetId,
+        student_id: targetId,
         attendance_status: 'registered'
       });
 

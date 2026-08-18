@@ -219,15 +219,15 @@ export function UpgradeFlowModal({
                     
                     <div className="bg-white rounded-xl p-3 mb-4 shadow-sm text-sm border border-violet-100">
                       <div className="flex justify-between mb-1">
+                        <span className="text-slate-500">Due At Trial End ({new Date(previewData.nextBillingDate).toLocaleDateString()}):</span>
+                        <span className="font-bold text-slate-800">{planInfo.price}</span>
+                      </div>
+                      <div className="flex justify-between mb-3">
                         <span className="text-slate-500">Amount Due Today:</span>
                         <span className="font-bold text-green-600">$0.00</span>
                       </div>
-                      <div className="flex justify-between mb-3">
-                        <span className="text-slate-500">First Charge On ({new Date(previewData.nextBillingDate).toLocaleDateString()}):</span>
-                        <span className="font-semibold text-slate-700">{planInfo.price}</span>
-                      </div>
                       <p className="text-xs text-slate-500 leading-snug">
-                        * You won't be charged anything today. Your subscription will automatically renew at {planInfo.price} starting from your next billing date.
+                        * You won't be charged anything today. Your subscription will automatically renew at {planInfo.price} when your trial ends.
                       </p>
                     </div>
 

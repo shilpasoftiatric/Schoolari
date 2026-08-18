@@ -1,30 +1,57 @@
-import { getCoachingMessages } from "@/app/actions/coaching";
+import { getCoachingMessages, getCoachingSessions, getCoachInfo, getCoachingContacts } from "@/app/actions/coaching";
 import { CoachingDashboard } from "./CoachingDashboard";
 import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
+import { createClient } from "@/lib/supabase/server";
 import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
 
 export const metadata = {
-  title: "Coaching Center",
+  title: "College Coach",
+  description: "Your personal guide for colleges and scholarships. We're here to help you every step of the way.",
 };
 
 export default async function CoachingPage() {
   const plan = await getUserPlan();
+
   if (!canAccessFeature(plan, "coaching")) {
     return (
       <LockedFeaturePage
-        featureName="College Coach Access"
+        featureName="1-on-1 College Coach & Advisory"
         requiredPlan="elite"
-        description="Work 1-on-1 with a dedicated college coach who guides you through applications, essays, and scholarship strategy — available on the Elite plan."
+        description="Get direct 1-on-1 access to expert college admissions coaches, live strategy sessions, and unlimited 2-way messaging — exclusively available on the Elite plan."
       />
     );
   }
 
   const messages = await getCoachingMessages();
+  const sessions = await getCoachingSessions();
+  const coachInfo = await getCoachInfo();
+  const contacts = await getCoachingContacts();
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let studentName = "Student";
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("student_first_name")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.student_first_name) {
+      studentName = profile.student_first_name;
+    }
+  }
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
-      <CoachingDashboard initialMessages={messages || []} />
-    </div>
+    <CoachingDashboard
+      initialMessages={messages || []}
+      initialSessions={sessions || []}
+      initialContacts={contacts || []}
+      coachInfo={coachInfo}
+      userPlan={plan}
+      userName={studentName}
+    />
   );
 }
 

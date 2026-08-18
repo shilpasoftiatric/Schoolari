@@ -587,13 +587,13 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-sm font-bold text-slate-700">Top 3 schools you are interested in applying to (optional)</Label>
+                  <Label className="text-sm font-bold text-slate-700">Top 3 schools/colleges you are interested in applying to (optional)</Label>
                   {[0, 1, 2].map(i => (
                     <Input key={i} value={form.top_3_schools[i]} onChange={(e) => {
                       const newSchools = [...form.top_3_schools];
                       newSchools[i] = e.target.value;
                       setForm({ ...form, top_3_schools: newSchools });
-                    }} className="h-12 rounded-xl mb-2" placeholder={`School ${i + 1}`} />
+                    }} className="h-12 rounded-xl mb-2" placeholder={`School/College ${i + 1}`} />
                   ))}
                 </div>
               </>
@@ -658,7 +658,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-sm font-bold text-slate-700">Gender (Optional, multi-select)</Label>
+                  <Label className="text-sm font-bold text-slate-700">Gender (Optional)</Label>
                   <div className="flex flex-wrap gap-2">
                     {GENDER_OPTIONS.map((option) => {
                       const isActive = form.gender === option;

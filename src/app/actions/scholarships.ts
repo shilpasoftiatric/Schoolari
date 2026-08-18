@@ -8,6 +8,7 @@ import twilio from "twilio";
 import { formatPhoneE164 } from "@/lib/phone";
 import { addReminder } from "./reminders";
 import crypto from "crypto";
+import { isScholarshipEligible, scoreScholarshipForProfile } from "@/lib/scholarship-matching";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Existing: trackApplication (preserved unchanged)
@@ -40,33 +41,37 @@ export async function searchScholarships(query: string = "") {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("state, grade_level, fields_of_study, career_interests")
+    .select("state, grade_level, fields_of_study, career_interests, unweighted_gpa, intended_major, gender, ethnicity")
     .eq("id", user.id)
     .single();
 
-  let dbQuery = supabase.from("scholarships").select("id, name, description, category, organization_name, eligible_states, eligible_majors, deadline, award_amount, grade_levels, featured, link").eq("is_active", true);
+  let dbQuery = supabase.from("scholarships").select("id, name, description, category, organization_name, eligible_states, eligible_majors, eligible_ethnicities, eligible_gender, min_gpa_required, deadline, award_amount, grade_levels, featured, link").eq("is_active", true);
 
   if (query.trim()) {
     const q = `%${query.trim()}%`;
     dbQuery = dbQuery.or(`name.ilike.${q},description.ilike.${q},category.ilike.${q},organization_name.ilike.${q},eligible_states.ilike.${q}`);
   }
 
-  dbQuery = dbQuery.limit(50);
+  // Fetch up to 1000 to ensure we have enough to filter down
+  dbQuery = dbQuery.limit(1000);
   const { data: scholarships, error } = await dbQuery;
   if (error) throw new Error("Failed to search scholarships");
   if (!scholarships || scholarships.length === 0) return [];
 
-  const rankedScholarships = scholarships.map(scholarship => {
+  // Strictly filter the scholarships based on the student's profile
+  const eligibleScholarships = scholarships.filter(scholarship => isScholarshipEligible(scholarship, profile));
+
+  const rankedScholarships = eligibleScholarships.map(scholarship => {
     let score = 0;
     if (query && scholarship.name.toLowerCase().includes(query.toLowerCase())) score += 20;
     if (profile) {
       if (profile.state && (scholarship.eligible_states?.toLowerCase().includes(profile.state.toLowerCase()) || scholarship.eligible_states?.toLowerCase().includes('all'))) score += 15;
       if (profile.grade_level && scholarship.grade_levels) {
-        if (Array.isArray(scholarship.grade_levels) && scholarship.grade_levels.some((g: string) => g.toLowerCase() === profile.grade_level.toLowerCase())) score += 10;
-        else if (typeof scholarship.grade_levels === 'string' && (scholarship.grade_levels as string).toLowerCase().includes(profile.grade_level.toLowerCase())) score += 10;
+        const levels = Array.isArray(scholarship.grade_levels) ? scholarship.grade_levels.map(g => String(g).toLowerCase()) : [String(scholarship.grade_levels).toLowerCase()];
+        if (levels.some(l => l.includes(profile.grade_level.toLowerCase()))) score += 10;
       }
-      if (profile.fields_of_study && profile.fields_of_study.length > 0 && scholarship.eligible_majors) {
-        const matchesMajor = profile.fields_of_study.some((field: string) => scholarship.eligible_majors.toLowerCase().includes(field.toLowerCase()));
+      if (profile.intended_major && profile.intended_major.length > 0 && scholarship.eligible_majors) {
+        const matchesMajor = profile.intended_major.some((field: string) => scholarship.eligible_majors.toLowerCase().includes(field.toLowerCase()));
         if (matchesMajor) score += 10;
       }
     }
@@ -99,77 +104,7 @@ function generateScholarshipProfileHash(profile: any): string {
   return crypto.createHash("sha256").update(data).digest("hex");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NEW: Deterministic scoring (no AI call — instant, profile-matched)
-// ─────────────────────────────────────────────────────────────────────────────
-function scoreScholarshipForProfile(scholarship: any, profile: any): { score: number; reason: string } {
-  let score = 0;
-  const reasons: string[] = [];
-
-  // Major match (+25)
-  if (profile.intended_major && scholarship.eligible_majors) {
-    const majors = scholarship.eligible_majors.toLowerCase();
-    if (majors.includes("any major") || majors.includes(profile.intended_major.toLowerCase())) {
-      score += 25;
-      reasons.push(`your ${profile.intended_major} major`);
-    }
-  }
-
-  // State match (+20)
-  if (profile.state && scholarship.eligible_states) {
-    const states = scholarship.eligible_states.toLowerCase();
-    if (states.includes("all") || states.includes(profile.state.toLowerCase())) {
-      score += 20;
-      reasons.push(`${profile.state} state residency`);
-    }
-  }
-
-  // Grade level match (+15)
-  if (profile.grade_level && scholarship.grade_levels) {
-    const levels = Array.isArray(scholarship.grade_levels)
-      ? scholarship.grade_levels.map((g: string) => g.toLowerCase())
-      : [String(scholarship.grade_levels).toLowerCase()];
-    if (levels.some((l: string) => l.includes(profile.grade_level?.toLowerCase() || ""))) {
-      score += 15;
-      reasons.push(`your grade level`);
-    }
-  }
-
-  // GPA meets minimum (+15)
-  if (profile.unweighted_gpa && scholarship.min_gpa_required) {
-    if (Number(profile.unweighted_gpa) >= Number(scholarship.min_gpa_required)) {
-      score += 15;
-      reasons.push(`your ${profile.unweighted_gpa} GPA`);
-    }
-  } else if (!scholarship.min_gpa_required) {
-    // No GPA requirement — open to all
-    score += 10;
-  }
-
-  // Deadline urgency boost (+10)
-  if (scholarship.deadline) {
-    const days = Math.ceil((new Date(scholarship.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    if (days > 0 && days <= 30) score += 10;
-  }
-
-  // Career interest keyword match (+10)
-  if (profile.career_interest && scholarship.description) {
-    if (scholarship.description.toLowerCase().includes(profile.career_interest.toLowerCase())) {
-      score += 10;
-      reasons.push(`your ${profile.career_interest} career interest`);
-    }
-  }
-
-  // Featured boost (+5)
-  if (scholarship.featured) score += 5;
-
-  const reason = reasons.length > 0
-    ? `Matches based on ${reasons.join(", ")}.`
-    : "Open scholarship — no specific eligibility restrictions.";
-
-  return { score: Math.min(score, 100), reason };
-}
-
+// (Functions moved to @/lib/scholarship-matching.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 // NEW: getScholarshipRecommendations — cache-first, profile-hash invalidation
 // ─────────────────────────────────────────────────────────────────────────────
@@ -209,6 +144,7 @@ export async function getScholarshipRecommendations(forceRefresh = false) {
   // ── Cache miss: score all scholarships deterministically ──
   const scored = allScholarships
     .filter(s => !appliedIds.has(s.id)) // exclude already-applied
+    .filter(s => isScholarshipEligible(s, profile)) // hard eligibility exclusions (gender, state)
     .map(s => {
       const { score, reason } = scoreScholarshipForProfile(s, profile);
       return { ...s, match_score: score, why_match: reason };

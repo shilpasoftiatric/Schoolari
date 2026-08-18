@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { isScholarshipEligible } from "@/lib/scholarship-matching";
 import { ScholarshipsList } from "./ScholarshipsList";
 import { Sparkles, AlertCircle } from "lucide-react";
 import { BackToTopButton } from "@/components/ui/BackToTopButton";
@@ -60,8 +61,8 @@ export default async function StudentScholarshipsPage(props: {
 
   query = query.order("featured", { ascending: false }).order("deadline", { ascending: true });
 
-  // Fetch active scholarships + user's existing applications in parallel
-  const [scholarshipsRes, applicationsRes] = await Promise.all([
+  // Fetch active scholarships + user's existing applications + user profile in parallel
+  const [scholarshipsRes, applicationsRes, profileRes] = await Promise.all([
     query,
     user
       ? supabase
@@ -70,6 +71,13 @@ export default async function StudentScholarshipsPage(props: {
         .eq("user_id", user.id)
         .eq("reference_type", "scholarship")
       : Promise.resolve({ data: [], error: null }),
+    user
+      ? supabase
+        .from("profiles")
+        .select("state, grade_level, unweighted_gpa, intended_major, gender, ethnicity")
+        .eq("id", user.id)
+        .single()
+      : Promise.resolve({ data: null, error: null })
   ]);
 
   if (scholarshipsRes.error) {
@@ -94,6 +102,12 @@ export default async function StudentScholarshipsPage(props: {
       applicationStatusMap[app.reference_id] = app.status;
     }
   }
+
+  // Strictly filter the scholarships based on the student's profile
+  const profile = profileRes.data;
+  const filteredScholarships = (scholarshipsRes.data || []).filter(scholarship => 
+    isScholarshipEligible(scholarship, profile)
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -126,7 +140,7 @@ export default async function StudentScholarshipsPage(props: {
       </div>
 
       <ScholarshipsList
-        initialScholarships={scholarshipsRes.data ?? []}
+        initialScholarships={filteredScholarships}
         applicationStatusMap={applicationStatusMap}
       />
       <BackToTopButton />

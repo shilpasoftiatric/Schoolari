@@ -1,10 +1,32 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { LogOut, Users, GraduationCap, ChevronRight, Settings, HeartHandshake, Mail, CreditCard } from "lucide-react";
+import {
+  Users,
+  GraduationCap,
+  ChevronRight,
+  Settings,
+  HeartHandshake,
+  Mail,
+  CreditCard,
+  MessageSquareText,
+  Megaphone,
+  Briefcase,
+  PlaySquare,
+  UserCog,
+} from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { signOut } from "@/app/actions/auth";
+import { hasPermission, NAV_PERMISSIONS, type StaffRole } from "@/lib/rbac";
 
-function StatCard({ label, value, icon: Icon, colorClass }: { label: string, value: number, icon: any, colorClass: string }) {
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  colorClass,
+}: {
+  label: string;
+  value: number;
+  icon: any;
+  colorClass: string;
+}) {
   return (
     <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
@@ -19,48 +41,62 @@ function StatCard({ label, value, icon: Icon, colorClass }: { label: string, val
 }
 
 const QUICK_ACTIONS = [
-  { to: "/admin/users", label: "Members", sub: "Directory & roles", icon: Users },
+  { to: "/admin/users", label: "Users / Members", sub: "Directory & accounts", icon: Users },
   { to: "/admin/scholarships", label: "Scholarships", sub: "Records & status", icon: GraduationCap },
   { to: "/admin/coaching", label: "Coaching", sub: "Sessions & tasks", icon: HeartHandshake },
   { to: "/admin/messages", label: "Messages", sub: "Send & broadcast", icon: Mail },
-  { to: "/admin/payments", label: "Payments", sub: "Stripe & plans", icon: CreditCard },
-  { to: "/admin/settings", label: "Settings", sub: "Site & contact", icon: Settings },
+  { to: "/admin/content", label: "Content Manager", sub: "Banners & announcements", icon: Megaphone },
+  { to: "/admin/career", label: "Career Center", sub: "Articles & pathways", icon: Briefcase },
+  { to: "/admin/income", label: "Earn While You Learn", sub: "Videos & lessons", icon: PlaySquare },
+  { to: "/admin/payments", label: "Payments & Plans", sub: "Stripe subscriptions", icon: CreditCard },
+  { to: "/admin/staff", label: "Staff Management", sub: "Roles & permissions", icon: UserCog },
+  { to: "/admin/settings", label: "Settings", sub: "Site configuration", icon: Settings },
 ];
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
   const adminSupabase = await createAdminClient();
 
-  // Fire user fetch and ALL count fetches concurrently to save time
+  // Fire user fetch and count fetches concurrently
   const [
-    { data: { user } },
+    {
+      data: { user },
+    },
     { count: totalStudents },
     { count: totalParentsLinked },
     { count: activeSubscriptions },
-    { count: totalScholarships },
-    { count: activeScholarships },
-    { count: inactiveScholarships },
     { count: coachingSessions },
-    { count: messagesSent }
+    { count: messagesSent },
   ] = await Promise.all([
     supabase.auth.getUser(),
     adminSupabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "user"),
-    adminSupabase.from("profiles").select("*", { count: "exact", head: true }).neq("parent_email", "").not("parent_email", "is", null),
-    adminSupabase.from("profiles").select("*", { count: "exact", head: true }).eq("subscription_status", "active"),
-    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }),
-    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", true),
-    adminSupabase.from("scholarships").select("*", { count: "exact", head: true }).eq("is_active", false),
+    adminSupabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .neq("parent_email", "")
+      .not("parent_email", "is", null),
+    adminSupabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true })
+      .eq("subscription_status", "active"),
     adminSupabase.from("coaching_sessions").select("*", { count: "exact", head: true }),
     adminSupabase.from("coaching_messages").select("*", { count: "exact", head: true }),
   ]);
 
-  const { data: profile } = await supabase
+  // Use adminSupabase to reliably read staff profile and role (bypasses RLS)
+  const { data: profile } = await adminSupabase
     .from("profiles")
-    .select("first_name")
+    .select("student_first_name, parent_first_name, role")
     .eq("id", user?.id || "")
-    .single();
+    .maybeSingle();
 
-  const displayName = profile?.first_name || user?.email?.split("@")[0] || "Admin";
+  const userRole = (profile?.role as StaffRole) || "super_admin";
+  const displayName =
+    profile?.student_first_name ||
+    profile?.parent_first_name ||
+    user?.user_metadata?.full_name ||
+    user?.email?.split("@")[0] ||
+    "Admin";
 
   const todayLabel = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -69,8 +105,15 @@ export default async function AdminDashboardPage() {
     day: "numeric",
   });
 
-  // Calculate unique parents
   const totalParents = totalParentsLinked || 0;
+  const canViewPayments = hasPermission(userRole, "manage_payments");
+
+  // Filter Quick Actions strictly by RBAC permissions for this role
+  const availableActions = QUICK_ACTIONS.filter((action) => {
+    const requiredPermission = NAV_PERMISSIONS[action.to];
+    if (!requiredPermission) return true;
+    return hasPermission(userRole, requiredPermission);
+  });
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -100,12 +143,21 @@ export default async function AdminDashboardPage() {
             icon={Users}
             colorClass="bg-indigo-50 text-indigo-600"
           />
-          <StatCard
-            label="Active Subs"
-            value={activeSubscriptions || 0}
-            icon={CreditCard}
-            colorClass="bg-emerald-50 text-emerald-600"
-          />
+          {canViewPayments ? (
+            <StatCard
+              label="Active Subs"
+              value={activeSubscriptions || 0}
+              icon={CreditCard}
+              colorClass="bg-emerald-50 text-emerald-600"
+            />
+          ) : (
+            <StatCard
+              label="Messages Sent"
+              value={messagesSent || 0}
+              icon={MessageSquareText}
+              colorClass="bg-emerald-50 text-emerald-600"
+            />
+          )}
           <StatCard
             label="Coaching Sessions"
             value={coachingSessions || 0}
@@ -115,13 +167,13 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions — Dynamically Gated by Role */}
       <div className="bg-white rounded-2xl p-6 md:p-8 border border-slate-100 shadow-sm">
         <h2 className="text-xl font-bold text-slate-900">Quick actions</h2>
-        <p className="text-sm text-slate-500 mt-1 mb-6">Jump to any section instantly</p>
+        <p className="text-sm text-slate-500 mt-1 mb-6">Jump to any authorized section instantly</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {QUICK_ACTIONS.map((action) => (
+          {availableActions.map((action) => (
             <Link
               key={action.to}
               href={action.to}

@@ -167,13 +167,13 @@ export default function Sidebar({ siteName = "Schoolari", progressData, plan }: 
 
           {/* Ask Schoolari AI Card */}
           <Link
-            href="/dashboard"
-            onClick={() => setSelectedHref("/dashboard")}
+            href="/ai"
+            onClick={() => setSelectedHref("/ai")}
             title="Ask Schoolari AI"
             className={cn(
               "flex items-center justify-between rounded-[24px] bg-slate-200 border border-slate-100 hover:bg-slate-100 transition-colors group",
               isSidebarCollapsed ? "w-12 h-12 justify-center rounded-2xl -ml-1" : "p-2",
-              selectedHref === "/dashboard" && "bg-slate-100 border-violet-200"
+              selectedHref === "/ai" && "bg-slate-100 border-violet-200"
             )}
           >
             <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "gap-3")}>

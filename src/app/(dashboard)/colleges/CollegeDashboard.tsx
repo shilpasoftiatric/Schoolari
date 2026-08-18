@@ -30,18 +30,18 @@ const STATUS_COLORS = {
 };
 
 const STATUS_LABELS = {
-  researching: "Researching",
+  researching: "Interested",
   applied:     "Applied",
-  waitlisted:  "Waitlisted",
   accepted:    "Accepted",
-  rejected:    "Rejected",
+  waitlisted:  "Waitlisted",
+  rejected:    "Declined",
 };
 
 /* ──────────────────────────────────────────────────────────────────────────── */
 /*  AI College Recommendation Card                                              */
 /* ──────────────────────────────────────────────────────────────────────────── */
 
-function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
+function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: (newCollege: any) => void }) {
   const [status, setStatus] = useState<string>(rec.status || "NEW");
   const [processing, setProcessing] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
@@ -49,19 +49,21 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
   const [reminderTime, setReminderTime] = useState("09:00");
   const [settingReminder, setSettingReminder] = useState(false);
 
-  const isSaved    = status === "SAVED"   || status === "APPLIED";
-  const isApplied  = status === "APPLIED";
+  const isSaved    = status !== "NEW" && status !== "DISMISSED";
+  const isApplied  = status === "APPLIED" || status === "applied";
   const isDismissed = status === "DISMISSED";
 
-  const handleSave = async (asApplied = false) => {
+  const handleSave = async (newStatus: string) => {
     if (processing) return;
     setProcessing(true);
     const prev = status;
-    setStatus(asApplied ? "APPLIED" : "SAVED");
+    setStatus(newStatus.toUpperCase());
     try {
-      await saveRecommendationToTracker(rec, asApplied);
-      toast.success(asApplied ? "Marked as applied!" : "Added to your college list!");
-      onSaved();
+      const res = await saveRecommendationToTracker(rec, newStatus);
+      toast.success(`Marked as ${STATUS_LABELS[newStatus as keyof typeof STATUS_LABELS]}!`);
+      if (res && res.college) {
+        onSaved(res.college);
+      }
     } catch (err: any) {
       setStatus(prev);
       toast.error(err.message || "Something went wrong.");
@@ -92,12 +94,31 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
     }
   };
 
+  const handleApplyClick = () => {
+    setTimeout(() => {
+      Swal.fire({
+        title: 'Did you apply?',
+        text: `Did you submit your application to ${rec.college_name}?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, I applied',
+        cancelButtonText: 'Not yet'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          handleSave("applied");
+        }
+      });
+    }, 2000);
+  };
+
   if (isDismissed) return null;
 
   return (
-    <div className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 flex flex-col relative overflow-hidden">
-      {/* Decorative gradient */}
-      <div className="absolute -right-6 -top-6 w-28 h-28 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full blur-2xl opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none" />
+    <div className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 flex flex-col relative hover:z-50 focus-within:z-50">
+      {/* Decorative gradient wrapper to prevent overflow without clipping the dropdown */}
+      <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none z-0">
+        <div className="absolute -right-6 -top-6 w-28 h-28 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full blur-2xl opacity-50 group-hover:opacity-100 transition-opacity" />
+      </div>
 
       {/* Header */}
       <div className="flex items-start gap-4 mb-4 relative z-10">
@@ -216,26 +237,40 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {!isSaved && (
+          <div className="grid grid-cols-2 gap-2 relative">
+            <Button
+              onClick={() => handleSave("researching")}
+              disabled={processing || isSaved}
+              variant="outline"
+              className="rounded-xl text-sm font-bold border-blue-200 text-blue-700 hover:bg-blue-50"
+            >
+              {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : (isSaved ? "Saved" : "Save to List")}
+            </Button>
+
+            <div className="relative group/dropdown">
               <Button
-                onClick={() => handleSave(false)}
-                disabled={processing}
                 variant="outline"
-                className="rounded-xl text-sm font-bold border-blue-200 text-blue-700 hover:bg-blue-50"
+                className={`w-full rounded-xl text-sm font-bold justify-between border-slate-200 ${isSaved && status !== "RESEARCHING" ? STATUS_COLORS[status.toLowerCase() as keyof typeof STATUS_COLORS] : "text-slate-600 hover:bg-slate-50"}`}
               >
-                {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save to List"}
+                {isSaved && status !== "RESEARCHING"
+                  ? STATUS_LABELS[status.toLowerCase() as keyof typeof STATUS_LABELS] || "Set Status"
+                  : "Set Status"}
+                <svg className="w-4 h-4 ml-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </Button>
-            )}
-            {!isApplied && (
-              <Button
-                onClick={() => handleSave(true)}
-                disabled={processing}
-                className={`rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-600 text-white ${!isSaved ? "" : "col-span-2"}`}
-              >
-                {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 mr-1.5" />Applied</>}
-              </Button>
-            )}
+
+              <div className="absolute top-full mt-1.5 right-0 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl opacity-0 invisible group-hover/dropdown:opacity-100 group-hover/dropdown:visible transition-all z-50 p-1.5 flex flex-col gap-0.5">
+                {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleSave(key)}
+                    className="text-left px-3 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-violet-50 hover:text-violet-700 transition-colors flex items-center justify-between"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <Button
               onClick={() => setReminderOpen(true)}
               variant="outline"
@@ -252,6 +287,7 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: () => void }) {
             href={rec.official_website}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={handleApplyClick}
             className="flex items-center justify-center gap-2 w-full bg-slate-900 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all duration-300 shadow-sm hover:shadow-md text-sm"
           >
             Apply Now <ExternalLink className="w-4 h-4 opacity-60" />
@@ -478,7 +514,15 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
                 {recs
                   .filter(r => r.status !== "DISMISSED")
                   .map((rec, i) => (
-                    <AICollegeCard key={`${rec.college_name}-${i}`} rec={rec} onSaved={() => {}} />
+                    <AICollegeCard key={`${rec.college_name}-${i}`} rec={rec} onSaved={(newCollege) => {
+                      setColleges(prev => {
+                        const exists = prev.find(c => c.college_name === newCollege.college_name);
+                        if (exists) {
+                          return prev.map(c => c.college_name === newCollege.college_name ? newCollege : c);
+                        }
+                        return [newCollege, ...prev];
+                      });
+                    }} />
                   ))}
               </div>
             </div>
@@ -499,36 +543,59 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {colleges.map((college) => (
-                <div
-                  key={college.id}
-                  onClick={() => openEditModal(college)}
-                  className="group bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer flex flex-col"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-extrabold text-slate-900 leading-tight">
-                      {college.college_name}
-                    </h3>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${STATUS_COLORS[college.status as keyof typeof STATUS_COLORS]}`}>
-                      {STATUS_LABELS[college.status as keyof typeof STATUS_LABELS]}
-                    </span>
-                  </div>
+            <>
+              {Object.entries(STATUS_LABELS).map(([statusKey, statusLabel]) => {
+                // Group colleges by this status.
+                const groupColleges = colleges.filter(c => {
+                  const s = (c.status || "researching").toLowerCase();
+                  if (statusKey === "researching" && (s === "saved" || s === "researching" || s === "new")) return true;
+                  return s === statusKey;
+                });
 
-                  <div className="mt-auto space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
-                      <Calendar className="w-4 h-4 text-slate-400" />
-                      Deadline: {college.deadline ? new Date(college.deadline).toLocaleDateString() : "Not set"}
+                if (groupColleges.length === 0) return null;
+
+                return (
+                  <div key={statusKey} className="space-y-4">
+                    <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-2">
+                      {statusLabel} <span className="text-sm font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{groupColleges.length}</span>
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {groupColleges.map((college) => (
+                        <div
+                          key={college.id}
+                          onClick={() => openEditModal(college)}
+                          className="group bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer flex flex-col relative"
+                        >
+                          {/* Colored border indicator on left edge based on status */}
+                          <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-3xl ${STATUS_COLORS[college.status?.toLowerCase() as keyof typeof STATUS_COLORS]?.split(' ')[0] || "bg-slate-200"}`} />
+                          
+                          <div className="flex justify-between items-start mb-4 pl-3">
+                            <h3 className="text-xl font-extrabold text-slate-900 leading-tight pr-4">
+                              {college.college_name}
+                            </h3>
+                            <span className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${STATUS_COLORS[college.status?.toLowerCase() as keyof typeof STATUS_COLORS] || STATUS_COLORS.researching}`}>
+                              {STATUS_LABELS[college.status?.toLowerCase() as keyof typeof STATUS_LABELS] || STATUS_LABELS.researching}
+                            </span>
+                          </div>
+
+                          <div className="mt-auto space-y-3 pl-3">
+                            <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+                              <Calendar className="w-4 h-4 text-slate-400" />
+                              Deadline: {college.deadline ? new Date(college.deadline).toLocaleDateString() : "Not set"}
+                            </div>
+                            {college.notes && (
+                              <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl line-clamp-2 border border-slate-100">
+                                {college.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    {college.notes && (
-                      <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl line-clamp-2 border border-slate-100">
-                        {college.notes}
-                      </p>
-                    )}
                   </div>
-                </div>
-              ))}
-            </div>
+                );
+              })}
+            </>
           )}
         </div>
       )}
@@ -586,11 +653,11 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
                   onChange={(e) => setEditStatus(e.target.value)}
                   className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
                 >
-                  <option value="researching">Researching</option>
+                  <option value="researching">Interested</option>
                   <option value="applied">Applied</option>
-                  <option value="waitlisted">Waitlisted</option>
                   <option value="accepted">Accepted</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="waitlisted">Waitlisted</option>
+                  <option value="rejected">Declined</option>
                 </select>
               </div>
               <div>

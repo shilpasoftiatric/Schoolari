@@ -1,56 +1,59 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { getAdminConversations, getMessageStats } from "@/app/actions/admin-messages";
 import { MessagesAdmin } from "./MessagesAdmin";
-import { Mail } from "lucide-react";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+
+export const metadata = {
+  title: "Coach & Student Messages | Admin Desk",
+  description: "2-way direct advisory communication with students and parents.",
+};
 
 export default async function AdminMessagesPage() {
-  const adminClient = await createAdminClient();
+  const supabase = await createClient();
+  const adminSupabase = await createAdminClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Get all students and parents for the recipient picker
-  const { data: profiles } = await adminClient
-    .from("profiles")
-    .select("id, student_first_name, student_last_name, student_email, first_name, account_type")
-    .order("student_last_name", { ascending: true });
+  let currentUser = {
+    id: user?.id || "",
+    email: user?.email || "",
+    name: "Admissions Coach",
+    role: "college_coach",
+  };
 
-  // Fetch auth users to get emails for admins/parents
-  const { data: { users: authUsers } } = await adminClient.auth.admin.listUsers();
+  if (user) {
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("student_first_name, student_last_name, parent_first_name, role")
+      .eq("id", user.id)
+      .maybeSingle();
 
-  const users = profiles?.map(profile => {
-    const authUser = authUsers.find(u => u.id === profile.id);
-    return {
-      ...profile,
-      email: authUser?.email || ""
+    const fullName =
+      (profile &&
+        [profile.student_first_name, profile.student_last_name].filter(Boolean).join(" ")) ||
+      profile?.parent_first_name ||
+      user.user_metadata?.full_name ||
+      "Admissions Coach";
+
+    currentUser = {
+      id: user.id,
+      email: user.email || "",
+      name: fullName,
+      role: profile?.role || "college_coach",
     };
-  });
+  }
 
-  // Get recent messages sent (last 100)
-  const { data: recentMessages } = await adminClient
-    .from("coaching_messages")
-    .select("id, title, content, type, is_read, created_at, user_id")
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  // Count stats
-  const [{ count: totalSent }, { count: unreadCount }] = await Promise.all([
-    adminClient.from("coaching_messages").select("*", { count: "exact", head: true }),
-    adminClient.from("coaching_messages").select("*", { count: "exact", head: true }).eq("is_read", false),
+  const [conversations, stats] = await Promise.all([
+    getAdminConversations(),
+    getMessageStats(),
   ]);
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Mail className="w-6 h-6 text-violet-600" />
-          Messages & Notifications
-        </h1>
-        <p className="text-slate-500 mt-1">
-          Send announcements, guidance, reminders, and broadcasts to students and parents.
-        </p>
-      </div>
-
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       <MessagesAdmin
-        users={users || []}
-        recentMessages={recentMessages || []}
-        stats={{ total: totalSent || 0, unread: unreadCount || 0 }}
+        initialConversations={conversations || []}
+        stats={stats || { total: 0, unread: 0 }}
+        currentUser={currentUser}
       />
     </div>
   );

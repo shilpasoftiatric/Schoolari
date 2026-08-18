@@ -408,7 +408,7 @@ export function StudentProfile({
                 <div className="flex items-start gap-3">
                   <BookOpen className="w-4 h-4 text-violet-500 mt-0.5 shrink-0" />
                   <div className="flex-1 w-full min-w-0">
-                    <label className="block text-xs font-medium text-slate-500">Top 3 Target Schools</label>
+                    <label className="block text-xs font-medium text-slate-500">Top 3 Target Colleges</label>
                     {isEditing ? (
                       <div className="space-y-2 mt-1">
                         {[0, 1, 2].map((i) => (

@@ -70,14 +70,14 @@ Return ONLY a JSON array of the best matching IDs suitable for high school stude
     });
 
     let cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
-    
+
     // Extract only the JSON array part if Claude included conversational text
     const startIndex = cleanedResponse.indexOf('[');
     const endIndex = cleanedResponse.lastIndexOf(']');
     if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
       cleanedResponse = cleanedResponse.substring(startIndex, endIndex + 1);
     }
-    
+
     const parsedIds = JSON.parse(cleanedResponse);
     if (Array.isArray(parsedIds) && parsedIds.length > 0) {
       // Map the AI-selected IDs back to the original full job objects
@@ -248,25 +248,25 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
           const studentName = profile.student_first_name || "there";
           const employerName = jobData.employer_name || "the company";
           const jobTitle = jobData.job_title || "the job";
-          
+
           let immediateMessage = "";
           let finalDueDate: Date | null = null;
-          
+
           if (dueDate) {
             finalDueDate = new Date(`${dueDate}T${dueTime || '09:00'}`);
-            
+
             // Generate Floating Time Google Calendar Link
             const encodedTitle = encodeURIComponent(`Apply to ${employerName} - ${jobTitle}`);
             const formatFloatingDate = (d: Date) => {
               const pad = (n: number) => n.toString().padStart(2, '0');
               return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
             };
-            
+
             const eventDateStr = formatFloatingDate(finalDueDate);
-            const endDueDate = new Date(finalDueDate.getTime() + 60 * 60 * 1000); 
+            const endDueDate = new Date(finalDueDate.getTime() + 60 * 60 * 1000);
             const endDateStr = formatFloatingDate(endDueDate);
             const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${eventDateStr}/${endDateStr}`;
-            
+
             immediateMessage = `Hi ${studentName}! You committed to applying to ${employerName} on ${dueDate}. Tap here to add the deadline to your calendar so you don't forget: ${calendarLink}\n\nReply STOP to unsubscribe.`;
           } else {
             immediateMessage = `Hi ${studentName}! Reminder: You committed to applying to ${employerName}. Track your progress at members.schoolari.app/jobs. Good luck! 💼\n\nReply STOP to unsubscribe.`;
@@ -278,13 +278,13 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
             messagingServiceSid,
             to: e164Phone
           });
-          
+
           // Schedule the Reminder SMS
           if (finalDueDate) {
             const now = new Date();
             const diffDays = (finalDueDate.getTime() - now.getTime()) / (1000 * 3600 * 24);
             let sendAtDate: Date | null = null;
-            
+
             if (diffDays > 7) {
               sendAtDate = new Date(finalDueDate.getTime() - 2 * 24 * 60 * 60 * 1000);
             } else if (diffDays > 2) {
@@ -298,11 +298,11 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
             if (sendAtDate) {
               const minSendAt = new Date(now.getTime() + 16 * 60 * 1000);
               const maxSendAt = new Date(now.getTime() + 34 * 24 * 60 * 60 * 1000);
-              
+
               if (sendAtDate < minSendAt) sendAtDate = minSendAt;
               if (sendAtDate < maxSendAt) {
                 const scheduledMessage = `Reminder: Your application for ${employerName} is due soon! Review your materials at members.schoolari.app/jobs. You've got this! 💼`;
-                
+
                 await client.messages.create({
                   body: scheduledMessage,
                   messagingServiceSid,

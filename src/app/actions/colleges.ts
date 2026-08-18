@@ -264,24 +264,21 @@ export async function updateRecommendationStatus(collegeName: string, status: st
   return { success: true };
 }
 
-export async function saveRecommendationToTracker(recommendationData: any, isApplied = false) {
-  const status = isApplied ? "applied" : "researching";
+export async function saveRecommendationToTracker(recommendationData: any, status: string = "researching") {
   const newCollege = await addCollege(recommendationData.college_name);
 
-  if (isApplied) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { masterId, supabaseAdmin } = await getMasterIdAndAdmin(user);
-      await supabaseAdmin.from("saved_colleges")
-        .update({ status: "applied" })
-        .eq("user_id", masterId)
-        .eq("college_name", recommendationData.college_name);
-      newCollege.status = "applied";
-    }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { masterId, supabaseAdmin } = await getMasterIdAndAdmin(user);
+    await supabaseAdmin.from("saved_colleges")
+      .update({ status: status })
+      .eq("user_id", masterId)
+      .eq("college_name", recommendationData.college_name);
+    newCollege.status = status;
   }
 
-  await updateRecommendationStatus(recommendationData.college_name, isApplied ? 'APPLIED' : 'SAVED');
+  await updateRecommendationStatus(recommendationData.college_name, status === 'applied' ? 'APPLIED' : 'SAVED');
 
   revalidatePath("/colleges");
   revalidatePath("/dashboard");

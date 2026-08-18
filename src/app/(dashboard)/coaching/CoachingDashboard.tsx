@@ -1,400 +1,594 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Trophy, Mail, Bell, Sparkles, ChevronRight, CheckCircle2, Flame, HeartHandshake, Compass, CalendarDays, Video, Users, User, ArrowRight, Send } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import {
+  Calendar,
+  Clock,
+  Video,
+  Users,
+  User,
+  CheckCircle2,
+  CalendarDays,
+  ChevronRight,
+  MessageSquare,
+  History,
+  Star,
+  BookOpen,
+  Bell,
+  Sparkles,
+  ExternalLink,
+  Target,
+  ClipboardList,
+  Headphones,
+} from "lucide-react";
+import { toast } from "sonner";
+import { CoachingIllustration } from "./CoachingIllustration";
+import {
+  SessionDetailsModal,
+  MessageCoachModal,
+  CoachingCalendarModal,
+  CoachingHistoryModal,
+  SessionFeedbackModal,
+  CoachingResourcesModal,
+} from "./CoachingModals";
+import { UpgradeFlowModal } from "@/components/ui/UpgradeFlowModal";
+import type { SubscriptionPlan } from "@/lib/subscription";
+import type { CoachInfo, CoachingContact } from "@/app/actions/coaching";
 
-export function CoachingDashboard({ initialMessages }: { initialMessages: any[] }) {
-  const [activeTab, setActiveTab] = useState<"inbox" | "sessions">("inbox");
-  const [messages, setMessages] = useState(initialMessages);
-  const [activeMessage, setActiveMessage] = useState<any | null>(null);
-  const [isComposing, setIsComposing] = useState(false);
-  const [composeTitle, setComposeTitle] = useState("");
-  const [composeContent, setComposeContent] = useState("");
-  const [isSending, setIsSending] = useState(false);
+interface CoachingDashboardProps {
+  initialMessages?: any[];
+  initialSessions?: any[];
+  initialContacts?: CoachingContact[];
+  coachInfo?: CoachInfo;
+  userPlan?: SubscriptionPlan;
+  userName?: string;
+}
 
-  // Sessions state
-  const [sessions, setSessions] = useState<any[]>([]);
+export function CoachingDashboard({
+  initialMessages = [],
+  initialSessions = [],
+  initialContacts = [],
+  coachInfo,
+  userPlan = "elite",
+  userName = "Student",
+}: CoachingDashboardProps) {
+  // State for sessions initialized directly from server
+  const [sessions, setSessions] = useState<any[]>(initialSessions);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (activeTab === "sessions" && sessions.length === 0) {
-      fetchSessions();
-    }
-  }, [activeTab]);
+  // Modals state
+  const [selectedSession, setSelectedSession] = useState<any | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isMessageOpen, setIsMessageOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isResourcesOpen, setIsResourcesOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
-  const fetchSessions = async () => {
-    setLoadingSessions(true);
-    try {
-      const res = await fetch("/api/coaching/sessions");
-      if (res.ok) {
-        const data = await res.json();
-        setSessions(data.sessions || []);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingSessions(false);
+  // Messages state
+  const [messages, setMessages] = useState<any[]>(initialMessages);
+
+  // Keep sessions synced if initialSessions changes
+  useEffect(() => {
+    if (initialSessions && initialSessions.length > 0) {
+      setSessions(initialSessions);
     }
-  };
+  }, [initialSessions]);
 
   const handleEnroll = async (sessionId: string) => {
     setEnrollingId(sessionId);
     try {
-      const res = await fetch("/api/coaching/enroll", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId })
-      });
-      if (res.ok) {
-        const { toast } = await import("sonner");
-        toast.success("Successfully registered for the session!");
-        fetchSessions(); // refresh
+      const { enrollInSession } = await import("@/app/actions/coaching");
+      await enrollInSession(sessionId);
+      toast.success("Successfully registered for the session!");
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, isEnrolled: true } : s))
+      );
+      if (selectedSession && selectedSession.id === sessionId) {
+        setSelectedSession((prev: any) => ({ ...prev, isEnrolled: true }));
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Enroll error:", e);
+      toast.error(e.message || "Failed to register for session");
     } finally {
       setEnrollingId(null);
     }
   };
 
-  const handleSelectMessage = async (msg: any) => {
-    setActiveMessage(msg);
-    if (!msg.is_read) {
-      setMessages(messages.map(m => m.id === msg.id ? { ...m, is_read: true } : m));
-      try {
-        await fetch("/api/coaching/mark-read", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: msg.id })
-        });
-      } catch (err) {
-        setMessages(messages.map(m => m.id === msg.id ? { ...m, is_read: false } : m));
-      }
+  const handleJoinClick = (session: any) => {
+    if (!session.isEnrolled) {
+      handleEnroll(session.id);
+      return;
+    }
+    if (session.meeting_link) {
+      window.open(session.meeting_link, "_blank", "noopener,noreferrer");
+    } else {
+      toast.info("Meeting link will activate 15 minutes before the session.");
     }
   };
 
-  const getIcon = (type: string) => {
-    switch(type) {
-      case 'guidance': return <Compass className="w-5 h-5 text-blue-500" />;
-      case 'motivation': return <Flame className="w-5 h-5 text-orange-500" />;
-      case 'reminder': return <Bell className="w-5 h-5 text-fuchsia-500" />;
-      case 'announcement': return <Sparkles className="w-5 h-5 text-emerald-500" />;
-      default: return <Mail className="w-5 h-5 text-slate-500" />;
-    }
+  const openDetails = (session: any) => {
+    setSelectedSession(session);
+    setIsDetailsOpen(true);
   };
-
-  const getBg = (type: string) => {
-    switch(type) {
-      case 'guidance': return "bg-blue-50";
-      case 'motivation': return "bg-orange-50";
-      case 'reminder': return "bg-fuchsia-50";
-      case 'announcement': return "bg-emerald-50";
-      default: return "bg-slate-50";
-    }
-  };
-
-  const unreadCount = messages.filter(m => !m.is_read).length;
 
   return (
-    <div className="flex flex-col h-full space-y-6">
-      
-      {/* Header */}
-      <div className="shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            <HeartHandshake className="w-8 h-8 text-rose-500" />
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500 max-w-full overflow-hidden pb-12">
+      {/* ─────────────────────────────────────────────────────────────
+          1. Clean Page Header with Reference Coach Illustration
+          ───────────────────────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 pb-1">
+        <div className="space-y-1.5 max-w-xl">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             College Coach
           </h1>
-          <p className="text-slate-500 mt-2 font-medium">
-            Your personal accountability hub. Stay on track with live sessions and guidance.
+          <p className="text-slate-500 text-sm sm:text-base font-normal leading-relaxed">
+            Your personal guide for colleges and scholarships.
+            <br />
+            We&apos;re here to help you every step of the way!
           </p>
         </div>
-        
-        {/* Tabs */}
-        <div className="flex p-1 bg-slate-200/60 rounded-xl w-fit">
-          <button
-            onClick={() => setActiveTab("inbox")}
-            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
-              activeTab === "inbox" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <Mail className="w-4 h-4" /> Inbox
-            {unreadCount > 0 && (
-              <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{unreadCount}</span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("sessions")}
-            className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
-              activeTab === "sessions" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <Video className="w-4 h-4" /> Live Sessions
-          </button>
+
+        {/* Exact Reference Coach Illustration */}
+        <div className="w-full md:w-auto flex justify-center md:justify-end shrink-0">
+          <CoachingIllustration className="w-full max-w-[280px] sm:max-w-[340px] md:max-w-[380px]" />
         </div>
       </div>
 
-      <div className="flex-1 min-h-0">
-        {activeTab === "inbox" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-            {/* Left Column: Inbox List */}
-            <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-full">
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
-                <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                  <Mail className="w-5 h-5 text-slate-400" /> Messages
-                </h2>
-                <button
-                  onClick={() => {
-                    setIsComposing(true);
-                    setActiveMessage(null);
-                  }}
-                  className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  New Message
-                </button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center space-y-3">
-                    <CheckCircle2 className="w-12 h-12 text-slate-200" />
-                    <p>You're all caught up! No messages yet.</p>
-                  </div>
-                ) : (
-                  messages.map((msg) => (
-                      <button
-                        key={msg.id}
-                        onClick={() => {
-                          handleSelectMessage(msg);
-                          setIsComposing(false);
-                        }}
-                        className={`w-full text-left p-4 rounded-2xl transition-all border ${
-                          activeMessage?.id === msg.id && !isComposing
-                          ? "bg-slate-900 text-white border-slate-900 shadow-md" 
-                          : msg.is_read 
-                            ? "bg-white border-slate-100 text-slate-600 hover:bg-slate-50"
-                            : "bg-rose-50 border-rose-100 text-slate-900 shadow-sm"
-                      }`}
-                    >
-                      <div className="flex gap-3 items-start">
-                        <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${activeMessage?.id === msg.id ? "bg-white/20" : getBg(msg.type)}`}>
-                          {activeMessage?.id === msg.id ? (
-                            <div className="text-white">{getIcon(msg.type)}</div>
-                          ) : (
-                            getIcon(msg.type)
-                          )}
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className={`text-[10px] font-extrabold uppercase tracking-wider ${activeMessage?.id === msg.id ? "text-slate-300" : "text-slate-400"}`}>
-                              {msg.type}
-                            </span>
-                            {!msg.is_read && activeMessage?.id !== msg.id && (
-                              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
-                            )}
-                          </div>
-                          <h3 className={`font-bold truncate ${!msg.is_read && activeMessage?.id !== msg.id ? "text-slate-900" : ""}`}>
-                            {msg.title}
-                          </h3>
-                          <p suppressHydrationWarning className={`text-xs truncate mt-1 ${activeMessage?.id === msg.id ? "text-slate-400" : "text-slate-500"}`}>
-                            {new Date(msg.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
+      {/* ─────────────────────────────────────────────────────────────
+          2. Two-Column Dashboard Layout
+          ───────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* ── LEFT COLUMN (2 Cols) ── */}
+        <div className="lg:col-span-2 space-y-6 min-w-0">
+          {/* Card 1: Upcoming Coaching Sessions */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-slate-100 shadow-sm space-y-5 min-w-0">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                Upcoming Coaching Sessions
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => setIsCalendarOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-violet-50 text-[#635BFF] border border-[#D5D2FE] font-bold text-xs flex items-center gap-1.5 transition-colors shadow-2xs shrink-0"
+              >
+                <Calendar className="w-3.5 h-3.5 text-[#635BFF]" />
+                View Calendar
+              </button>
             </div>
 
-            {/* Right Column: Reading Pane */}
-            <div className="lg:col-span-2 flex flex-col h-full">
-              {isComposing ? (
-                <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col p-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-extrabold text-slate-900">Message Your Coach</h2>
-                    <p className="text-slate-500 text-sm mt-1">Send a direct message to your coaching team.</p>
-                  </div>
-                  <div className="space-y-4 flex-1">
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-700">Subject</label>
-                      <input 
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900" 
-                        placeholder="e.g. Question about my essay..."
-                        value={composeTitle}
-                        onChange={e => setComposeTitle(e.target.value)}
-                      />
+            {/* Sessions List */}
+            <div className="space-y-4 min-w-0">
+              {loadingSessions ? (
+                <div className="space-y-3">
+                  {[1, 2].map((n) => (
+                    <div
+                      key={n}
+                      className="p-4 sm:p-5 rounded-2xl border border-slate-100 bg-slate-50/60 animate-pulse flex items-center gap-4"
+                    >
+                      <div className="w-16 h-20 bg-slate-200 rounded-2xl shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-5 bg-slate-200 rounded-lg w-1/3" />
+                        <div className="h-4 bg-slate-200 rounded-lg w-1/2" />
+                      </div>
+                      <div className="w-24 h-9 bg-slate-200 rounded-xl shrink-0" />
                     </div>
-                    <div className="space-y-2 flex-1 flex flex-col">
-                      <label className="text-sm font-bold text-slate-700">Message</label>
-                      <textarea 
-                        className="w-full flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-900 resize-none" 
-                        placeholder="Type your message here..."
-                        value={composeContent}
-                        onChange={e => setComposeContent(e.target.value)}
-                      />
-                    </div>
-                    <div className="pt-4 flex gap-3 justify-end">
-                      <button 
-                        onClick={() => setIsComposing(false)}
-                        className="px-6 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={async () => {
-                          if(!composeTitle || !composeContent) return;
-                          setIsSending(true);
-                          try {
-                            const { sendStudentMessage } = await import("@/app/actions/coaching");
-                            await sendStudentMessage(`${composeTitle}\n\n${composeContent}`);
-                            setIsComposing(false);
-                            setComposeTitle("");
-                            setComposeContent("");
-                            const { toast } = await import("sonner");
-                            toast.success("Message sent to coach!");
-                          } catch (e) {
-                            console.error(e);
-                          } finally {
-                            setIsSending(false);
-                          }
-                        }}
-                        disabled={isSending || !composeTitle || !composeContent}
-                        className="px-6 py-2.5 rounded-xl font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-                      >
-                        {isSending ? "Sending..." : "Send Message"} <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ) : activeMessage ? (
-                <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-0">
-                  <div className="p-8 border-b border-slate-100 bg-slate-50/50 shrink-0">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-200 px-3 py-1 rounded-full">
-                        {activeMessage.type}
-                      </span>
-                      <span suppressHydrationWarning className="text-xs text-slate-400 font-medium">
-                        {new Date(activeMessage.created_at).toLocaleString()}
-                      </span>
-                    </div>
-                    <h2 className="text-3xl font-extrabold text-slate-900 leading-tight">
-                      {activeMessage.title}
-                    </h2>
-                  </div>
-                  <div className="p-8 flex-1 overflow-y-auto">
-                    <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
-                      {activeMessage.content}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-3xl border border-indigo-100 p-12 flex flex-col items-center justify-center text-center">
-                  <div className="w-20 h-20 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center mb-6">
-                    <Compass className="w-10 h-10" />
-                  </div>
-                  <h2 className="text-2xl font-extrabold text-slate-900 mb-2">Select a message</h2>
-                  <p className="text-slate-500 max-w-md">
-                    Click on a message in your inbox to read your latest guidance, announcements, and motivational check-ins.
+              ) : sessions.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50/70 rounded-2xl border border-slate-200/70 border-dashed space-y-2">
+                  <CalendarDays className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="text-sm font-bold text-slate-700">No upcoming sessions scheduled</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    New 1:1 advisory slots and group workshops are posted weekly.
                   </p>
                 </div>
+              ) : (
+                sessions.map((session, idx) => {
+                  const sDate = new Date(session.session_date);
+                  const monthName = sDate.toLocaleDateString("en-US", { month: "short" }).toUpperCase();
+                  const dayNum = sDate.getDate();
+                  const dayOfWeek = sDate.toLocaleDateString("en-US", { weekday: "short" });
+                  const timeFormatted = sDate.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  });
+                  const isPremium1on1 =
+                    session.session_type === "1:1" || session.session_type === "private" || session.session_type === "individual";
+
+                  return (
+                    <div
+                      key={session.id || idx}
+                      className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-100 hover:border-violet-200/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0"
+                    >
+                      {/* Left: Date Badge & Details */}
+                      <div className="flex items-center gap-4 min-w-0">
+                        {/* Date Box */}
+                        <div
+                          className={`w-16 h-20 sm:w-18 sm:h-20 rounded-2xl flex flex-col items-center justify-center p-2 shrink-0 text-center ${isPremium1on1 ? "bg-[#F4F1FF]" : "bg-[#EAF5FF]"
+                            }`}
+                        >
+                          <span
+                            className={`text-[10px] font-extrabold uppercase tracking-wider ${isPremium1on1 ? "text-[#7C5CFC]" : "text-[#2F80ED]"
+                              }`}
+                          >
+                            {monthName}
+                          </span>
+                          <span className="text-2xl font-black text-slate-900 leading-none my-0.5">
+                            {dayNum}
+                          </span>
+                          <span className="text-[11px] font-medium text-slate-500">
+                            {dayOfWeek}
+                          </span>
+                        </div>
+
+                        {/* Title & Info */}
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center flex-wrap gap-2">
+                            <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                              {session.title}
+                            </h3>
+                            {isPremium1on1 ? (
+                              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-[#F4F1FF] text-[#7C5CFC]">
+                                Premium
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-[#EAF5FF] text-[#2F80ED]">
+                                Group
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center flex-wrap gap-3 sm:gap-4 text-xs font-normal text-slate-500">
+                            <span className="flex items-center gap-1.5 whitespace-nowrap">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              {timeFormatted} –{" "}
+                              {new Date(
+                                sDate.getTime() + (session.duration_minutes || 60) * 60000
+                              ).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                            </span>
+
+                            <span className="flex items-center gap-1.5 whitespace-nowrap">
+                              <Video className="w-3.5 h-3.5 text-slate-400" />
+                              Virtual (Zoom)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex flex-row sm:flex-col items-center sm:items-center justify-between sm:justify-center gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => handleJoinClick(session)}
+                          disabled={enrollingId === session.id}
+                          className="px-6 py-2.5 rounded-xl font-bold text-xs bg-[#635BFF] hover:bg-[#5249E0] text-white shadow-sm transition-all flex items-center justify-center min-w-[110px]"
+                        >
+                          {session.isEnrolled ? "Join Session" : "Register"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openDetails(session)}
+                          className="text-xs font-semibold text-[#635BFF] hover:text-[#5249E0] transition-colors block text-center"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
-        )}
 
-        {activeTab === "sessions" && (
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:p-8 min-h-full">
-            <div className="mb-8">
-              <h2 className="text-2xl font-extrabold text-slate-900">Upcoming Live Sessions</h2>
-              <p className="text-slate-500 mt-1">Register for group workshops or view your scheduled 1-on-1 coaching.</p>
+          {/* Card 2: After Every Session, We Help You Take Action */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-slate-100 shadow-sm space-y-5 min-w-0">
+            <div className="space-y-1">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                After Every Session, We Help You Take Action
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-xl">
+                Your coach will assign action items that automatically appear in your Dashboard under{" "}
+                <span className="font-semibold text-slate-700">Today&apos;s Priorities</span> and{" "}
+                <span className="font-semibold text-slate-700">This Week&apos;s Goals</span>.
+              </p>
             </div>
-            
-            {loadingSessions ? (
-              <div className="flex justify-center p-12">
-                <span className="w-8 h-8 border-4 border-slate-200 border-t-rose-500 rounded-full animate-spin"></span>
-              </div>
-            ) : sessions.length === 0 ? (
-              <div className="text-center p-12 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
-                <CalendarDays className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-slate-700">No sessions available</h3>
-                <p className="text-slate-500 mt-1">Check back later for upcoming coaching sessions.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {sessions.map((session) => (
-                  <div key={session.id} className="border border-slate-200 rounded-2xl p-6 flex flex-col hover:border-slate-300 transition-colors bg-slate-50/50">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        {session.session_type === 'group' ? (
-                          <span className="flex items-center gap-1.5 px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold uppercase tracking-wider rounded-full">
-                            <Users className="w-3.5 h-3.5" /> Group Session
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1.5 px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold uppercase tracking-wider rounded-full">
-                            <User className="w-3.5 h-3.5" /> 1-on-1 Coaching
-                          </span>
-                        )}
-                      </div>
-                      {session.isEnrolled && (
-                        <span className="flex items-center gap-1 text-emerald-600 text-sm font-bold">
-                          <CheckCircle2 className="w-4 h-4" /> Registered
-                        </span>
-                      )}
-                    </div>
-                    
-                    <h3 className="text-xl font-bold text-slate-900 mb-2">{session.title}</h3>
-                    <p className="text-sm text-slate-600 mb-6 flex-1 line-clamp-3">{session.description}</p>
-                    
-                    <div className="bg-white rounded-xl p-4 border border-slate-100 mb-6 flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center shrink-0">
-                        <CalendarDays className="w-6 h-6 text-slate-500" />
-                      </div>
-                      <div>
-                        <p suppressHydrationWarning className="text-sm font-bold text-slate-900">
-                          {new Date(session.session_date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                        </p>
-                        <p suppressHydrationWarning className="text-sm text-slate-500">
-                          {new Date(session.session_date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {session.isEnrolled ? (
-                      <a 
-                        href={session.meeting_link || "#"} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className={`w-full py-3 px-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-                          session.meeting_link 
-                            ? "bg-slate-900 text-white hover:bg-slate-800" 
-                            : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        }`}
-                      >
-                        <Video className="w-4 h-4" /> 
-                        {session.meeting_link ? "Join Meeting" : "Link pending"}
-                      </a>
-                    ) : (
-                      <button 
-                        onClick={() => handleEnroll(session.id)}
-                        disabled={enrollingId === session.id}
-                        className="w-full py-3 px-4 bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-all"
-                      >
-                        {enrollingId === session.id ? (
-                          <span className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></span>
-                        ) : (
-                          <>Register Now <ArrowRight className="w-4 h-4" /></>
-                        )}
-                      </button>
-                    )}
+
+            {/* 3-Step Visual Diagram */}
+            <div className="pt-2 pb-1">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-2 bg-[#FAF9FF] p-5 sm:p-6 rounded-2xl border border-violet-50/60 max-w-xl">
+                {/* Step 1: Talk with coach */}
+                <div className="flex flex-col items-center text-center space-y-2 flex-1">
+                  <div className="w-14 h-14 rounded-full bg-[#EAF5FF] flex items-center justify-center text-[#2F80ED] shadow-xs">
+                    <Headphones className="w-6 h-6" />
                   </div>
-                ))}
+                  <p className="text-xs font-bold text-slate-800 leading-tight">
+                    Talk with
+                    <br />
+                    your coach
+                  </p>
+                </div>
+
+                {/* Arrow 1 */}
+                <div className="text-slate-300 font-bold text-lg hidden sm:block">→</div>
+
+                {/* Step 2: Get action items */}
+                <div className="flex flex-col items-center text-center space-y-2 flex-1">
+                  <div className="w-14 h-14 rounded-full bg-[#F4F1FF] flex items-center justify-center text-[#7C5CFC] shadow-xs">
+                    <ClipboardList className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-800 leading-tight">
+                    Get action
+                    <br />
+                    items
+                  </p>
+                </div>
+
+                {/* Arrow 2 */}
+                <div className="text-slate-300 font-bold text-lg hidden sm:block">→</div>
+
+                {/* Step 3: Achieve college goals */}
+                <div className="flex flex-col items-center text-center space-y-2 flex-1">
+                  <div className="w-14 h-14 rounded-full bg-[#FFF1EE] flex items-center justify-center text-[#EB5757] shadow-xs">
+                    <Target className="w-6 h-6" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-800 leading-tight">
+                    Achieve your
+                    <br />
+                    college goals!
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
-        )}
+
+          {/* Card 3: How Coaching Works */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-slate-100 shadow-sm space-y-5 min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+              How Coaching Works
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+              {/* Pillar 1 */}
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-full bg-[#F4F1FF] text-[#7C5CFC] flex items-center justify-center shrink-0">
+                  <User className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-[#7C5CFC]">Premium Members</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    1–2 live individual virtual coaching sessions per month.
+                  </p>
+                </div>
+              </div>
+
+              {/* Pillar 2 */}
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-full bg-[#E6F9F5] text-[#27AE60] flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-[#27AE60]">Coaching Members</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    1 live virtual group coaching session per month.
+                  </p>
+                </div>
+              </div>
+
+              {/* Pillar 3 */}
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-full bg-[#FFF6E9] text-[#F2994A] flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900">After Each Session</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Action items, reminders, and follow-ups appear in your Dashboard, Messages, and Calendar.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Reminder Alert Banner */}
+          <div className="bg-[#E8F8F5] border border-[#D0F2EB] rounded-2xl p-3.5 px-4 flex items-center gap-3 text-xs text-[#0D6857] font-medium min-w-0">
+            <Bell className="w-4 h-4 text-[#10B981] shrink-0" />
+            <p className="leading-relaxed">
+              You will receive reminders and follow-ups for your sessions, action items, and important announcements.
+            </p>
+          </div>
+        </div>
+
+        {/* ── RIGHT COLUMN (1 Col) ── */}
+        <div className="lg:col-span-1 space-y-6 min-w-0">
+          {/* Card 1: Your Coach */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm space-y-4 min-w-0">
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">Your Coach</h2>
+
+            <div className="flex items-center gap-3.5">
+              {coachInfo?.avatarUrl ? (
+                <img
+                  src={coachInfo.avatarUrl}
+                  alt={coachInfo.name}
+                  className="w-14 h-14 rounded-full object-cover shrink-0 ring-2 ring-slate-100 shadow-2xs"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-700 text-white flex items-center justify-center font-black text-lg shadow-md shadow-violet-200 ring-2 ring-slate-100 shrink-0">
+                  {(coachInfo?.name || "Admin")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase()}
+                </div>
+              )}
+
+              <div className="space-y-0.5 min-w-0">
+                <h3 className="text-base font-bold text-slate-900 truncate">
+                  {coachInfo?.name || "Super Admin"}
+                </h3>
+                <p className="text-xs text-slate-500 truncate">
+                  {coachInfo?.displayTitle || "Lead Admissions Director"}
+                </p>
+                <p className="text-xs font-bold text-slate-700 flex items-center gap-1 mt-0.5">
+                  <Star className="w-3.5 h-3.5 fill-[#F2C94C] text-[#F2C94C]" />
+                  {coachInfo?.rating || 4.9}{" "}
+                  <span className="text-slate-400 font-normal">
+                    ({coachInfo?.studentsCount || 230}+ students)
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsMessageOpen(true)}
+              className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-violet-50 text-[#635BFF] border border-[#D5D2FE] font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-2xs"
+            >
+              <MessageSquare className="w-4 h-4 text-[#635BFF]" />
+              Message Coach
+            </button>
+          </div>
+
+          {/* Card 2: Quick Actions */}
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-sm space-y-2 min-w-0">
+            <h2 className="text-base font-bold text-slate-900 tracking-tight mb-3">
+              Quick Actions
+            </h2>
+
+            {/* Action 1: Register for Group Session */}
+            <button
+              type="button"
+              onClick={() => {
+                const groupSession = sessions.find((s) => s.session_type === "group");
+                if (groupSession) {
+                  openDetails(groupSession);
+                } else {
+                  setIsCalendarOpen(true);
+                }
+              }}
+              className="w-full p-3 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-[#E6F9F5] text-[#27AE60] flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                  Register for Group Session
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform group-hover:translate-x-0.5" />
+            </button>
+
+            {/* Action 2: View Coaching History */}
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen(true)}
+              className="w-full p-3 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-[#EAF5FF] text-[#2F80ED] flex items-center justify-center shrink-0">
+                  <History className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                  View Coaching History
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform group-hover:translate-x-0.5" />
+            </button>
+
+            {/* Action 3: Session Feedback */}
+            <button
+              type="button"
+              onClick={() => setIsFeedbackOpen(true)}
+              className="w-full p-3 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-[#FFF6E9] text-[#F2994A] flex items-center justify-center shrink-0">
+                  <Star className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                  Session Feedback
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform group-hover:translate-x-0.5" />
+            </button>
+
+            {/* Action 4: Coaching Resources */}
+            <button
+              type="button"
+              onClick={() => setIsResourcesOpen(true)}
+              className="w-full p-3 rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-between text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-[#F4F1FF] text-[#7C5CFC] flex items-center justify-center shrink-0">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                  Coaching Resources
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          3. Interactive Modals
+          ───────────────────────────────────────────────────────────── */}
+      <SessionDetailsModal
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
+        session={selectedSession}
+        onEnroll={handleEnroll}
+        isEnrolling={enrollingId === selectedSession?.id}
+      />
+
+      <MessageCoachModal
+        isOpen={isMessageOpen}
+        onClose={() => setIsMessageOpen(false)}
+        coachName={coachInfo?.name || "Super Admin"}
+        initialMessages={messages}
+        contacts={initialContacts}
+        onMessageSent={() => { }}
+      />
+
+      <CoachingCalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        sessions={sessions}
+        onSelectSession={(s) => openDetails(s)}
+      />
+
+      <CoachingHistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        sessions={sessions}
+      />
+
+      <SessionFeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        coachName={coachInfo?.name || "Super Admin"}
+      />
+
+      <CoachingResourcesModal
+        isOpen={isResourcesOpen}
+        onClose={() => setIsResourcesOpen(false)}
+      />
+
+      <UpgradeFlowModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        targetPlan="elite"
+        currentPlan={userPlan}
+        featureName="1-on-1 College Coaching"
+      />
     </div>
   );
 }

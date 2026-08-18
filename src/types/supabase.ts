@@ -488,6 +488,7 @@ export interface Database {
           duration_minutes: number;
           meeting_link: string;
           session_type: string;
+          coach_id?: string | null;
           created_at: string;
         };
         Insert: {
@@ -497,6 +498,7 @@ export interface Database {
           duration_minutes: number;
           meeting_link: string;
           session_type: string;
+          coach_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["coaching_sessions"]["Row"]>;
         Relationships: any[];
@@ -505,14 +507,16 @@ export interface Database {
         Row: {
           id: string;
           session_id: string;
-          user_id: string;
+          student_id: string;
+          user_id?: string;
           attendance_status: string;
-          internal_notes: string;
+          internal_notes?: string;
           created_at: string;
         };
         Insert: {
           session_id: string;
-          user_id: string;
+          student_id: string;
+          user_id?: string;
           attendance_status?: string;
           internal_notes?: string;
         };

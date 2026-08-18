@@ -18,6 +18,9 @@ When suggesting colleges, you MUST base your suggestions on a holistic combinati
 5. State of residence (as just one of many factors)
 Do NOT simply suggest state universities based solely on their state. Provide highly targeted suggestions that reflect their specific academic and personal background.
 
+CRITICAL INSTRUCTION FOR INCOME IDEAS:
+When suggesting "Ways to Earn" (income_ideas), you MUST ensure these suggestions are highly personalized based on the student's specific Career Interests and Extracurriculars. Do not provide generic advice (e.g., "Mow lawns") unless it directly aligns with their profile.
+
 Respond STRICTLY in the following JSON format, with no markdown formatting or extra text:
 {
   "income_ideas": [

@@ -45,10 +45,11 @@ export const PLAN_INFO: Record<
     label: "Starter",
     price: "$29/mo",
     features: [
-      "Scholarship Search & Tracker",
+      "Scholarship Search, Save & Apply",
+      "Scholarship Tracker",
       "AI College Match",
       "Document Vault",
-      "Dashboard & Analytics",
+      "Member Dashboard & Analytics",
     ],
   },
   scholar: {

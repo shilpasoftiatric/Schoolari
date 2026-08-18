@@ -440,13 +440,13 @@ export function DashboardClient({
     deadlines: []
   };
 
-  const renderLockedOverlay = (featureName: string, targetPlan: "scholar" | "elite") => (
+  const renderLockedOverlay = (featureName: string, description: string, targetPlan: "scholar" | "elite") => (
     <div className="absolute inset-0 z-20 bg-white/40 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
         <Lock className="w-5 h-5 text-slate-400" />
       </div>
       <h3 className="font-bold text-slate-800 text-sm mb-1">{featureName} is Locked</h3>
-      <p className="text-xs text-slate-600 mb-4 font-medium">Upgrade to {targetPlan === 'elite' ? 'Elite' : 'Scholar'} to unlock {featureName.toLowerCase()}.</p>
+      <p className="text-xs text-slate-600 mb-4 font-medium">{description}</p>
       <Button
         onClick={() => {
           if (targetPlan === 'elite') setShowEliteUpgradeModal(true);
@@ -797,13 +797,13 @@ export function DashboardClient({
           </Card>
         )}
 
-        {/* Essay Prompts */}
+        {/* Essays */}
         {((data.essay_prompts && data.essay_prompts.length > 0) || !canAccessFeature(plan, 'essays')) && (
           <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100 flex flex-col min-h-[150px]">
-            {!canAccessFeature(plan, 'essays') && renderLockedOverlay("Essay Prompts", "scholar")}
+            {!canAccessFeature(plan, 'essays') && renderLockedOverlay("Essays", "Unlock Schoolari to write stronger essays with less stress.", "scholar")}
             <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'essays') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
-                <FileEdit className="w-4 h-4 text-violet-500" />Essay Prompts
+                <FileEdit className="w-4 h-4 text-violet-500" />Essays
               </CardTitle>
             </CardHeader>
             <CardContent className={cn("space-y-3 relative z-10", !canAccessFeature(plan, 'essays') && "blur-sm")}>
@@ -820,13 +820,13 @@ export function DashboardClient({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 items-stretch">
-        {/* Resume Tips */}
+        {/* Resume Builder */}
         {((data.resume_tips && data.resume_tips.length > 0) || !canAccessFeature(plan, 'resume')) && (
           <Card className="h-fit shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100 flex flex-col min-h-[150px]">
-            {!canAccessFeature(plan, 'resume') && renderLockedOverlay("Resume Tips", "scholar")}
+            {!canAccessFeature(plan, 'resume') && renderLockedOverlay("Resume Builder", "Unlock Schoolari to build a standout resume in minutes.", "scholar")}
             <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'resume') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
-                <FileText className="w-4 h-4 text-amber-500" />Resume Tips
+                <FileText className="w-4 h-4 text-amber-500" />Resume Builder
               </CardTitle>
             </CardHeader>
             <CardContent className={cn("space-y-3 relative z-10", !canAccessFeature(plan, 'resume') && "blur-sm")}>
@@ -840,14 +840,14 @@ export function DashboardClient({
           </Card>
         )}
 
-        {/* ── Row 6: Ways to Earn (Earn While You Learn) ── */}
+        {/* ── Row 6: Earn Income ── */}
         {((data.income_ideas && data.income_ideas.length > 0) || !canAccessFeature(plan, 'income')) && (
           <Card className="h-full shadow-sm border-emerald-100 bg-emerald-50/20 relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 flex flex-col min-h-[150px]">
-            {!canAccessFeature(plan, 'income') && renderLockedOverlay("Ways to Earn", "scholar")}
+            {!canAccessFeature(plan, 'income') && renderLockedOverlay("Earn Income", "Unlock Schoolari to discover real ways to earn money now.", "scholar")}
             <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'income') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-emerald-800">
                 <Banknote className="w-5 h-5 text-emerald-600" />
-                Ways to Earn
+                Earn Income
               </CardTitle>
             </CardHeader>
             <CardContent className={cn("relative z-10", !canAccessFeature(plan, 'income') && "blur-sm")}>
@@ -868,6 +868,26 @@ export function DashboardClient({
               )}
             </CardContent>
             <Banknote className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-emerald-200 opacity-60", !canAccessFeature(plan, 'income') && "blur-sm")} />
+          </Card>
+        )}
+
+        {/* ── College Coach locked card (Elite only) ── */}
+        {!canAccessFeature(plan, 'coaching') && (
+          <Card className="h-full shadow-sm border-indigo-100 relative overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-50 flex flex-col min-h-[150px]">
+            {renderLockedOverlay("College Coach", "Unlock your personal Schoolari Coach to guide you every step of the way.", "elite")}
+            <CardHeader className="pb-2 blur-sm">
+              <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
+                <GraduationCap className="w-4 h-4 text-indigo-500" />College Coach
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="blur-sm">
+              <div className="space-y-2">
+                <div className="h-4 bg-indigo-100 rounded-full w-4/5" />
+                <div className="h-4 bg-indigo-100 rounded-full w-3/5" />
+                <div className="h-4 bg-indigo-100 rounded-full w-2/3" />
+              </div>
+            </CardContent>
+            <GraduationCap className="absolute -bottom-4 -right-4 w-24 h-24 text-indigo-200 opacity-60 blur-sm" />
           </Card>
         )}
       </div>
