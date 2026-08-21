@@ -22,6 +22,15 @@ const getColumnsForCategory = (category: string) => {
       { id: "Lost", label: "Passed", color: "bg-red-50 text-red-700 border-red-200" },
     ];
   }
+  if (category === "coaching") {
+    return [
+      { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
+      { id: "In Progress", label: "In Progress", color: "bg-blue-50 text-blue-700 border-blue-200" },
+      { id: "Submitted", label: "Submitted", color: "bg-amber-50 text-amber-700 border-amber-200" },
+      { id: "Won", label: "Completed", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      { id: "Lost", label: "Archived", color: "bg-red-50 text-red-700 border-red-200" },
+    ];
+  }
   return [
     { id: "Not Started", label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
     { id: "In Progress", label: "In Progress", color: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -34,9 +43,10 @@ const getColumnsForCategory = (category: string) => {
 const CATEGORIES = [
   { id: "all", label: "All Items" },
   { id: "scholarship", label: "Scholarships" },
-  { id: "essay", label: "Essays" },
   { id: "college", label: "Colleges" },
   { id: "job", label: "Jobs" },
+  { id: "essay", label: "Essays" },
+  { id: "coaching", label: "Coaching Tasks" },
 ];
 
 export function TrackerDashboard({ initialApplications, plan = 'starter' }: { initialApplications: any[], plan?: string }) {
@@ -52,8 +62,29 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
   const activeColumns = getColumnsForCategory(activeCategory);
   
   const visibleCategories = CATEGORIES.filter((c) => {
-    if (c.id === 'essay' && !canAccessFeature(plan as SubscriptionPlan, 'essays')) return false;
-    if (c.id === 'job' && !canAccessFeature(plan as SubscriptionPlan, 'jobs')) return false;
+    if (c.id === "all") return true;
+
+    // Always show if the user has any items of this category in tracker
+    const hasItems = applications.some((app) => {
+      const ref = (app.reference_type || "").toLowerCase();
+      if (c.id === "coaching") {
+        return ref === "coaching" || ref === "coaching_task" || ref === "coaching task";
+      }
+      return ref === c.id.toLowerCase();
+    });
+    if (hasItems) return true;
+
+    // Core tracker categories
+    if (c.id === "scholarship" || c.id === "college" || c.id === "job") return true;
+
+    // Essays tab gated by feature access
+    if (c.id === "essay" && !canAccessFeature(plan as SubscriptionPlan, "essays")) return false;
+
+    // Coaching tab: show if plan has coaching access or user has coaching items
+    if (c.id === "coaching") {
+      return canAccessFeature(plan as SubscriptionPlan, "coaching") || hasItems;
+    }
+
     return true;
   });
 
@@ -117,7 +148,11 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
 
   const filteredApplications = applications.filter((app) => {
     if (activeCategory === "all") return true;
-    return app.reference_type?.toLowerCase() === activeCategory.toLowerCase();
+    const ref = (app.reference_type || "").toLowerCase();
+    if (activeCategory === "coaching") {
+      return ref === "coaching" || ref === "coaching_task" || ref === "coaching task";
+    }
+    return ref === activeCategory.toLowerCase();
   }).map(app => {
     // Fix stuck jobs from previous bug where status was saved as 'Applied' instead of 'Submitted'
     if (app.reference_type === "job" && app.status === "Applied") {
@@ -314,6 +349,17 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
                                     className="flex items-center justify-center w-full gap-2 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 py-2 rounded-xl transition-colors"
                                   >
                                     View Original <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                </CardFooter>
+                              )}
+
+                              {((app.reference_type || "").toLowerCase() === "coaching" || (app.reference_type || "").toLowerCase() === "coaching_task") && (
+                                <CardFooter className="p-4 pt-0">
+                                  <a
+                                    href="/coaching"
+                                    className="flex items-center justify-center w-full gap-2 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 py-2 rounded-xl transition-colors"
+                                  >
+                                    View in Coaching <ExternalLink className="w-3.5 h-3.5" />
                                   </a>
                                 </CardFooter>
                               )}

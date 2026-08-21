@@ -57,24 +57,18 @@ export default async function AdminDashboardPage() {
   const supabase = await createClient();
   const adminSupabase = await createAdminClient();
 
-  // Fire user fetch and count fetches concurrently
+  // Fire user fetch, profile data and count fetches concurrently
   const [
     {
       data: { user },
     },
-    { count: totalStudents },
-    { count: totalParentsLinked },
+    { data: allProfiles },
     { count: activeSubscriptions },
     { count: coachingSessions },
     { count: messagesSent },
   ] = await Promise.all([
     supabase.auth.getUser(),
-    adminSupabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "user"),
-    adminSupabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .neq("parent_email", "")
-      .not("parent_email", "is", null),
+    adminSupabase.from("profiles").select("id, account_type, role, parent_email, linked_student_id"),
     adminSupabase
       .from("profiles")
       .select("*", { count: "exact", head: true })
@@ -82,6 +76,32 @@ export default async function AdminDashboardPage() {
     adminSupabase.from("coaching_sessions").select("*", { count: "exact", head: true }),
     adminSupabase.from("coaching_messages").select("*", { count: "exact", head: true }),
   ]);
+
+  const staffRoleKeys = new Set([
+    "super_admin",
+    "admin",
+    "college_coach",
+    "content_manager",
+    "customer_support",
+    "counselor",
+    "essay_editor",
+    "financial_aid_specialist",
+  ]);
+
+  const profilesList = allProfiles || [];
+
+  // Exact student count: not a staff account/role and not a parent account
+  const totalStudents = profilesList.filter((p) => {
+    const isStaff = p.account_type === "staff" || staffRoleKeys.has(p.role);
+    const isParent = p.account_type === "parent";
+    return !isStaff && !isParent;
+  }).length;
+
+  // Exact parent count: account_type is 'parent'
+  const totalParents = profilesList.filter((p) => {
+    const isStaff = p.account_type === "staff" || staffRoleKeys.has(p.role);
+    return p.account_type === "parent" && !isStaff;
+  }).length;
 
   // Use adminSupabase to reliably read staff profile and role (bypasses RLS)
   const { data: profile } = await adminSupabase
@@ -105,7 +125,6 @@ export default async function AdminDashboardPage() {
     day: "numeric",
   });
 
-  const totalParents = totalParentsLinked || 0;
   const canViewPayments = hasPermission(userRole, "manage_payments");
 
   // Filter Quick Actions strictly by RBAC permissions for this role

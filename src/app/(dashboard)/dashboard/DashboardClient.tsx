@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search, Trophy, Bookmark, FileEdit, GraduationCap, ArrowRight, Lightbulb, Bell, Banknote, ListTodo, Flame, Send, FolderOpen, Calendar, MoreHorizontal, CheckCircle2, Circle, Flag, Users, Laptop, Video, Wallet, BarChart3, Loader2, FileText, X, PlusCircle, ChevronRight, ChevronLeft, Target, Lock } from "lucide-react";
 import { useTransition } from "react";
 import { completeTask, moveTaskToTracker, skipTask } from "@/app/actions/tasks";
@@ -18,16 +19,12 @@ import { ScholarshipCard } from "@/components/ui/ScholarshipCard";
 
 import { UpgradeFlowModal } from "@/components/ui/UpgradeFlowModal";
 import { searchScholarships } from "@/app/actions/scholarships";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useAIState } from "@/context/AIStateContext";
+import { AILoader } from "@/components/ui/AILoader";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
 const STATUS_COLORS: Record<string, string> = {
   "In Progress": "bg-blue-100 text-blue-700",
@@ -161,11 +158,11 @@ function DashboardSection({
           <span className="flex items-center gap-2">
             <Icon className={cn("w-5 h-5", colorClass)} /> {title}
           </span>
-          {totalTasks > 0 && (
+          {/* {totalTasks > 0 && (
             <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full bg-white border border-slate-100 shadow-sm")}>
               {completedTasks}/{totalTasks} Done
             </span>
-          )}
+          )} */}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 pt-4 flex-1">
@@ -297,6 +294,7 @@ export function DashboardClient({
   userGoals = [],
   globalTasks = [],
   trackerItems = [],
+  matchedScholarshipsCount = 0,
   plan = null,
   createdAt = null,
 }: {
@@ -306,10 +304,12 @@ export function DashboardClient({
   userGoals?: string[];
   globalTasks?: any[];
   trackerItems?: any[];
+  matchedScholarshipsCount?: number;
   plan?: import("@/lib/subscription").SubscriptionPlan;
   createdAt?: string | null;
 }) {
   const { dashboardData, setDashboardData, prefetchBackgroundData } = useAIState();
+  const router = useRouter();
   const [loading, setLoading] = useState(!initialData && !dashboardData);
   const [error, setError] = useState("");
   const [upsellDismissed, setUpsellDismissed] = useState(false);
@@ -324,34 +324,68 @@ export function DashboardClient({
   const [isSearching, setIsSearching] = useState(false);
   const [showEliteUpgradeModal, setShowEliteUpgradeModal] = useState(false);
   const [showScholarUpgradeModal, setShowScholarUpgradeModal] = useState(false);
+  const [isRefreshingAI, setIsRefreshingAI] = useState(false);
 
-  async function generateDashboard(showSkeleton = true) {
+  async function generateDashboard(showSkeleton = false, forceAI = false) {
+    if (forceAI) {
+      setIsRefreshingAI(true);
+    } else if (showSkeleton && !dashboardData && !initialData) {
+      setLoading(true);
+    }
+
     try {
-      const hasExistingData = !!(dashboardData || initialData);
-      if (!hasExistingData && showSkeleton) {
-        setLoading(true);
-      }
-      const res = await fetch('/api/ai/generate-dashboard', { method: 'POST' });
+      const res = await fetch('/api/ai/generate-dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: forceAI }),
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to generate AI data");
 
-      const currentData = dashboardData || initialData;
-      const isUpdated = !currentData || JSON.stringify(currentData._state) !== JSON.stringify(json._state);
-
-      if (hasExistingData && isUpdated) {
-        setLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        setDashboardData(json);
-        setLoading(false);
-      } else {
-        setDashboardData(json);
-        setLoading(false);
+      setDashboardData(json);
+      router.refresh();
+      if (forceAI) {
+        toast.success("AI Dashboard refreshed with fresh insights!");
       }
     } catch (err: any) {
       setError(err.message);
+      if (forceAI) {
+        toast.error(err.message || "Failed to refresh AI dashboard.");
+      }
+    } finally {
       setLoading(false);
+      setIsRefreshingAI(false);
     }
   }
+
+  // Real-time live synchronization for student dashboard items
+  useEffect(() => {
+    const supabase = createClient();
+
+    const refreshDashboardData = async () => {
+      try {
+        await generateDashboard(false);
+        router.refresh();
+      } catch (err) {
+        console.error("Realtime dashboard refresh error:", err);
+      }
+    };
+
+    const channel = supabase
+      .channel("student-dashboard-live-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "essays" }, refreshDashboardData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "saved_colleges" }, refreshDashboardData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tracker_items" }, refreshDashboardData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, refreshDashboardData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "documents" }, refreshDashboardData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, refreshDashboardData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refreshDashboardData)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -461,7 +495,12 @@ export function DashboardClient({
   );
 
   return (
-    <div className="space-y-8 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="relative min-h-full space-y-8 pb-28">
+      <AILoader
+        isOpen={isRefreshingAI}
+        message="Analyzing your profile & generating fresh AI recommendations..."
+      />
+
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 flex items-center gap-2">
@@ -476,10 +515,14 @@ export function DashboardClient({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Button onClick={() => generateDashboard(true)} className="gap-2 bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white shadow-md rounded-xl">
+        <Button 
+          onClick={() => generateDashboard(false, true)} 
+          disabled={isRefreshingAI}
+          className="gap-2 bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white shadow-md rounded-xl cursor-pointer"
+        >
           <Lightbulb className="w-4 h-4" /> Refresh AI Dashboard
         </Button>
-        <Button variant="outline" onClick={() => setIsSearchModalOpen(true)} className="gap-2 rounded-xl border-slate-200">
+        <Button variant="outline" onClick={() => setIsSearchModalOpen(true)} className="gap-2 rounded-xl border-slate-200 hover:border-violet-300 hover:text-violet-700 transition-all">
           <Search className="w-4 h-4 text-slate-400" /> Find Scholarships
         </Button>
       </div>
@@ -519,9 +562,9 @@ export function DashboardClient({
               </div>
               <button
                 onClick={() => setShowEliteUpgradeModal(true)}
-                className="shrink-0 bg-white text-amber-600 font-bold py-3 px-6 rounded-xl hover:bg-amber-50 transition-colors shadow-lg text-sm whitespace-nowrap"
+                className="bg-white text-amber-600 hover:bg-amber-50 font-bold px-6 py-3 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 whitespace-nowrap shrink-0 text-sm cursor-pointer"
               >
-                Upgrade to Elite →
+                Upgrade to Elite
               </button>
             </div>
           </div>
@@ -553,14 +596,33 @@ export function DashboardClient({
               return true;
             }).map((s: any, i: number) => {
               const Icon = iconMap[s.label] || Trophy;
+              const liveAppliedCount = (trackerItems || []).filter((t: any) =>
+                t.reference_type === "scholarship" && (t.status === "In Progress" || t.status === "Submitted" || t.status === "Won" || t.status === "Applied")
+              ).length;
+
+              const displayValue = s.label === "Scholarships Matched" && typeof matchedScholarshipsCount === "number" && matchedScholarshipsCount > 0
+                ? String(matchedScholarshipsCount)
+                : s.label === "Applied Scholarship Applications" && typeof liveAppliedCount === "number" && liveAppliedCount > 0
+                  ? String(liveAppliedCount)
+                  : s.value;
+
               return (
-                <div key={i} className="flex items-center gap-3">
+                <div
+                  key={i}
+                  onClick={() => {
+                    if (s.label === "Scholarships Matched") setIsSearchModalOpen(true);
+                    else if (s.label === "Applied Scholarship Applications") router.push("/tracker?type=scholarship");
+                    else if (s.label === "Essays Drafted") router.push("/essays");
+                    else if (s.label === "Colleges Saved") router.push("/colleges");
+                  }}
+                  className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                >
                   <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", s.bg)}>
                     <Icon className={cn("w-5 h-5", s.color)} />
                   </div>
                   <div>
                     <p className="text-xs font-medium text-slate-400">{s.label}</p>
-                    <p className="text-2xl font-extrabold text-slate-900 leading-tight">{s.value}</p>
+                    <p className="text-2xl font-extrabold text-slate-900 leading-tight">{displayValue}</p>
                     <p className="text-xs text-slate-400">{s.sub}</p>
                   </div>
                 </div>
@@ -772,11 +834,11 @@ export function DashboardClient({
         );
       })()}
 
-      {/* ── Row 5: AI Suggested Resources (Colleges, Essay Prompts, Resume Tips) ── */}
+      {/* ── AI Suggested Guidance & Resource Cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-        {/* Suggested Colleges */}
+        {/* 1. Suggested Colleges */}
         {data.suggested_colleges && data.suggested_colleges.length > 0 && (
-          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100 flex flex-col">
+          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100 flex flex-col min-h-[150px] hover:shadow-md transition-all">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
                 <GraduationCap className="w-4 h-4 text-blue-500" />Suggested Colleges
@@ -784,7 +846,7 @@ export function DashboardClient({
             </CardHeader>
             <CardContent className="space-y-3 relative z-10">
               {data.suggested_colleges.map((college: any, i: number) => (
-                <div key={i} className="flex flex-col gap-1 bg-white/60 p-3 rounded-xl backdrop-blur-sm border border-blue-100/50">
+                <div key={i} className="flex flex-col gap-1 bg-white/60 p-3 rounded-xl backdrop-blur-sm border border-blue-100/50 hover:bg-white hover:border-blue-200 hover:shadow-xs transition-all cursor-default">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-bold text-slate-800">{college.name}</span>
                     <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full shrink-0 ml-2">{college.match} Match</span>
@@ -797,9 +859,9 @@ export function DashboardClient({
           </Card>
         )}
 
-        {/* Essays */}
+        {/* 2. Essays */}
         {((data.essay_prompts && data.essay_prompts.length > 0) || !canAccessFeature(plan, 'essays')) && (
-          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100 flex flex-col min-h-[150px]">
+          <Card className="h-full shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-violet-50 to-purple-50 border-violet-100 flex flex-col min-h-[150px] hover:shadow-md transition-all">
             {!canAccessFeature(plan, 'essays') && renderLockedOverlay("Essays", "Unlock Schoolari to write stronger essays with less stress.", "scholar")}
             <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'essays') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
@@ -808,7 +870,7 @@ export function DashboardClient({
             </CardHeader>
             <CardContent className={cn("space-y-3 relative z-10", !canAccessFeature(plan, 'essays') && "blur-sm")}>
               {(data.essay_prompts || [{ topic: "Topic 1", advice: "Tip" }, { topic: "Topic 2", advice: "Tip" }]).map((prompt: any, i: number) => (
-                <div key={i} className="flex flex-col gap-1 bg-white/60 p-3 rounded-xl backdrop-blur-sm border border-violet-100/50">
+                <div key={i} className="flex flex-col gap-1 bg-white/60 p-3 rounded-xl backdrop-blur-sm border border-violet-100/50 hover:bg-white hover:border-violet-200 hover:shadow-xs transition-all cursor-default">
                   <span className="text-sm font-bold text-slate-800">{prompt.topic}</span>
                   <span className="text-xs text-slate-600 italic">Tip: {prompt.advice}</span>
                 </div>
@@ -817,32 +879,49 @@ export function DashboardClient({
             <FileEdit className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-violet-200 opacity-60", !canAccessFeature(plan, 'essays') && "blur-sm")} />
           </Card>
         )}
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 items-stretch">
-        {/* Resume Builder */}
+        {/* 3. Resume Builder (Full Width Row) */}
         {((data.resume_tips && data.resume_tips.length > 0) || !canAccessFeature(plan, 'resume')) && (
-          <Card className="h-fit shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-amber-100 flex flex-col min-h-[150px]">
+          <Card className="md:col-span-2 shadow-sm border-slate-100 relative overflow-hidden bg-gradient-to-br from-amber-50/80 via-amber-50/40 to-orange-50/60 border-amber-100 flex flex-col min-h-[150px] hover:shadow-md transition-all">
             {!canAccessFeature(plan, 'resume') && renderLockedOverlay("Resume Builder", "Unlock Schoolari to build a standout resume in minutes.", "scholar")}
-            <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'resume') && "blur-sm")}>
+            <CardHeader className={cn("pb-2 flex flex-row items-center justify-between", !canAccessFeature(plan, 'resume') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
-                <FileText className="w-4 h-4 text-amber-500" />Resume Builder
+                <FileText className="w-4 h-4 text-amber-500" />
+                Resume Builder
               </CardTitle>
+              {canAccessFeature(plan, 'resume') && (
+                <Link
+                  href="/resume"
+                  className="text-xs font-bold text-amber-700 hover:text-amber-800 bg-amber-100/80 hover:bg-amber-200/80 px-3 py-1 rounded-xl transition-all flex items-center gap-1.5"
+                >
+                  Open Resume Builder <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              )}
             </CardHeader>
-            <CardContent className={cn("space-y-3 relative z-10", !canAccessFeature(plan, 'resume') && "blur-sm")}>
-              <ul className="list-disc list-outside ml-4 text-sm text-slate-700 space-y-2 bg-white/60 p-4 rounded-xl backdrop-blur-sm border border-amber-100/50">
-                {(data.resume_tips || ["Tip 1", "Tip 2"]).map((tip: string, i: number) => (
-                  <li key={i}>{tip}</li>
+            <CardContent className={cn("pt-2 relative z-10", !canAccessFeature(plan, 'resume') && "blur-sm")}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(data.resume_tips || [
+                  "Highlight leadership roles and extracurricular impact with concrete achievements.",
+                  "Detail technical and creative projects, emphasizing teamwork and problem solving.",
+                  "Quantify results with measurable metrics, awards, and milestones."
+                ]).map((tip: string, i: number) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-2.5 bg-white/80 backdrop-blur-sm p-3.5 rounded-xl border border-amber-100/70 shadow-2xs hover:bg-white hover:border-amber-200 hover:shadow-xs transition-all cursor-default"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                    <span className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed">{tip}</span>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </CardContent>
-            <FileText className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-amber-200 opacity-60", !canAccessFeature(plan, 'resume') && "blur-sm")} />
+            <FileText className={cn("absolute -bottom-4 -right-4 w-28 h-28 text-amber-200 opacity-40", !canAccessFeature(plan, 'resume') && "blur-sm")} />
           </Card>
         )}
 
-        {/* ── Row 6: Earn Income ── */}
+        {/* 4. Earn Income */}
         {((data.income_ideas && data.income_ideas.length > 0) || !canAccessFeature(plan, 'income')) && (
-          <Card className="h-full shadow-sm border-emerald-100 bg-emerald-50/20 relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 flex flex-col min-h-[150px]">
+          <Card className="h-full shadow-sm border-emerald-100 bg-emerald-50/20 relative overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-50 flex flex-col min-h-[150px] hover:shadow-md transition-all">
             {!canAccessFeature(plan, 'income') && renderLockedOverlay("Earn Income", "Unlock Schoolari to discover real ways to earn money now.", "scholar")}
             <CardHeader className={cn("pb-2", !canAccessFeature(plan, 'income') && "blur-sm")}>
               <CardTitle className="text-base flex items-center gap-2 font-bold text-emerald-800">
@@ -857,7 +936,7 @@ export function DashboardClient({
                   <h4 className="text-[10px] font-extrabold text-emerald-600/70 uppercase tracking-wider">AI Suggestions</h4>
                   <div className="space-y-3">
                     {(data.income_ideas || [{ opportunity: "Idea 1", difficulty: "Easy", how_to_start: "Start here" }]).map((idea: any, i: number) => (
-                      <div key={i} className="flex flex-col gap-1.5 p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-emerald-100/50 hover:bg-emerald-50/80 transition-colors shadow-sm">
+                      <div key={i} className="flex flex-col gap-1.5 p-4 rounded-xl bg-white/60 backdrop-blur-sm border border-emerald-100/50 hover:bg-white hover:border-emerald-200 hover:shadow-xs transition-all shadow-sm cursor-default">
                         <span className="text-sm font-bold text-emerald-900">{idea.opportunity}</span>
                         <span className="text-xs text-slate-600 font-medium">Difficulty: {idea.difficulty}</span>
                         <span className="text-xs text-slate-600 leading-snug mt-1">{idea.how_to_start}</span>
@@ -871,34 +950,80 @@ export function DashboardClient({
           </Card>
         )}
 
-        {/* ── College Coach locked card (Elite only) ── */}
-        {!canAccessFeature(plan, 'coaching') && (
-          <Card className="h-full shadow-sm border-indigo-100 relative overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-50 flex flex-col min-h-[150px]">
-            {renderLockedOverlay("College Coach", "Unlock your personal Schoolari Coach to guide you every step of the way.", "elite")}
-            <CardHeader className="pb-2 blur-sm">
-              <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
-                <GraduationCap className="w-4 h-4 text-indigo-500" />College Coach
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="blur-sm">
+        {/* 5. College Coach (Unlocked for Elite, Locked Overlay for Non-Elite) */}
+        <Card className="h-full shadow-sm border-indigo-100 relative overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-50 flex flex-col min-h-[150px] hover:shadow-md transition-all">
+          {!canAccessFeature(plan, 'coaching') && renderLockedOverlay("College Coach", "Unlock your personal Schoolari Coach to guide you every step of the way.", "elite")}
+          
+          <CardHeader className={cn("pb-2 flex flex-row items-center justify-between", !canAccessFeature(plan, 'coaching') && "blur-sm")}>
+            <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
+              <GraduationCap className="w-5 h-5 text-indigo-600" />
+              College Coach
+            </CardTitle>
+            {canAccessFeature(plan, 'coaching') && (
+              <span className="text-[10px] font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                Elite Active
+              </span>
+            )}
+          </CardHeader>
+
+          <CardContent className={cn("space-y-3 relative z-10 flex-1 flex flex-col justify-between", !canAccessFeature(plan, 'coaching') && "blur-sm")}>
+            {!canAccessFeature(plan, 'coaching') ? (
               <div className="space-y-2">
                 <div className="h-4 bg-indigo-100 rounded-full w-4/5" />
                 <div className="h-4 bg-indigo-100 rounded-full w-3/5" />
                 <div className="h-4 bg-indigo-100 rounded-full w-2/3" />
               </div>
-            </CardContent>
-            <GraduationCap className="absolute -bottom-4 -right-4 w-24 h-24 text-indigo-200 opacity-60 blur-sm" />
-          </Card>
-        )}
+            ) : (
+              <div className="space-y-3 flex-1 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="bg-white/70 backdrop-blur-sm p-3.5 rounded-xl border border-indigo-100/70 space-y-1.5 hover:bg-white hover:border-indigo-200 hover:shadow-xs transition-all cursor-default">
+                    <p className="text-xs font-bold text-indigo-950">1-on-1 Admissions Coaching</p>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Connect with your dedicated coach for personalized application reviews, mock interviews, and strategy planning.
+                    </p>
+                  </div>
+
+                  {coachTasks.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600">Pending Coach Action Items ({coachTasks.length})</p>
+                      {coachTasks.slice(0, 2).map((t, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs bg-white/60 p-2 rounded-lg border border-indigo-100/50 hover:bg-white hover:border-indigo-200 hover:shadow-xs transition-all cursor-default">
+                          <span className="font-semibold text-slate-800 truncate max-w-[200px]">{t.title}</span>
+                          <span className="text-[10px] text-indigo-600 font-bold">Action Item</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs text-indigo-700 bg-indigo-50/80 p-2.5 rounded-xl border border-indigo-100 font-medium hover:bg-white hover:border-indigo-200 hover:shadow-xs transition-all cursor-default">
+                      <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>You're all caught up with your coaching action items!</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2">
+                  <Link
+                    href="/coaching"
+                    className="w-full text-center text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 px-3 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    Go to Coaching <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+            )}
+          </CardContent>
+
+          <GraduationCap className={cn("absolute -bottom-4 -right-4 w-24 h-24 text-indigo-200 opacity-60", !canAccessFeature(plan, 'coaching') && "blur-sm")} />
+        </Card>
       </div>
 
       {/* ── Scholarship Search Modal ── */}
       {isSearchModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto custom-scrollbar animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/60 backdrop-blur-sm custom-scrollbar animate-in fade-in duration-200"
           onClick={(e) => { if (e.target === e.currentTarget) setIsSearchModalOpen(false); }}
         >
-          <div className="bg-slate-50 w-full max-w-5xl min-h-[50vh] flex flex-col shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200 mb-[10vh]">
+          <div className="bg-slate-50 w-full max-w-5xl min-h-[50vh] max-h-[95vh] flex flex-col shadow-2xl rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200 mb-[10vh]">
             <div className="p-6 md:p-8 bg-white border-b border-slate-200 relative shrink-0">
               <button
                 onClick={() => setIsSearchModalOpen(false)}
@@ -920,7 +1045,7 @@ export function DashboardClient({
                   placeholder="Search scholarships (e.g., STEM, California, Sports)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-14 pl-12 pr-12 rounded-2xl border-2 border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 text-base font-medium transition-all"
+                  className="w-full h-10 pl-12 pr-12 rounded-xl border-1 border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 text-base font-medium transition-all"
                 />
                 {searchQuery && (
                   <button
@@ -940,9 +1065,12 @@ export function DashboardClient({
                 </div>
               ) : searchResults.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {searchResults.map(scholarship => (
-                    <ScholarshipCard key={scholarship.id} scholarship={scholarship} userActionStatus={null} />
-                  ))}
+                  {searchResults.map(scholarship => {
+                    const status = trackerItems?.find((t: any) => t.reference_type === "scholarship" && t.reference_id === scholarship.id)?.status ?? null;
+                    return (
+                      <ScholarshipCard key={scholarship.id} scholarship={scholarship} userActionStatus={status} />
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-center">

@@ -1,8 +1,8 @@
 import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TrackerDashboard } from "./TrackerDashboard";
-
 import { getStudentDashboardData } from "@/services/data-fetcher";
+import { getUserPlan } from "@/lib/subscription-server";
 
 export const metadata = {
   title: "Tracker",
@@ -14,6 +14,7 @@ export default async function TrackerPage() {
   if (!user) redirect("/login");
 
   const supabase = await createClient();
+  const plan = await getUserPlan();
 
   const { masterId, profile } = await getStudentDashboardData(user.id);
 
@@ -52,7 +53,11 @@ export default async function TrackerPage() {
         </p>
       </div>
 
-      <TrackerDashboard initialApplications={applications || []} plan={(profile as any)?.subscription_tier || (profile as any)?.subscription_status || 'starter'} />
+      <TrackerDashboard 
+        initialApplications={applications || []} 
+        plan={plan || (profile as any)?.subscription_tier || 'starter'} 
+      />
     </div>
   );
 }
+

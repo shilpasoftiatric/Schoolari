@@ -9,6 +9,7 @@ import {
   createCustomJob, updateCustomJob, deleteCustomJob, toggleCustomJobActive,
   createCareerArticle, updateCareerArticle, deleteCareerArticle, toggleCareerArticleActive
 } from "@/app/actions/admin-career";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 function EmptyJob() {
@@ -32,6 +33,24 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
   
   const [isPending, startTransition] = useTransition();
 
+  const broadcastChange = (type: "jobs" | "articles") => {
+    try {
+      const supabase = createClient();
+      const channel = supabase.channel("career-student-live-sync");
+      channel.subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          channel.send({
+            type: "broadcast",
+            event: "career_data_updated",
+            payload: { type },
+          });
+        }
+      });
+    } catch (err) {
+      console.warn("Realtime broadcast failed:", err);
+    }
+  };
+
   // JOBS HANDLERS
   const handleSaveJob = () => {
     startTransition(async () => {
@@ -42,13 +61,15 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
       if (result?.error) { toast.error(result.error); return; }
       toast.success(`Job ${isCreating ? "created" : "updated"}!`);
       
-      // Optimistic update
+      // State update
       if (isCreating) {
-        setJobs([{ id: Date.now().toString(), ...jobForm, created_at: new Date().toISOString() }, ...jobs]);
+        const newJob = result?.data || { id: editingId || "", ...jobForm, created_at: new Date().toISOString() };
+        setJobs([newJob, ...jobs]);
       } else {
         setJobs(jobs.map(j => j.id === editingId ? { ...j, ...jobForm } : j));
       }
       
+      broadcastChange("jobs");
       setIsCreating(false);
       setEditingId(null);
     });
@@ -61,6 +82,7 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
       if (result?.error) { toast.error(result.error); return; }
       toast.success("Job deleted.");
       setJobs(jobs.filter(j => j.id !== id));
+      broadcastChange("jobs");
     });
   };
 
@@ -68,6 +90,7 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
     startTransition(async () => {
       await toggleCustomJobActive(id, !current);
       setJobs(jobs.map(j => j.id === id ? { ...j, is_active: !current } : j));
+      broadcastChange("jobs");
     });
   };
 
@@ -82,11 +105,13 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
       toast.success(`Article ${isCreating ? "created" : "updated"}!`);
       
       if (isCreating) {
-        setArticles([{ id: Date.now().toString(), ...articleForm, created_at: new Date().toISOString() }, ...articles]);
+        const newArticle = result?.data || { id: editingId || "", ...articleForm, created_at: new Date().toISOString() };
+        setArticles([newArticle, ...articles]);
       } else {
         setArticles(articles.map(a => a.id === editingId ? { ...a, ...articleForm } : a));
       }
       
+      broadcastChange("articles");
       setIsCreating(false);
       setEditingId(null);
     });
@@ -99,6 +124,7 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
       if (result?.error) { toast.error(result.error); return; }
       toast.success("Article deleted.");
       setArticles(articles.filter(a => a.id !== id));
+      broadcastChange("articles");
     });
   };
 
@@ -106,6 +132,7 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
     startTransition(async () => {
       await toggleCareerArticleActive(id, !current);
       setArticles(articles.map(a => a.id === id ? { ...a, is_active: !current } : a));
+      broadcastChange("articles");
     });
   };
 

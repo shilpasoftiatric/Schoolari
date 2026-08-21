@@ -294,11 +294,13 @@ export interface Database {
           created_at: string;
         };
         Insert: {
+          id?: string;
           user_id: string;
           title: string;
           content: string;
           type?: string;
           is_read?: boolean;
+          created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["coaching_messages"]["Row"]>;
         Relationships: any[];
@@ -521,6 +523,24 @@ export interface Database {
           internal_notes?: string;
         };
         Update: Partial<Database["public"]["Tables"]["coaching_enrollments"]["Row"]>;
+        Relationships: any[];
+      };
+      ai_chat_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          role: "user" | "assistant";
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          role: "user" | "assistant";
+          content: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ai_chat_messages"]["Row"]>;
         Relationships: any[];
       };
     };

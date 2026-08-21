@@ -31,6 +31,9 @@ import {
   X,
   RefreshCw,
   CheckCheck,
+  GraduationCap,
+  MessageSquare,
+  ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -418,6 +421,14 @@ export function MessageCoachModal({
     return messages.filter((m) => {
       const title = m.title || "";
 
+      // Welcome message support: show under Super Admin thread
+      if (
+        title.includes("Welcome to Schoolari Elite") &&
+        (contact.role === "super_admin" || contact.name?.toLowerCase().includes("super admin") || (contact.id && title.includes(contact.id)))
+      ) {
+        return true;
+      }
+
       const isToThisContact =
         (contact.id && (title.includes(`[TO:${contact.id}]`) || title.includes(`[TO_ID:${contact.id}]`))) ||
         (contact.email && title.includes(`[TO_EMAIL:${contact.email}]`)) ||
@@ -426,6 +437,7 @@ export function MessageCoachModal({
       const isFromThisContact =
         (contact.id && (title.includes(`[FROM:${contact.id}]`) || title.includes(`[FROM_ID:${contact.id}]`))) ||
         (contact.email && title.includes(`[FROM_EMAIL:${contact.email}]`)) ||
+        (contact.role && (title.includes(`[FROM_ROLE:${contact.role}]`) || title.includes(`[ROLE:${contact.role}]`))) ||
         (contact.name && title.includes(`[NAME:${contact.name}]`));
 
       return isToThisContact || isFromThisContact;
@@ -507,6 +519,13 @@ export function MessageCoachModal({
       (m) => !isStudentMessage(m) && !m.is_read
     );
     if (unreadCoachMessages.length > 0) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          unreadCoachMessages.some((um) => um.id === m.id)
+            ? { ...m, is_read: true }
+            : m
+        )
+      );
       unreadCoachMessages.forEach((m) => {
         import("@/app/actions/coaching").then(({ markMessageAsRead }) => {
           markMessageAsRead(m.id).catch(() => {});
@@ -826,7 +845,7 @@ export function MessageCoachModal({
                   }`}
               >
                 Unread
-                {allContacts.some((c) => (c.unreadCount || 0) > 0) && (
+                {dynamicContacts.some((c) => (c.unreadCount || 0) > 0) && (
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
                 )}
               </button>
@@ -1391,32 +1410,55 @@ interface SessionFeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
   coachName?: string;
+  sessions?: any[];
 }
 
 export function SessionFeedbackModal({
   isOpen,
   onClose,
-  coachName = "Neha Sharma",
+  coachName = "College Coach",
+  sessions = [],
 }: SessionFeedbackModalProps) {
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [rating, setRating] = useState(5);
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!feedback.trim()) return;
+
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      const { submitCoachingFeedback } = await import("@/app/actions/coaching");
+      const res = await submitCoachingFeedback({
+        sessionId: selectedSessionId || null,
+        rating,
+        comments: feedback.trim(),
+      });
+
+      if (res?.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Thank you! Your feedback has been shared with your coaching team.");
+        setFeedback("");
+        setRating(5);
+        setSelectedSessionId("");
+        onClose();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit feedback");
+    } finally {
       setIsSubmitting(false);
-      toast.success("Thank you! Your feedback has been shared with your coaching team.");
-      setFeedback("");
-      setRating(5);
-      onClose();
-    }, 600);
+    }
   };
+
+  // Filter only sessions the user has registered for / enrolled in (includes registered Group & 1-on-1 sessions)
+  const registeredSessions = (sessions || []).filter((s: any) => s.isEnrolled === true);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-3xl border-slate-100 shadow-2xl">
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-slate-100 shadow-2xl">
         <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-5 text-white shrink-0">
           <DialogTitle className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
             <Star className="w-5 h-5 text-amber-300 fill-amber-300" /> Session Feedback
@@ -1427,6 +1469,32 @@ export function SessionFeedbackModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 flex-1 overflow-y-auto min-h-0">
+          {/* Select Session (Optional) */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+              Session (Optional)
+            </label>
+            <select
+              value={selectedSessionId}
+              onChange={(e) => setSelectedSessionId(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 shadow-xs cursor-pointer"
+            >
+              <option value="">General Coaching / All Sessions</option>
+              {registeredSessions.map((s: any) => {
+                const rawDate = s.session_date || s.scheduled_at || s.created_at;
+                const formattedDate = rawDate && !isNaN(new Date(rawDate).getTime())
+                  ? new Date(rawDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "";
+                const typeLabel = s.session_type === "1-on-1" ? "1-on-1" : "Group";
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.title} ({typeLabel}){formattedDate ? ` — ${formattedDate}` : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
           <div>
             <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block mb-1.5">
               Overall Session Rating
@@ -1437,13 +1505,14 @@ export function SessionFeedbackModal({
                   type="button"
                   key={star}
                   onClick={() => setRating(star)}
-                  className="p-1 transition-transform hover:scale-110 focus:outline-none"
+                  className="p-1 transition-transform hover:scale-110 focus:outline-none cursor-pointer"
                 >
                   <Star
-                    className={`w-7 h-7 ${star <= rating
-                      ? "text-amber-400 fill-amber-400 drop-shadow-sm"
-                      : "text-slate-200"
-                      }`}
+                    className={`w-7 h-7 ${
+                      star <= rating
+                        ? "text-amber-400 fill-amber-400 drop-shadow-xs"
+                        : "text-slate-200"
+                    }`}
                   />
                 </button>
               ))}
@@ -1451,12 +1520,12 @@ export function SessionFeedbackModal({
                 {rating === 5
                   ? "Outstanding"
                   : rating === 4
-                    ? "Very Helpful"
-                    : rating === 3
-                      ? "Good"
-                      : rating === 2
-                        ? "Fair"
-                        : "Needs Improvement"}
+                  ? "Very Helpful"
+                  : rating === 3
+                  ? "Good"
+                  : rating === 2
+                  ? "Fair"
+                  : "Needs Improvement"}
               </span>
             </div>
           </div>
@@ -1479,14 +1548,14 @@ export function SessionFeedbackModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+              className="px-4 py-2 rounded-xl font-bold text-xs text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !feedback.trim()}
-              className="px-5 py-2 rounded-xl font-bold text-xs bg-violet-600 hover:bg-violet-700 text-white shadow-md shadow-violet-200 flex items-center gap-2 transition-all disabled:opacity-50"
+              className="px-5 py-2 rounded-xl font-bold text-xs bg-violet-600 hover:bg-violet-700 text-white shadow-md shadow-violet-200 flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit Feedback"}
             </button>
@@ -1503,42 +1572,119 @@ export function SessionFeedbackModal({
 interface CoachingResourcesModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialResources?: any[];
 }
 
-export function CoachingResourcesModal({ isOpen, onClose }: CoachingResourcesModalProps) {
-  const resources = [
-    {
-      title: "Common App & Coalition Essay Master Guide",
-      category: "Essays & Statements",
-      description: "Proven brainstorming frameworks, hook strategies, and Stanford/Harvard accepted essay breakdowns.",
-      icon: BookOpen,
-      color: "bg-purple-100 text-purple-600",
-    },
-    {
-      title: "Full-Ride Scholarship Interview Cheat Sheet",
-      category: "Scholarships",
-      description: "Top 25 questions asked by committee interviewers and how to structure winning responses using the STAR method.",
-      icon: FileText,
-      color: "bg-blue-100 text-blue-600",
-    },
-    {
-      title: "US College Admissions & Financial Aid Roadmap",
-      category: "Financial Aid",
-      description: "FAFSA & CSS Profile step-by-step checklist, SAI minimization tips, and appeal letter templates.",
-      icon: Sparkles,
-      color: "bg-emerald-100 text-emerald-600",
-    },
-    {
-      title: "College Recommendation Letter Request Kit",
-      category: "Applications",
-      description: "Brag sheet template and email scripts for teachers and high school counselors.",
-      icon: Download,
-      color: "bg-amber-100 text-amber-600",
-    },
-  ];
+export function CoachingResourcesModal({ isOpen, onClose, initialResources = [] }: CoachingResourcesModalProps) {
+  const [resources, setResources] = useState<any[]>(
+    initialResources && initialResources.length > 0
+      ? initialResources
+      : [
+          {
+            id: "essays_statements",
+            title: "Common App & Coalition Essay Master Guide",
+            category: "Essays & Statements",
+            description: "Proven brainstorming frameworks, hook strategies, and Stanford/Harvard accepted essay breakdowns.",
+            iconName: "BookOpen",
+            color: "bg-purple-100 text-purple-600",
+            fileUrl: null,
+            fileName: null,
+            fileSize: null,
+          },
+          {
+            id: "scholarships",
+            title: "Full-Ride Scholarship Interview Cheat Sheet",
+            category: "Scholarships",
+            description: "Top 25 questions asked by committee interviewers and how to structure winning responses using the STAR method.",
+            iconName: "FileText",
+            color: "bg-blue-100 text-blue-600",
+            fileUrl: null,
+            fileName: null,
+            fileSize: null,
+          },
+          {
+            id: "financial_aid",
+            title: "US College Admissions & Financial Aid Roadmap",
+            category: "Financial Aid",
+            description: "FAFSA & CSS Profile step-by-step checklist, SAI minimization tips, and appeal letter templates.",
+            iconName: "Sparkles",
+            color: "bg-emerald-100 text-emerald-600",
+            fileUrl: null,
+            fileName: null,
+            fileSize: null,
+          },
+          {
+            id: "applications",
+            title: "College Recommendation Letter Request Kit",
+            category: "Applications",
+            description: "Brag sheet template and email scripts for teachers and high school counselors.",
+            iconName: "Download",
+            color: "bg-amber-100 text-amber-600",
+            fileUrl: null,
+            fileName: null,
+            fileSize: null,
+          },
+        ]
+  );
 
-  const handleDownload = (title: string) => {
-    toast.success(`Opening ${title}...`);
+  React.useEffect(() => {
+    if (initialResources && initialResources.length > 0) {
+      setResources(initialResources);
+    }
+  }, [initialResources]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      import("@/app/actions/admin-coaching").then(({ getCoachingResources }) => {
+        getCoachingResources()
+          .then((data) => {
+            if (data && data.length > 0) {
+              setResources(data);
+            }
+          })
+          .catch((err) => console.error("Error fetching coaching resources:", err));
+      });
+    }
+  }, [isOpen]);
+
+  const handleDownload = async (item: any) => {
+    if (item.fileUrl) {
+      const toastId = toast.loading(`Downloading ${item.fileName || item.title}...`);
+      try {
+        const response = await fetch(item.fileUrl);
+        if (!response.ok) throw new Error("Network response was not ok");
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = item.fileName || `${item.category.replace(/\s+/g, '_')}_guide.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        toast.success(`Downloaded ${item.fileName || item.title}!`, { id: toastId });
+      } catch (e) {
+        console.error("Blob download fallback:", e);
+        window.open(item.fileUrl, "_blank");
+        toast.success(`Opened ${item.fileName || item.title}!`, { id: toastId });
+      }
+    } else {
+      toast.info("Your admissions coach is finalizing this handout. It will be available for download shortly!");
+    }
+  };
+
+  const getIcon = (iconName: string) => {
+    switch (iconName) {
+      case "BookOpen":
+        return BookOpen;
+      case "FileText":
+        return FileText;
+      case "Sparkles":
+        return Sparkles;
+      case "Download":
+      default:
+        return Download;
+    }
   };
 
   return (
@@ -1555,7 +1701,9 @@ export function CoachingResourcesModal({ isOpen, onClose }: CoachingResourcesMod
 
         <div className="p-5 flex-1 overflow-y-auto min-h-0 space-y-2.5">
           {resources.map((item, idx) => {
-            const Icon = item.icon;
+            const Icon = getIcon(item.iconName);
+            const hasFile = Boolean(item.fileUrl);
+
             return (
               <div
                 key={idx}
@@ -1566,22 +1714,38 @@ export function CoachingResourcesModal({ isOpen, onClose }: CoachingResourcesMod
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                      {item.category}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                        {item.category}
+                      </span>
+                      {hasFile && (
+                        <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded-md">
+                          Available
+                        </span>
+                      )}
+                    </div>
                     <h4 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-violet-900 transition-colors truncate">
                       {item.title}
                     </h4>
                     <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed line-clamp-2">{item.description}</p>
+                    {hasFile && item.fileName && (
+                      <p className="text-[10px] text-indigo-600 font-medium mt-1 truncate">
+                        📎 {item.fileName}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <button
-                  onClick={() => handleDownload(item.title)}
-                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 group-hover:bg-violet-600 group-hover:text-white group-hover:border-violet-600 transition-all shrink-0 shadow-2xs"
-                  title="Download Resource"
+                  onClick={() => handleDownload(item)}
+                  className={`p-2.5 rounded-xl border transition-all shrink-0 shadow-2xs flex items-center gap-1 text-xs font-bold ${
+                    hasFile
+                      ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 hover:shadow-md hover:shadow-violet-200"
+                      : "bg-white border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  }`}
+                  title={hasFile ? "Download Handout" : "Handout coming soon"}
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-4 h-4" />
                 </button>
               </div>
             );
@@ -1596,6 +1760,107 @@ export function CoachingResourcesModal({ isOpen, onClose }: CoachingResourcesMod
             Close
           </button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. Modern Elite Welcome Pop-up Modal (One-Time Initial Visit)
+// ─────────────────────────────────────────────────────────────────────────────
+export function EliteWelcomeModal({
+  isOpen,
+  onClose,
+  onOpenChat,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onOpenChat: () => void;
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-[540px] max-h-[95vh] p-0 overflow-hidden border-0 rounded-3xl shadow-2xl bg-white"
+      >
+        {/* Top Gradient Banner with Badge */}
+        <div className="bg-gradient-to-br from-[#635BFF] via-[#7C5CFC] to-[#4F46E5] p-6 sm:p-7 text-white relative overflow-hidden">
+          {/* Subtle Background Rings */}
+          <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-400/20 rounded-full blur-xl pointer-events-none" />
+
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+            title="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <div className="space-y-3 relative z-10">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-white text-xs font-bold border border-white/20">
+              <span>Schoolari Elite Activated</span>
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
+              Hi! Welcome to Schoolari Elite! 🎓
+            </h2>
+
+            <p className="text-white/85 text-xs sm:text-sm leading-relaxed">
+              I’m excited to be part of your college & scholarship journey!
+            </p>
+          </div>
+        </div>
+
+        {/* Message Body & Coach Notes */}
+        <div className="p-6 sm:p-7 space-y-5">
+          {/* Quote Card */}
+          <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80 space-y-3.5 text-slate-700 text-xs sm:text-sm leading-relaxed">
+            <p>
+              <strong className="text-slate-900 font-bold">As your personal Schoolari Coach</strong>, I’m here to help you stay on track, make a plan, and move forward with confidence. Tell me how I can assist you.
+            </p>
+            <p>
+              You can message me here whenever you need help with your college or scholarship process, essays, applications, deadlines, or figuring out what to do next. You don’t have to figure it all out alone. We’ll work through it together, one step at a time.
+            </p>
+            <p className="font-extrabold text-[#635BFF]">
+              Let’s get started!
+            </p>
+          </div>
+
+          {/* 3 Key Highlights */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+            <div className="p-3 rounded-xl bg-violet-50/70 border border-violet-100 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-900 leading-tight">2-Way Chat</p>
+                <p className="text-[10px] text-slate-500">Ask anything</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-900 leading-tight">1:1 Coaching</p>
+                <p className="text-[10px] text-slate-500">Live sessions</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <GraduationCap className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-900 leading-tight">Roadmaps</p>
+                <p className="text-[10px] text-slate-500">Action items</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

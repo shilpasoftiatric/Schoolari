@@ -133,15 +133,28 @@ export const getStudentDashboardData = cache(async (userId: string) => {
   const { isScholarshipEligible } = await import("@/lib/scholarship-matching");
   const matchedScholarshipsCount = (allScholarships || []).filter(s => isScholarshipEligible(s, masterProfile)).length;
 
+  const trackerItemsList = trackerRes.data || [];
+  const trackerScholarshipApps = trackerItemsList
+    .filter((t: any) => t.reference_type === "scholarship")
+    .map((t: any) => ({
+      status: t.status,
+      scholarships: { name: t.title, deadline: t.due_date },
+      due_date: t.due_date,
+      id: t.id,
+      reference_id: t.reference_id
+    }));
+
+  const allApplications = [...(appsRes.data || []), ...trackerScholarshipApps];
+
   return {
     profile: masterProfile,
     userProfile: userProfile,
     documents: docsRes.data || [],
     essays: essaysRes.data || [],
     savedColleges: collegesRes.data || [],
-    applications: appsRes.data || [],
+    applications: allApplications,
     resume: resumeRes.data || null,
-    trackerItems: trackerRes.data || [],
+    trackerItems: trackerItemsList,
     globalTasks: globalTasks || [],
     matchedScholarshipsCount: matchedScholarshipsCount || 0,
     masterId,

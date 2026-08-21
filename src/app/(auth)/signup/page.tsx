@@ -22,6 +22,9 @@ export default function SignupPage() {
   const [accountType, setAccountType] = useState<AccountType>("student");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [aiAssistanceAgreed, setAiAssistanceAgreed] = useState(false);
+  const [smsConsentAgreed, setSmsConsentAgreed] = useState(false);
+  const [showSmsTermsModal, setShowSmsTermsModal] = useState(false);
 
   const passwordStrength = (() => {
     if (password.length === 0) return 0;
@@ -40,6 +43,16 @@ export default function SignupPage() {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (!aiAssistanceAgreed) {
+      setError("You must acknowledge and agree that Schoolari’s AI tools provide assistance only before creating an account.");
+      return;
+    }
+
+    if (!smsConsentAgreed) {
+      setError("You must agree to the SMS communication consent before creating an account.");
+      return;
+    }
 
     const formData = new FormData(e.currentTarget);
     formData.set("account_type", accountType);
@@ -169,6 +182,53 @@ export default function SignupPage() {
           )}
         </div>
 
+        {/* Required Checkbox Agreements */}
+        <div className="space-y-2.5 pt-2">
+          {/* Checkbox 1: AI Assistance Acknowledgment */}
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors cursor-pointer select-none">
+            <input
+              type="checkbox"
+              id="ai_assistance_agreement"
+              name="ai_assistance_agreement"
+              checked={aiAssistanceAgreed}
+              onChange={(e) => setAiAssistanceAgreed(e.target.checked)}
+              required
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 accent-violet-600 cursor-pointer shrink-0"
+            />
+            <span className="text-xs text-slate-600 leading-relaxed">
+              I understand that Schoolari’s AI tools provide assistance only. I am responsible for reviewing, verifying, editing, and approving my final work.
+            </span>
+          </label>
+
+          {/* Checkbox 2: Twilio SMS Consent */}
+          <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors cursor-pointer select-none">
+            <input
+              type="checkbox"
+              id="sms_consent_agreement"
+              name="sms_consent_agreement"
+              checked={smsConsentAgreed}
+              onChange={(e) => setSmsConsentAgreed(e.target.checked)}
+              required
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 accent-violet-600 cursor-pointer shrink-0"
+            />
+            <span className="text-xs text-slate-600 leading-relaxed">
+              By providing my phone number I agree to receive SMS messages from Schoolari including account updates, reminders, deadline alerts, and notifications. Message and data rates may apply. Reply STOP at any time to unsubscribe.{" "}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowSmsTermsModal(true);
+                }}
+                className="text-violet-600 font-semibold underline hover:text-violet-700 cursor-pointer"
+              >
+                View our SMS Terms
+              </button>
+              .
+            </span>
+          </label>
+        </div>
+
         {/* Terms */}
         <p className="text-xs text-slate-400 leading-relaxed">
           By creating an account, you agree to our{" "}
@@ -179,8 +239,8 @@ export default function SignupPage() {
 
         <Button
           type="submit"
-          disabled={isPending}
-          className="w-full h-12 rounded-xl text-base font-bold gap-2 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 shadow-lg shadow-purple-200 transition-all"
+          disabled={isPending || !aiAssistanceAgreed || !smsConsentAgreed}
+          className="w-full h-12 rounded-xl text-base font-bold gap-2 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 shadow-lg shadow-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isPending ? (
             <span className="flex items-center gap-2">
@@ -192,6 +252,53 @@ export default function SignupPage() {
           )}
         </Button>
       </form>
+
+      {/* SMS Terms Modal */}
+      {showSmsTermsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200 text-left">
+            <div className="p-5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+              <h3 className="font-extrabold text-slate-900 text-base">Schoolari SMS Terms & Conditions</h3>
+              <button
+                type="button"
+                onClick={() => setShowSmsTermsModal(false)}
+                className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 space-y-3 text-xs text-slate-600 max-h-[60vh] overflow-y-auto leading-relaxed">
+              <p>
+                <strong>Program Description:</strong> Schoolari SMS service provides real-time notifications, application deadline alerts, scholarship match reminders, and account security updates to enrolled students and parents.
+              </p>
+              <p>
+                <strong>Message Frequency:</strong> Message frequency varies based on your college application timelines, scholarship deadlines, and user activity.
+              </p>
+              <p>
+                <strong>Message & Data Rates:</strong> Standard message and data rates may apply depending on your mobile carrier and wireless plan.
+              </p>
+              <p>
+                <strong>Opt-Out:</strong> You can cancel the SMS service at any time. Simply text <strong>STOP</strong> in reply to any message. After you send the SMS message STOP to us, you will receive a confirmation message that you have been unsubscribed.
+              </p>
+              <p>
+                <strong>Help & Support:</strong> For assistance, text <strong>HELP</strong> to any message or contact our support team at support@schoolari.com.
+              </p>
+              <p>
+                <strong>Carriers:</strong> Mobile carriers are not liable for delayed or undelivered messages.
+              </p>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <Button
+                type="button"
+                onClick={() => setShowSmsTermsModal(false)}
+                className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold px-5"
+              >
+                Got It
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Login link */}
       <p className="text-center text-sm text-slate-500">

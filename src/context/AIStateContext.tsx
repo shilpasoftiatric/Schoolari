@@ -105,13 +105,14 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
     const fetchJobs = async () => {
       if (userPlan === undefined) return;
       if (!canAccessFeature(userPlan, "jobs")) return;
-      if (jobsData || fetchingRef.current.jobs) return;
+      if (jobsData !== null || fetchingRef.current.jobs) return;
       fetchingRef.current.jobs = true;
       try {
         const data = await getPersonalizedJobsAction();
-        setJobsData(data);
+        setJobsData(data || []);
       } catch (err) {
         console.error("Prefetch jobs failed:", err);
+        setJobsData([]);
       } finally {
         fetchingRef.current.jobs = false;
       }
@@ -122,13 +123,14 @@ export function AIStateProvider({ children }: { children: React.ReactNode }) {
   // Prefetch Career Articles in background
   useEffect(() => {
     const fetchArticles = async () => {
-      if (careerArticles || fetchingRef.current.articles) return;
+      if (careerArticles !== null || fetchingRef.current.articles) return;
       fetchingRef.current.articles = true;
       try {
         const data = await getCareerArticles();
-        setCareerArticles(data);
+        setCareerArticles(data || []);
       } catch (err) {
         console.error("Prefetch articles failed:", err);
+        setCareerArticles([]);
       } finally {
         fetchingRef.current.articles = false;
       }

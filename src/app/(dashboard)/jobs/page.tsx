@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
 import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
+import { getCareerArticles } from "@/app/actions/career";
+import { getPersonalizedJobsAction } from "@/app/actions/career-ai";
 
 export const metadata = {
   title: "Jobs & Internships",
@@ -40,6 +42,12 @@ export default async function JobsPage() {
     return acc;
   }, {});
 
+  // Fetch initial personalized jobs and career resources server-side
+  const [initialArticles, initialJobs] = await Promise.all([
+    getCareerArticles().catch(() => []),
+    getPersonalizedJobsAction().catch(() => []),
+  ]);
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col gap-2">
@@ -54,24 +62,13 @@ export default async function JobsPage() {
         </p>
       </div>
 
-      {/* Tracker Link Card */}
-      <div className="bg-violet-50 border border-violet-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-violet-900 mb-1">Your Tracker</h2>
-          <p className="text-violet-700/80 text-sm">
-            You have {Object.keys(trackedJobMap).length} jobs saved in your tracker. Keep them organized and track your interview status!
-          </p>
-        </div>
-        <a 
-          href="/tracker?type=job" 
-          className="bg-violet-600 hover:bg-violet-700 text-white px-6 py-2.5 rounded-xl font-bold whitespace-nowrap transition-colors shadow-sm"
-        >
-          View Tracker
-        </a>
-      </div>
-
-      <JobsDashboard trackedJobMap={trackedJobMap} />
+      <JobsDashboard 
+        trackedJobMap={trackedJobMap} 
+        initialJobs={initialJobs} 
+        initialArticles={initialArticles} 
+      />
     </div>
   );
 }
+
 

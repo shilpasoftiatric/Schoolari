@@ -30,15 +30,19 @@ import {
   CoachingHistoryModal,
   SessionFeedbackModal,
   CoachingResourcesModal,
+  EliteWelcomeModal,
 } from "./CoachingModals";
 import { UpgradeFlowModal } from "@/components/ui/UpgradeFlowModal";
 import type { SubscriptionPlan } from "@/lib/subscription";
-import type { CoachInfo, CoachingContact } from "@/app/actions/coaching";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { getCoachingSessions, type CoachInfo, type CoachingContact } from "@/app/actions/coaching";
 
 interface CoachingDashboardProps {
   initialMessages?: any[];
   initialSessions?: any[];
   initialContacts?: CoachingContact[];
+  initialResources?: any[];
   coachInfo?: CoachInfo;
   userPlan?: SubscriptionPlan;
   userName?: string;
@@ -48,10 +52,12 @@ export function CoachingDashboard({
   initialMessages = [],
   initialSessions = [],
   initialContacts = [],
+  initialResources = [],
   coachInfo,
   userPlan = "elite",
   userName = "Student",
 }: CoachingDashboardProps) {
+  const router = useRouter();
   // State for sessions initialized directly from server
   const [sessions, setSessions] = useState<any[]>(initialSessions);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -66,6 +72,31 @@ export function CoachingDashboard({
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isResourcesOpen, setIsResourcesOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isEliteWelcomeOpen, setIsEliteWelcomeOpen] = useState(false);
+
+  // Show one-time welcome pop-up for Elite users on their initial visit
+  useEffect(() => {
+    if (userPlan === "elite" && typeof window !== "undefined") {
+      const storageKey = `schoolari_elite_welcome_seen_${userName || "student"}`;
+      const hasSeen = localStorage.getItem(storageKey);
+      if (!hasSeen) {
+        setIsEliteWelcomeOpen(true);
+      }
+    }
+  }, [userPlan, userName]);
+
+  const handleCloseEliteWelcome = () => {
+    if (typeof window !== "undefined") {
+      const storageKey = `schoolari_elite_welcome_seen_${userName || "student"}`;
+      localStorage.setItem(storageKey, "true");
+    }
+    setIsEliteWelcomeOpen(false);
+  };
+
+  const handleOpenChatFromWelcome = () => {
+    handleCloseEliteWelcome();
+    setIsMessageOpen(true);
+  };
 
   // Messages state
   const [messages, setMessages] = useState<any[]>(initialMessages);
@@ -76,6 +107,59 @@ export function CoachingDashboard({
       setSessions(initialSessions);
     }
   }, [initialSessions]);
+
+  const refreshSessions = async () => {
+    try {
+      const latest = await getCoachingSessions();
+      if (latest) {
+        setSessions(latest);
+      }
+    } catch (err) {
+      console.error("Failed to refresh coaching sessions on student dashboard:", err);
+    }
+  };
+
+  // Real-time live synchronization for coaching sessions and enrollments
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("coaching-student-live-sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "coaching_sessions" },
+        () => {
+          refreshSessions();
+          router.refresh();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "coaching_enrollments" },
+        () => {
+          refreshSessions();
+          router.refresh();
+        }
+      )
+      .on(
+        "broadcast",
+        { event: "coaching_update" },
+        () => {
+          refreshSessions();
+          router.refresh();
+        }
+      )
+      .subscribe();
+
+    // Fallback polling every 4 seconds for instant real-time reflection
+    const interval = setInterval(() => {
+      refreshSessions();
+    }, 4000);
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const handleEnroll = async (sessionId: string) => {
     setEnrollingId(sessionId);
@@ -575,11 +659,13 @@ export function CoachingDashboard({
         isOpen={isFeedbackOpen}
         onClose={() => setIsFeedbackOpen(false)}
         coachName={coachInfo?.name || "Super Admin"}
+        sessions={sessions}
       />
 
       <CoachingResourcesModal
         isOpen={isResourcesOpen}
         onClose={() => setIsResourcesOpen(false)}
+        initialResources={initialResources}
       />
 
       <UpgradeFlowModal
@@ -588,6 +674,12 @@ export function CoachingDashboard({
         targetPlan="elite"
         currentPlan={userPlan}
         featureName="1-on-1 College Coaching"
+      />
+
+      <EliteWelcomeModal
+        isOpen={isEliteWelcomeOpen}
+        onClose={handleCloseEliteWelcome}
+        onOpenChat={handleOpenChatFromWelcome}
       />
     </div>
   );

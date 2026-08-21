@@ -3,12 +3,93 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+const ELITE_WELCOME_MESSAGE_CONTENT = `Hi! Welcome to Schoolari Elite! I’m excited to be part of your journey.
+
+As your personal Schoolari Coach, I’m here to help you stay on track, make a plan, and move forward with confidence. Tell me how I can assist you.
+
+You can message me here whenever you need help with your college or scholarship process, essays, applications, deadlines, or figuring out what to do next. You don’t have to figure it all out alone. We’ll work through it together, one step at a time.
+
+Let’s get started!`;
+
+export async function ensureEliteWelcomeMessage(userId?: string) {
+  const supabase = await createClient();
+  const adminClient = await createAdminClient();
+
+  let targetUserId = userId;
+  if (!targetUserId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    targetUserId = user.id;
+  }
+
+  // 1. Check if user already has any elite welcome message(s)
+  const { data: existingList } = await adminClient
+    .from("coaching_messages")
+    .select("id, created_at")
+    .eq("user_id", targetUserId)
+    .ilike("title", "%Welcome to Schoolari Elite%")
+    .order("created_at", { ascending: true });
+
+  if (existingList && existingList.length > 0) {
+    // If duplicate welcome messages exist, delete extras and retain only the first
+    if (existingList.length > 1) {
+      const duplicateIds = existingList.slice(1).map((m: any) => m.id);
+      await adminClient.from("coaching_messages").delete().in("id", duplicateIds);
+    }
+    return existingList[0]; // Already sent, never duplicate
+  }
+
+  // 2. Fetch Super Admin profile to tag correctly
+  const { data: superAdmin } = await adminClient
+    .from("profiles")
+    .select("id, student_first_name, student_last_name, student_email, role")
+    .eq("role", "super_admin")
+    .limit(1)
+    .maybeSingle();
+
+  const senderId = superAdmin?.id || "super-admin";
+  const senderEmail = (superAdmin?.student_email || "superadmin@schoolari.com").toLowerCase();
+  const senderName = superAdmin?.student_first_name
+    ? `${superAdmin.student_first_name} ${superAdmin.student_last_name || ""}`.trim()
+    : "Super Admin";
+  const senderRole = superAdmin?.role || "super_admin";
+
+  const title = `[FROM_ID:${senderId}][FROM_EMAIL:${senderEmail}][FROM_ROLE:${senderRole}][FROM_NAME:${senderName}] Welcome to Schoolari Elite!`;
+
+  // 3. Insert the single welcome message
+  const { data, error } = await adminClient
+    .from("coaching_messages")
+    .insert({
+      user_id: targetUserId,
+      title,
+      content: ELITE_WELCOME_MESSAGE_CONTENT,
+      type: "guidance",
+      is_read: false,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error inserting Elite welcome message:", error);
+    return null;
+  }
+
+  return data;
+}
+
 export async function getCoachingMessages() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return [];
+  }
+
+  // Ensure Elite welcome message is seeded and cleaned if needed
+  try {
+    await ensureEliteWelcomeMessage(user.id);
+  } catch (seedErr) {
+    console.warn("Could not seed elite welcome message:", seedErr);
   }
 
   const { data, error } = await supabase
@@ -18,7 +99,25 @@ export async function getCoachingMessages() {
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);
-  return data;
+
+  // Strictly deduplicate messages in memory
+  const seenWelcome = new Set<string>();
+  const seenIds = new Set<string>();
+  const dedupedData = (data || []).filter((m: any) => {
+    if (seenIds.has(m.id)) return false;
+    seenIds.add(m.id);
+
+    const title = (m.title || "").toLowerCase();
+    if (title.includes("welcome to schoolari elite")) {
+      if (seenWelcome.has(m.user_id)) {
+        return false;
+      }
+      seenWelcome.add(m.user_id);
+    }
+    return true;
+  });
+
+  return dedupedData;
 }
 
 export async function getCoachingSessions() {
@@ -61,7 +160,14 @@ export async function getCoachingSessions() {
 
   const enrolledSessionIds = (enrollments || []).map((e: any) => e.session_id);
 
-  return (sessions || []).map((session: any) => {
+  // Group sessions are visible to all students.
+  // 1-on-1 (individual) sessions are strictly visible ONLY to the specific assigned/enrolled students.
+  const visibleSessions = (sessions || []).filter((session: any) => {
+    if (session.session_type === "group") return true;
+    return enrolledSessionIds.includes(session.id);
+  });
+
+  return visibleSessions.map((session: any) => {
     const isEnrolled = enrolledSessionIds.includes(session.id);
     return {
       ...session,
@@ -102,6 +208,7 @@ export async function enrollInSession(sessionId: string) {
   }
 
   revalidatePath("/coaching");
+  revalidatePath("/admin/coaching");
   return { success: true };
 }
 
@@ -318,85 +425,90 @@ export async function getCoachingContacts(): Promise<CoachingContact[]> {
     const authUserMap = new Map<string, any>();
     (authData?.users || []).forEach((u: any) => authUserMap.set(u.id, u));
 
-  if (!staffProfiles || staffProfiles.length === 0) {
-    return [
-      {
-        id: "coach-lead",
-        name: "College Coach",
-        role: "college_coach",
-        displayTitle: "College Admissions Coach",
-        email: "coach@schoolari.com",
-        avatarUrl: null,
-        lastMessageSnippet: "Tap to start conversation",
-        lastMessageTime: "",
-        unreadCount: 0,
-      },
-    ];
-  }
+    if (!staffProfiles || staffProfiles.length === 0) {
+      return [
+        {
+          id: "coach-lead",
+          name: "College Coach",
+          role: "college_coach",
+          displayTitle: "College Admissions Coach",
+          email: "coach@schoolari.com",
+          avatarUrl: null,
+          lastMessageSnippet: "Tap to start conversation",
+          lastMessageTime: "",
+          unreadCount: 0,
+        },
+      ];
+    }
 
-  const seenIds = new Set<string>();
-  const uniqueStaff = (staffProfiles || []).filter((p: any) => {
-    if (seenIds.has(p.id)) return false;
-    seenIds.add(p.id);
-    return true;
-  });
-
-  return uniqueStaff.map((p: any) => {
-    const authUser = authUserMap.get(p.id);
-    const staffEmail = (authUser?.email || p.student_email || p.parent_email || "").toLowerCase();
-
-    const fullName =
-      [p.student_first_name, p.student_last_name].filter(Boolean).join(" ") ||
-      p.parent_first_name ||
-      (p.role === "college_coach"
-        ? "College Coach"
-        : p.role === "super_admin"
-          ? "Super Admin"
-          : p.role === "essay_coach"
-            ? "Essay Coach"
-            : "Admin");
-
-    const displayTitle =
-      p.role === "super_admin"
-        ? "Lead Admissions Director"
-        : p.role === "college_coach"
-          ? "College Admissions Coach"
-          : p.role === "essay_coach"
-            ? "Senior Essay Specialist"
-            : "Admissions Coach";
-
-    // Strict email & ID matching (Zero role guessing):
-    const contactMsgs = (messages || []).filter((m: any) => {
-      const title = (m.title || "").toLowerCase();
-      const isStudentMsg = title.includes("[student]") || m.type === "student_message";
-
-      if (isStudentMsg) {
-        // Message sent from student to this specific staff member
-        const matchById = p.id && (title.includes(`[to_id:${p.id.toLowerCase()}]`) || title.includes(`[to:${p.id.toLowerCase()}]`));
-        const matchByEmail = staffEmail && (title.includes(`[to_email:${staffEmail}]`) || title.includes(`[to:${staffEmail}]`));
-        return matchById || matchByEmail;
-      } else {
-        // Reply sent by this specific staff member to student
-        const matchById = p.id && (title.includes(`[from_id:${p.id.toLowerCase()}]`) || title.includes(`[from:${p.id.toLowerCase()}]`));
-        const matchByEmail = staffEmail && (title.includes(`[from_email:${staffEmail}]`) || title.includes(`[from:${staffEmail}]`));
-        return matchById || matchByEmail;
-      }
+    const seenIds = new Set<string>();
+    const uniqueStaff = (staffProfiles || []).filter((p: any) => {
+      if (seenIds.has(p.id)) return false;
+      seenIds.add(p.id);
+      return true;
     });
 
-    const unreadCount = contactMsgs.filter(
-      (m: any) => m.title?.indexOf("[STUDENT]") === -1 && m.type !== "student_message" && !m.is_read
-    ).length;
+    return uniqueStaff.map((p: any) => {
+      const authUser = authUserMap.get(p.id);
+      const staffEmail = (authUser?.email || p.student_email || p.parent_email || "").toLowerCase();
 
-    const lastMsg = contactMsgs.length > 0 ? contactMsgs[contactMsgs.length - 1] : null;
-    const lastSnippet = lastMsg
-      ? (lastMsg.content || "").replace(/^\[STUDENT\](\[[^\]]+\])*\s*/, "")
-      : "Tap to start conversation";
-    const lastTime = lastMsg
-      ? new Date(lastMsg.created_at).toLocaleTimeString("en-US", {
+      const fullName =
+        [p.student_first_name, p.student_last_name].filter(Boolean).join(" ") ||
+        p.parent_first_name ||
+        (p.role === "college_coach"
+          ? "College Coach"
+          : p.role === "super_admin"
+            ? "Super Admin"
+            : p.role === "essay_coach"
+              ? "Essay Coach"
+              : "Admin");
+
+      const displayTitle =
+        p.role === "super_admin"
+          ? "Lead Admissions Director"
+          : p.role === "college_coach"
+            ? "College Admissions Coach"
+            : p.role === "essay_coach"
+              ? "Senior Essay Specialist"
+              : "Admissions Coach";
+
+      // Strict email & ID matching + welcome message support:
+      const contactMsgs = (messages || []).filter((m: any) => {
+        const title = (m.title || "").toLowerCase();
+        const isStudentMsg = title.includes("[student]") || m.type === "student_message";
+
+        if (title.includes("welcome to schoolari elite") && (p.role === "super_admin" || (p.id && title.includes(p.id.toLowerCase())))) {
+          return true;
+        }
+
+        if (isStudentMsg) {
+          // Message sent from student to this specific staff member
+          const matchById = p.id && (title.includes(`[to_id:${p.id.toLowerCase()}]`) || title.includes(`[to:${p.id.toLowerCase()}]`));
+          const matchByEmail = staffEmail && (title.includes(`[to_email:${staffEmail}]`) || title.includes(`[to:${staffEmail}]`));
+          return matchById || matchByEmail;
+        } else {
+          // Reply sent by this specific staff member to student
+          const matchById = p.id && (title.includes(`[from_id:${p.id.toLowerCase()}]`) || title.includes(`[from:${p.id.toLowerCase()}]`));
+          const matchByEmail = staffEmail && (title.includes(`[from_email:${staffEmail}]`) || title.includes(`[from:${staffEmail}]`));
+          const matchByRole = p.role && (title.includes(`[from_role:${p.role.toLowerCase()}]`) || title.includes(`[role:${p.role.toLowerCase()}]`));
+          return matchById || matchByEmail || matchByRole;
+        }
+      });
+
+      const unreadCount = contactMsgs.filter(
+        (m: any) => m.title?.indexOf("[STUDENT]") === -1 && m.type !== "student_message" && !m.is_read
+      ).length;
+
+      const lastMsg = contactMsgs.length > 0 ? contactMsgs[contactMsgs.length - 1] : null;
+      const lastSnippet = lastMsg
+        ? (lastMsg.content || "").replace(/^\[STUDENT\](\[[^\]]+\])*\s*/, "")
+        : "Tap to start conversation";
+      const lastTime = lastMsg
+        ? new Date(lastMsg.created_at).toLocaleTimeString("en-US", {
           hour: "numeric",
           minute: "2-digit",
         })
-      : "";
+        : "";
 
       return {
         id: p.id,
@@ -490,5 +602,112 @@ export async function getStudentCoachingData() {
     };
   } catch {
     return { contacts: [], messages: [] };
+  }
+}
+
+export interface CoachingFeedbackPayload {
+  sessionId?: string | null;
+  rating: number;
+  comments: string;
+}
+
+/**
+ * Submit feedback on a coaching session or coach
+ */
+export async function submitCoachingFeedback(payload: CoachingFeedbackPayload) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const rating = Math.max(1, Math.min(5, Number(payload.rating) || 5));
+    const comments = (payload.comments || "").trim();
+    if (!comments) throw new Error("Please provide your comments or feedback.");
+
+    const adminClient = await createAdminClient();
+
+    // Look up session title if sessionId provided
+    let sessionTitle = "General Coaching";
+    if (payload.sessionId) {
+      try {
+        const { data: sess } = await adminClient
+          .from("coaching_sessions")
+          .select("title")
+          .eq("id", payload.sessionId)
+          .maybeSingle();
+        if (sess?.title) sessionTitle = sess.title;
+      } catch (sessErr) {
+        console.warn("Session lookup warning:", sessErr);
+      }
+    }
+
+    // 1. Try to insert directly into coaching_feedback table
+    try {
+      await (adminClient as any).from("coaching_feedback").insert([
+        {
+          student_id: user.id,
+          session_id: payload.sessionId || null,
+          rating,
+          comments,
+        },
+      ]);
+    } catch (e) {
+      console.warn("DB feedback insert fallback to vault storage:", e);
+    }
+
+    // 2. Also persist to storage/manifest as resilient fallback
+    try {
+      const FEEDBACK_MANIFEST = "coaching-feedback/feedback.json";
+      let existingList: any[] = [];
+      const { data: dlData } = await adminClient.storage.from("vault").download(FEEDBACK_MANIFEST);
+      if (dlData) {
+        try {
+          existingList = JSON.parse(await dlData.text());
+        } catch { }
+      }
+
+      // Get student name/email
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("student_first_name, student_last_name, student_email")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const studentName = profile?.student_first_name
+        ? `${profile.student_first_name} ${profile.student_last_name || ""}`.trim()
+        : user.email?.split("@")[0] || "Student";
+
+      const newFeedbackItem = {
+        id: `fb-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        student_id: user.id,
+        student_name: studentName,
+        student_email: profile?.student_email || user.email,
+        session_id: payload.sessionId || null,
+        session_title: sessionTitle,
+        rating,
+        comments,
+        created_at: new Date().toISOString(),
+      };
+
+      existingList.unshift(newFeedbackItem);
+
+      await adminClient.storage
+        .from("vault")
+        .upload(FEEDBACK_MANIFEST, Buffer.from(JSON.stringify(existingList, null, 2)), {
+          contentType: "application/json",
+          upsert: true,
+        });
+    } catch (storageErr) {
+      console.warn("Feedback storage backup warning:", storageErr);
+    }
+
+    revalidatePath("/coaching");
+    revalidatePath("/admin/coaching");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error submitting coaching feedback:", err);
+    return { error: err.message || "Failed to submit feedback" };
   }
 }

@@ -1,8 +1,11 @@
 import { getCoachingMessages, getCoachingSessions, getCoachInfo, getCoachingContacts } from "@/app/actions/coaching";
+import { getCoachingResources } from "@/app/actions/admin-coaching";
 import { CoachingDashboard } from "./CoachingDashboard";
 import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
 import { createClient } from "@/lib/supabase/server";
 import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "College Coach",
@@ -22,10 +25,21 @@ export default async function CoachingPage() {
     );
   }
 
-  const messages = await getCoachingMessages();
-  const sessions = await getCoachingSessions();
-  const coachInfo = await getCoachInfo();
-  const contacts = await getCoachingContacts();
+  // Ensure Elite welcome message is seeded before fetching contacts & messages
+  const { ensureEliteWelcomeMessage } = await import("@/app/actions/coaching");
+  try {
+    await ensureEliteWelcomeMessage();
+  } catch (seedErr) {
+    console.warn("Could not seed elite welcome message:", seedErr);
+  }
+
+  const [messages, sessions, coachInfo, contacts, coachingResources] = await Promise.all([
+    getCoachingMessages(),
+    getCoachingSessions(),
+    getCoachInfo(),
+    getCoachingContacts(),
+    getCoachingResources(),
+  ]);
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -48,6 +62,7 @@ export default async function CoachingPage() {
       initialMessages={messages || []}
       initialSessions={sessions || []}
       initialContacts={contacts || []}
+      initialResources={coachingResources || []}
       coachInfo={coachInfo}
       userPlan={plan}
       userName={studentName}

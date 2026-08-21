@@ -24,49 +24,66 @@ export async function getPersonalizedJobsAction(searchQuery?: string) {
   // Fetch the student profile
   const { data: profile } = await supabase
     .from("profiles")
-    .select("intended_major, career_interests, extracurricular_activities")
+    .select("intended_major, career_interests, career_interest, fields_of_study, grade_level, state, extracurricular_activities")
     .eq("id", user.id)
     .single();
 
   if (!profile) throw new Error("Profile not found");
 
-  // Stage 1: Get raw jobs from Adzuna (which are already broadly filtered for entry level)
+  const rawInterests = [
+    ...(Array.isArray(profile.career_interest) ? profile.career_interest : (profile.career_interest ? [profile.career_interest] : [])),
+    ...(Array.isArray(profile.career_interests) ? profile.career_interests : (profile.career_interests ? [profile.career_interests] : [])),
+    ...(Array.isArray(profile.intended_major) ? profile.intended_major : (profile.intended_major ? [profile.intended_major] : [])),
+    ...(Array.isArray(profile.fields_of_study) ? profile.fields_of_study : (profile.fields_of_study ? [profile.fields_of_study] : [])),
+  ].filter(Boolean) as string[];
+  const interests = Array.from(new Set(rawInterests));
+
+  // Stage 1: Get raw jobs from Adzuna & internal DB
   const rawJobs = await getRawJobsAndInternships(searchQuery);
 
   if (!rawJobs || rawJobs.length === 0) return [];
 
-  // Create a lightweight version of jobs to save thousands of AI tokens
-  const liteJobs = rawJobs.slice(0, 30).map((job: any) => ({
+  // If user performed an explicit search query, return matched jobs directly without AI profile filtering
+  if (searchQuery && searchQuery.trim()) {
+    return rawJobs;
+  }
+
+  // Partition custom admin jobs vs external Adzuna jobs
+  const customJobs = rawJobs.filter((job: any) => job.is_custom === true);
+  const externalJobs = rawJobs.filter((job: any) => !job.is_custom);
+
+  if (externalJobs.length === 0) {
+    return customJobs;
+  }
+
+  // Create a lightweight version of external jobs to save AI tokens (~400-600 tokens)
+  const liteJobs = externalJobs.slice(0, 15).map((job: any) => ({
     id: job.job_id,
     title: job.job_title,
     company: job.employer_name,
     type: job.job_employment_type,
-    description: job.job_description.substring(0, 150) + "..." // Add short desc for better AI context
+    snippet: (job.job_description || "").substring(0, 70).replace(/\s+/g, " "),
   }));
 
-  const systemPrompt = `You are an AI Career Filter evaluating job listings for high school students (ages 14-18).
-Your goal is to KEEP ONLY jobs that are suitable for first-time job seekers with little to no experience.
-Prioritize jobs such as Retail, Restaurants/Fast Food, Customer Service, Cashier, Receptionist, Tutor, Camp Counselor, Childcare, Warehouse (light duty), Delivery (non-driving), Seasonal jobs, Internships, and Volunteer opportunities.
-Evaluate the job title and description. Exclude any job that appears to require a college degree, significant prior experience, or is unsafe/unrealistic for a high schooler.
-Respond ONLY with a JSON array of string IDs representing the top 15 most relevant and suitable jobs, ordered by relevance to the student's profile (if provided) and suitability for high schoolers.
+  const systemPrompt = `You are an AI Career Specialist matching job/internship listings for a student (${profile.grade_level || 'High School / College'}).
+Select true entry-level or student internship roles requiring no prior professional experience that match the student.
+Respond ONLY with a JSON array of string IDs representing the best matching jobs ordered by relevance.
 Example: ["id1", "id2", "id3"]`;
 
-  const userPrompt = `Student Profile:
-Majors: ${profile.intended_major?.join(", ") || "None"}
-Career Interests: ${profile.career_interests?.join(", ") || "None"}
-Extracurriculars: ${profile.extracurricular_activities?.join(", ") || "None"}
-
-Available Jobs:
+  const userPrompt = `Student: Major: ${profile.intended_major?.join(", ") || "General"} | Interests: ${interests.join(", ") || "General"} | State: ${profile.state || "US"}
+Jobs:
 ${JSON.stringify(liteJobs)}
 
-Return ONLY a JSON array of the best matching IDs suitable for high school students.`;
+Return ONLY a JSON array of matching IDs:`;
 
   try {
     const aiResponse = await callAI({
       systemPrompt,
       userPrompt,
       provider: "claude",
-      jsonMode: true
+      jsonMode: true,
+      maxTokens: 400,
+      label: "Career Center Job Matcher",
     });
 
     let cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
@@ -80,15 +97,33 @@ Return ONLY a JSON array of the best matching IDs suitable for high school stude
 
     const parsedIds = JSON.parse(cleanedResponse);
     if (Array.isArray(parsedIds) && parsedIds.length > 0) {
+      const extractedIdStrings = parsedIds.map((item: any) => {
+        if (typeof item === 'string') return item;
+        if (typeof item === 'number') return item.toString();
+        if (item && typeof item === 'object' && item.id) return String(item.id);
+        return "";
+      }).filter(Boolean);
+
       // Map the AI-selected IDs back to the original full job objects
-      return parsedIds
-        .map(id => rawJobs.find((job: any) => job.job_id === id))
-        .filter(Boolean); // Remove any undefined
+      const matched = extractedIdStrings
+        .map(id => externalJobs.find((job: any) => 
+          job.job_id === id || 
+          job.job_id.endsWith(id) || 
+          id.includes(job.job_id) || 
+          (id.length >= 6 && job.job_id.includes(id))
+        ))
+        .filter(Boolean);
+
+      if (matched.length > 0) {
+        const matchedSet = new Set(matched.map(m => m.job_id));
+        const remainingExternal = externalJobs.filter(ej => !matchedSet.has(ej.job_id));
+        return [...customJobs, ...matched, ...remainingExternal];
+      }
     }
-    return rawJobs.slice(0, 15);
+    return [...customJobs, ...externalJobs];
   } catch (error) {
     console.error("AI Jobs filtering failed, returning raw fallback:", error);
-    return rawJobs.slice(0, 15);
+    return [...customJobs, ...externalJobs];
   }
 }
 

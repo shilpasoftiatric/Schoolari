@@ -11,12 +11,12 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const settings = await getSiteSettings();
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left — Branding Panel */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-800 relative overflow-hidden">
+    <div className="h-screen w-full flex overflow-hidden">
+      {/* Left — Branding Panel (Fixed height, 100vh, no scroll) */}
+      <div className="hidden lg:flex lg:w-1/2 h-full flex-col justify-between p-8 xl:p-12 bg-gradient-to-br from-violet-600 via-purple-700 to-indigo-800 relative overflow-hidden shrink-0">
         {/* Background decorations */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4 pointer-events-none" />
 
         {/* Logo */}
         <div className="flex items-center gap-2.5 relative z-10">
@@ -27,51 +27,51 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         </div>
 
         {/* Hero copy */}
-        <div className="relative z-10 space-y-6">
-          <div className="space-y-3">
-            <h1 className="text-4xl font-extrabold text-white leading-tight">
+        <div className="relative z-10 space-y-4 xl:space-y-6 my-auto">
+          <div className="space-y-2.5">
+            <h1 className="text-3xl xl:text-4xl font-extrabold text-white leading-tight">
               Your Student Success <br />Operating System
             </h1>
-            <p className="text-purple-200 text-lg leading-relaxed max-w-sm">
+            <p className="text-purple-200 text-base xl:text-lg leading-relaxed max-w-sm">
               Find scholarships, track applications, build your college portfolio, and start earning — all in one place.
             </p>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-3 xl:gap-4">
             {[
               { value: "500+", label: "Scholarships" },
               { value: "$2M+", label: "Available Funds" },
               { value: "10k+", label: "Students Helped" },
             ].map((s) => (
-              <div key={s.label} className="bg-white/10 rounded-2xl p-4 text-center">
-                <p className="text-2xl font-extrabold text-white">{s.value}</p>
-                <p className="text-xs text-purple-200 mt-1">{s.label}</p>
+              <div key={s.label} className="bg-white/10 rounded-2xl p-3 xl:p-4 text-center">
+                <p className="text-xl xl:text-2xl font-extrabold text-white">{s.value}</p>
+                <p className="text-[11px] xl:text-xs text-purple-200 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
 
           {/* Testimonial */}
-          <div className="bg-white/10 rounded-2xl p-5 backdrop-blur-sm">
-            <p className="text-white text-sm leading-relaxed italic">
+          <div className="bg-white/10 rounded-2xl p-4 xl:p-5 backdrop-blur-sm">
+            <p className="text-white text-xs xl:text-sm leading-relaxed italic">
               "{settings.site_name} helped me find 3 scholarships I never would have found on my own. I won $5,000 in my first semester!"
             </p>
-            <div className="flex items-center gap-3 mt-4">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xs">
+            <div className="flex items-center gap-3 mt-3 xl:mt-4">
+              <div className="w-7 h-7 xl:w-8 xl:h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xs">
                 J
               </div>
               <div>
                 <p className="text-white font-semibold text-xs">Jordan M.</p>
-                <p className="text-purple-200 text-xs">College Freshman</p>
+                <p className="text-purple-200 text-[11px] xl:text-xs">College Freshman</p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right — Auth Form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-slate-50">
-        <div className="w-full max-w-md">
+      {/* Right — Auth Form (Scrollable) */}
+      <div className="flex-1 h-full overflow-y-auto bg-slate-50 flex items-center justify-center p-6 sm:p-8 lg:p-12">
+        <div className="w-full max-w-md my-auto py-6">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10">

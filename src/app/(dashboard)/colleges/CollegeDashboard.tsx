@@ -447,7 +447,7 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
       {/* ── Tabs ── */}
       <div className="flex gap-1 bg-slate-100 rounded-2xl p-1 w-fit">
         {[
-          { key: "ai", label: "AI Recommendations", icon: Sparkles },
+          { key: "ai", label: "Schoolari Recommendations", icon: Sparkles },
           { key: "tracker", label: "My College List", icon: Building },
         ].map(({ key, label, icon: Icon }) => (
           <button

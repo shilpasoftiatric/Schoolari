@@ -128,8 +128,6 @@ export async function proxy(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      console.log(`[Middleware/Proxy] Fetched profile for ${user.id}:`, profile);
-
       if (profile) {
         // Account Suspension Check
         if (profile.is_active === false) {
@@ -217,7 +215,7 @@ export async function proxy(request: NextRequest) {
                   .maybeSingle();
                 studentProfile = data;
               }
-                
+
               if (studentProfile) {
                 if (studentProfile.subscription_status === 'active' || studentProfile.subscription_status === 'trialing') {
                   familySubscriptionStatus = studentProfile.subscription_status;
@@ -227,11 +225,9 @@ export async function proxy(request: NextRequest) {
             }
 
             const hasPaid = familySubscriptionStatus === "active" || familySubscriptionStatus === "trialing";
-            console.log(`[Middleware/Proxy] ${user.id} -> hasPaid: ${hasPaid}, familySub: ${familySubscriptionStatus}, onboarding: ${familyOnboardingComplete}`);
 
             // If they haven't paid, they can only access pricing
             if (!hasPaid && (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding"))) {
-              console.log(`[Middleware/Proxy] Redirecting ${user.id} to /pricing`);
               const url = request.nextUrl.clone();
               url.pathname = "/pricing";
               return NextResponse.redirect(url);
@@ -239,7 +235,6 @@ export async function proxy(request: NextRequest) {
 
             // If they paid but haven't onboarded, force onboarding
             if (hasPaid && !familyOnboardingComplete && pathname.startsWith("/dashboard")) {
-              console.log(`[Middleware/Proxy] Redirecting ${user.id} to /onboarding`);
               const url = request.nextUrl.clone();
               url.pathname = "/onboarding";
               return NextResponse.redirect(url);
@@ -247,7 +242,6 @@ export async function proxy(request: NextRequest) {
 
             // If they finished onboarding, send them to dashboard instead of pricing/onboarding
             if (hasPaid && familyOnboardingComplete && (pathname.startsWith("/onboarding") || pathname.startsWith("/pricing"))) {
-              console.log(`[Middleware/Proxy] Redirecting ${user.id} to /dashboard`);
               const url = request.nextUrl.clone();
               url.pathname = "/dashboard";
               return NextResponse.redirect(url);
@@ -268,18 +262,10 @@ export async function proxy(request: NextRequest) {
           }
         }
       } else {
-        console.log(`[Middleware/Proxy] Profile missing for ${user.id}. Creating default profile...`);
-        
         const { error: healError } = await supabaseAdmin.from("profiles").upsert({
           id: user.id,
           account_type: 'student', // default fallback
         }, { onConflict: 'id' });
-
-        if (healError) {
-          console.error(`[Middleware/Proxy] FATAL: Failed to auto-heal profile for ${user.id}:`, healError);
-        } else {
-          console.log(`[Middleware/Proxy] Successfully auto-healed profile for ${user.id}`);
-        }
 
         if (
           pathname.startsWith("/dashboard") || 

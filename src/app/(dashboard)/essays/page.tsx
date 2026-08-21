@@ -5,10 +5,14 @@ import Link from "next/link";
 import { createEssay } from "@/app/actions/essays";
 import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
 import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
+import { getAiDisclaimerStatus } from "@/app/actions/ai-disclaimer";
+import { AIDisclaimerModal } from "@/components/ui/AIDisclaimerModal";
 
 export const metadata = {
   title: "Essay Workspace",
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function EssaysDashboardPage() {
   const plan = await getUserPlan();
@@ -27,18 +31,25 @@ export default async function EssaysDashboardPage() {
 
   if (!user) redirect("/login");
 
-  const { data: essays, error } = await supabase
-    .from("essays")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("updated_at", { ascending: false });
+  const [{ essayDisclaimerAccepted }, { data: essays, error }] = await Promise.all([
+    getAiDisclaimerStatus(),
+    supabase
+      .from("essays")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false }),
+  ]);
 
   if (error) {
     return <div className="p-8 text-red-500">Failed to load essays: {error.message}</div>;
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">
+    <>
+      {!essayDisclaimerAccepted && (
+        <AIDisclaimerModal isOpen={true} feature="essay" />
+      )}
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
@@ -105,7 +116,8 @@ export default async function EssaysDashboardPage() {
           ))
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

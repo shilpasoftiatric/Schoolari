@@ -3,6 +3,8 @@ import { ResumeBuilderClient } from "./ResumeBuilderClient";
 import { Metadata } from "next";
 import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
 import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
+import { getAiDisclaimerStatus } from "@/app/actions/ai-disclaimer";
+import { AIDisclaimerModal } from "@/components/ui/AIDisclaimerModal";
 
 export const metadata: Metadata = {
   title: "Harvard ATS Resume Builder | Schoolari USA",
@@ -24,6 +26,15 @@ export default async function ResumeBuilderPage() {
     );
   }
 
-  return <ResumeBuilderClient />;
+  const { resumeDisclaimerAccepted } = await getAiDisclaimerStatus();
+
+  return (
+    <>
+      {!resumeDisclaimerAccepted && (
+        <AIDisclaimerModal isOpen={true} feature="resume" />
+      )}
+      <ResumeBuilderClient />
+    </>
+  );
 }
 

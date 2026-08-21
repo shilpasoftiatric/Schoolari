@@ -35,6 +35,14 @@ export default async function MessagesPage() {
 
   const studentName = profile?.student_first_name || profile?.first_name || "Student";
 
+  // Ensure Elite welcome message is present
+  const { ensureEliteWelcomeMessage } = await import("@/app/actions/coaching");
+  try {
+    await ensureEliteWelcomeMessage(user.id);
+  } catch (seedErr) {
+    console.warn("Could not seed elite welcome message:", seedErr);
+  }
+
   // Fetch messages between student and coach/admin
   const { data: messages } = await supabase
     .from("coaching_messages")

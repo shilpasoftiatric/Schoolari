@@ -244,6 +244,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    const appliedCount = apps.filter((a: any) => 
+      a.status === "Submitted" || a.status === "In Progress" || a.status === "Won" || a.status === "Applied"
+    ).length;
+
     const progressStats = {
       hasTranscript: docs.some((d: any) => d.type === "transcript"),
       hasRecommendationLetter: docs.some((d: any) => d.type === "recommendation_letter"),
@@ -252,7 +256,7 @@ export async function POST(req: Request) {
       essaysCount: essays.length,
       completedEssaysCount: essays.filter((e: any) => e.status === "completed").length,
       savedCollegesCount: savedColleges.length,
-      appliedScholarshipsCount: apps.filter((a: any) => a.status === "Submitted").length,
+      appliedScholarshipsCount: appliedCount,
       savedScholarshipsCount: apps.length,
       matchedScholarshipsCount: matchedScholarshipsCount
     };

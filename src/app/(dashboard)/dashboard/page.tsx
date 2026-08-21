@@ -48,6 +48,7 @@ export default async function DashboardPage() {
       userGoals={profile?.schoolari_goals || []}
       globalTasks={dbData.globalTasks || []}
       trackerItems={dbData.trackerItems || []}
+      matchedScholarshipsCount={dbData.matchedScholarshipsCount || 0}
       plan={plan}
       createdAt={createdAt}
     />

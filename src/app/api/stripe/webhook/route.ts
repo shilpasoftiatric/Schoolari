@@ -110,6 +110,17 @@ export async function POST(req: NextRequest) {
             console.warn(`[CC Trial Sync] Skipping — email: ${email}, ccTrialListId: ${ccTrialListId}`);
           }
         }
+
+        // If Elite subscription, ensure welcome message is auto-delivered
+        try {
+          const plan = getPlanFromPriceId(priceId);
+          if (plan === "elite") {
+            const { ensureEliteWelcomeMessage } = await import("@/app/actions/coaching");
+            await ensureEliteWelcomeMessage(userId);
+          }
+        } catch (eliteMsgErr) {
+          console.warn("Elite welcome message auto-trigger warning:", eliteMsgErr);
+        }
         break;
       }
 

@@ -219,7 +219,10 @@ export async function getAdminConversations(): Promise<AdminConversationUser[]> 
         const isFromMeByEmail =
           currentUserEmail &&
           (title.includes(`[from_email:${currentUserEmail}]`) || title.includes(`[from:${currentUserEmail}]`));
-        return isFromMeById || isFromMeByEmail;
+        const isFromMeByRole =
+          isSuperAdmin || (currentRole && title.includes(`[from_role:${currentRole.toLowerCase()}]`));
+        const isWelcomeMsg = isSuperAdmin && title.includes("welcome to schoolari elite");
+        return isFromMeById || isFromMeByEmail || isFromMeByRole || isWelcomeMsg;
       }
 
       // Inbound student message: ONLY show if addressed to this staff member's ID or EMAIL

@@ -74,7 +74,7 @@ export default async function StudentScholarshipsPage(props: {
     user
       ? supabase
         .from("profiles")
-        .select("state, grade_level, unweighted_gpa, intended_major, gender, ethnicity")
+        .select("state, grade_level, unweighted_gpa, weighted_gpa, intended_major, fields_of_study, career_interest, career_interests, gender, ethnicity")
         .eq("id", user.id)
         .single()
       : Promise.resolve({ data: null, error: null })

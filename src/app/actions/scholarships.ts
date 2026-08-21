@@ -41,11 +41,14 @@ export async function searchScholarships(query: string = "") {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("state, grade_level, fields_of_study, career_interests, unweighted_gpa, intended_major, gender, ethnicity")
+    .select("state, grade_level, fields_of_study, career_interest, career_interests, unweighted_gpa, weighted_gpa, intended_major, gender, ethnicity")
     .eq("id", user.id)
     .single();
 
-  let dbQuery = supabase.from("scholarships").select("id, name, description, category, organization_name, eligible_states, eligible_majors, eligible_ethnicities, eligible_gender, min_gpa_required, deadline, award_amount, grade_levels, featured, link").eq("is_active", true);
+  let dbQuery = supabase
+    .from("scholarships")
+    .select("id, name, description, category, organization_name, eligible_states, eligible_majors, min_gpa_required, deadline, award_amount, grade_levels, featured, link")
+    .eq("is_active", true);
 
   if (query.trim()) {
     const q = `%${query.trim()}%`;

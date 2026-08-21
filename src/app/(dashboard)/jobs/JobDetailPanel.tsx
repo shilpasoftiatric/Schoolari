@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building, MapPin, ExternalLink, Sparkles, CheckCircle2, FileText, Bot } from "lucide-react";
+import { Building, MapPin, ExternalLink, Sparkles, CheckCircle2, FileText, Bot, Globe, Laptop, GraduationCap, Briefcase } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
@@ -27,6 +27,10 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
     references: false,
     tracker: isTracked
   });
+
+  const empType = job.job_employment_type === "INTERN" ? "Internship" : job.job_employment_type === "PARTTIME" ? "Part-Time" : (job.job_employment_type || "Internship");
+  const isRemote = job.workplace_type === "Remote" || (job.job_city && job.job_city.toLowerCase().includes("remote"));
+  const isHybrid = job.workplace_type === "Hybrid";
 
   const handleMatch = async () => {
     setIsMatching(true);
@@ -107,10 +111,38 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
                 <DialogTitle className="text-2xl font-bold text-slate-900 leading-tight">
                   {job.job_title}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-slate-600">
-                  <span className="font-semibold flex items-center"><Building className="w-4 h-4 mr-1" /> {job.employer_name}</span>
-                  <span className="flex items-center"><MapPin className="w-4 h-4 mr-1" /> {job.job_city ? `${job.job_city}, ${job.job_state}` : "Remote"}</span>
-                  <Badge variant="secondary" className="font-normal capitalize">{job.job_employment_type?.toLowerCase().replace("_", " ")}</Badge>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm text-slate-600">
+                  <span className="font-semibold flex items-center"><Building className="w-4 h-4 mr-1 text-slate-400" /> {job.employer_name}</span>
+                  <span className="flex items-center">
+                    <MapPin className="w-4 h-4 mr-1 text-slate-400" /> 
+                    {job.job_city && !job.job_city.toLowerCase().includes("remote") 
+                      ? `${job.job_city}${job.job_state ? `, ${job.job_state}` : ''}` 
+                      : "Remote / Online"}
+                  </span>
+                  
+                  {/* Modality Badge */}
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                    isRemote 
+                      ? "bg-sky-50 text-sky-700 border-sky-200" 
+                      : isHybrid 
+                      ? "bg-purple-50 text-purple-700 border-purple-200" 
+                      : "bg-slate-100 text-slate-700 border-slate-200"
+                  }`}>
+                    {isRemote ? <Globe className="w-3.5 h-3.5 text-sky-600" /> : isHybrid ? <Laptop className="w-3.5 h-3.5 text-purple-600" /> : <Building className="w-3.5 h-3.5 text-slate-500" />}
+                    {isRemote ? "Remote / Virtual" : isHybrid ? "Hybrid" : "On-Site"}
+                  </span>
+
+                  {/* Employment Type Badge */}
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                    empType === "Internship" 
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                      : empType === "Part-Time" 
+                      ? "bg-blue-50 text-blue-700 border-blue-200" 
+                      : "bg-indigo-50 text-indigo-700 border-indigo-200"
+                  }`}>
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    {empType}
+                  </span>
                 </div>
               </div>
             </div>
