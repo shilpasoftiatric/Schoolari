@@ -463,11 +463,6 @@ export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | 
                   <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
                   <p>You have reached your monthly AI spend limit. Your access resets on {aiUsage?.resetDate || "the 1st of next month"}. Upgrade your plan for more access.</p>
                 </div>
-              ) : isLimitReached ? (
-                <div className="mb-6 p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-start gap-3 text-orange-700 text-sm">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p>You have reached your monthly limit for this feature. Your limit resets on {aiUsage?.resetDate || "the 1st of next month"}. Upgrade your plan for more access.</p>
-                </div>
               ) : aiError ? (
                 <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-600 text-sm">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
