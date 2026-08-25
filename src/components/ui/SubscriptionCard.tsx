@@ -11,6 +11,7 @@ interface SubscriptionCardProps {
   status: string | null;
   renewalDate: string | null;
   hasSubscription: boolean;
+  aiUsage?: any;
 }
 
 const PLAN_ICON: Record<NonNullable<SubscriptionPlan>, React.ElementType> = {
@@ -58,7 +59,7 @@ const PRICE_ID_MAP: Record<NonNullable<SubscriptionPlan>, string> = {
   elite: process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE || "",
 };
 
-export function SubscriptionCard({ plan, status, renewalDate, hasSubscription }: SubscriptionCardProps) {
+export function SubscriptionCard({ plan, status, renewalDate, hasSubscription, aiUsage }: SubscriptionCardProps) {
   const [targetUpgradePlan, setTargetUpgradePlan] = useState<NonNullable<SubscriptionPlan> | null>(null);
 
   const color = plan ? PLAN_COLOR[plan] : PLAN_COLOR["starter"];
@@ -140,12 +141,34 @@ export function SubscriptionCard({ plan, status, renewalDate, hasSubscription }:
         <div className="px-6 pb-4">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">Included Features</p>
           <ul className="space-y-1.5">
-            {PLAN_INFO[plan].features.map((feat) => (
-              <li key={feat} className="flex items-center gap-2 text-sm text-slate-700">
-                <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${color.text}`} />
-                {feat}
-              </li>
-            ))}
+            {PLAN_INFO[plan].features.map((feat) => {
+              let usageText = null;
+              if (aiUsage) {
+                if (feat.includes("Ask Schoolari AI")) {
+                  usageText = aiUsage.ask_ai.limit > 900000 ? "Unlimited questions" : `${aiUsage.ask_ai.used} of ${aiUsage.ask_ai.limit} questions used this month`;
+                } else if (feat.includes("Essay Workspace")) {
+                  usageText = aiUsage.essay.limit > 900000 ? "Unlimited documents" : `${aiUsage.essay.used} of ${aiUsage.essay.limit} documents created this month`;
+                } else if (feat.includes("Resume Builder")) {
+                  usageText = aiUsage.resume.limit > 900000 ? "Unlimited documents" : `${aiUsage.resume.used} of ${aiUsage.resume.limit} documents created this month`;
+                } else if (feat.includes("Cover Letter")) {
+                  usageText = aiUsage.cover_letter.limit > 900000 ? "Unlimited" : `${aiUsage.cover_letter.used} of ${aiUsage.cover_letter.limit} used this month`;
+                }
+              }
+
+              return (
+                <li key={feat} className="flex flex-col gap-0.5">
+                  <div className="flex items-start gap-2 text-sm text-slate-700">
+                    <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${color.text}`} />
+                    <span>{feat}</span>
+                  </div>
+                  {usageText && (
+                    <div className="pl-5.5 text-[11px] text-slate-500 font-medium ml-5">
+                      {usageText}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

@@ -9,6 +9,50 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      ai_limits: {
+        Row: {
+          id: string;
+          plan: string;
+          ask_ai_limit: number;
+          essay_limit: number;
+          resume_limit: number;
+          cover_letter_limit: number;
+          monthly_budget_cap_usd?: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ai_limits"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["ai_limits"]["Row"]>;
+        Relationships: [];
+      };
+      ai_usage: {
+        Row: {
+          id: string;
+          user_id: string;
+          current_month: string;
+          ask_ai_count: number;
+          essay_count: number;
+          resume_count: number;
+          cover_letter_count: number;
+          essay_docs_count?: number;
+          resume_docs_count?: number;
+          estimated_cost_usd?: number;
+          last_limit_reason?: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["ai_usage"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["ai_usage"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       profiles: {
         Row: {
           id: string;
@@ -531,6 +575,7 @@ export interface Database {
           user_id: string;
           role: "user" | "assistant";
           content: string;
+          session_id?: string | null;
           created_at: string;
         };
         Insert: {
@@ -538,9 +583,56 @@ export interface Database {
           user_id: string;
           role: "user" | "assistant";
           content: string;
+          session_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["ai_chat_messages"]["Row"]>;
+        Relationships: any[];
+      };
+      ai_chat_sessions: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["ai_chat_sessions"]["Row"]>;
+        Relationships: any[];
+      };
+      dashboard_content: {
+        Row: {
+          id: string;
+          title: string;
+          description?: string | null;
+          content_type?: string | null;
+          video_url?: string | null;
+          image_url?: string | null;
+          tags?: string[] | null;
+          is_published?: boolean | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          content_type?: string | null;
+          video_url?: string | null;
+          image_url?: string | null;
+          tags?: string[] | null;
+          is_published?: boolean | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["dashboard_content"]["Row"]>;
         Relationships: any[];
       };
     };

@@ -1,6 +1,7 @@
 "use server";
 
 import { callAI } from "@/lib/ai";
+import { enforceAiLimit } from "@/lib/ai-limits";
 
 export async function generateBrainstorm(topic: string) {
   const systemPrompt = `You are an expert college admissions and scholarship counselor. 
@@ -14,6 +15,7 @@ Format the output nicely using Markdown. Be encouraging and concise.`;
   const userPrompt = `The student has provided the following topic for their essay: "${topic}"`;
 
   try {
+    await enforceAiLimit("essay_tool");
     return await callAI({
       systemPrompt,
       userPrompt,
@@ -21,6 +23,7 @@ Format the output nicely using Markdown. Be encouraging and concise.`;
     });
   } catch (error: any) {
     console.error("Brainstorm Error:", error);
+    if (error.message?.includes("monthly")) throw error;
     throw new Error("Failed to generate brainstorm.");
   }
 }
@@ -44,6 +47,7 @@ ${content}
 """`;
 
   try {
+    await enforceAiLimit("essay_tool");
     return await callAI({
       systemPrompt,
       userPrompt,
@@ -51,6 +55,7 @@ ${content}
     });
   } catch (error: any) {
     console.error("Review Error:", error);
+    if (error.message?.includes("monthly")) throw error;
     throw new Error("Failed to review essay.");
   }
 }
@@ -67,6 +72,7 @@ Rules:
   const userPrompt = `Plain Description: "${description}"`;
 
   try {
+    await enforceAiLimit("resume_tool");
     return await callAI({
       systemPrompt,
       userPrompt,
@@ -74,6 +80,7 @@ Rules:
     });
   } catch (error: any) {
     console.error("Optimize Bullet Error:", error);
+    if (error.message?.includes("monthly")) throw error;
     throw new Error("Failed to optimize resume bullet.");
   }
 }
@@ -93,7 +100,8 @@ STRICT GUIDELINES:
 3. Frame the essay clearly as a "FIRST DRAFT — Not a Final Product" in the header commentary.
 4. Strictly respect any word/character count limits provided by the student.
 5. Provide a well-structured essay with an engaging opening hook, coherent body paragraphs, and a memorable concluding reflection.
-6. Return ONLY the essay draft text preceded by a brief 2-line header banner.`;
+6. Return ONLY the essay draft text preceded by a brief 2-line header banner.
+7. Do NOT use any Markdown formatting, headings, or bold text. Return pure plain text.`;
 
   const userPrompt = `Application Type: ${data.type}
 Target Application / Entity: ${data.title}
@@ -106,6 +114,7 @@ ${Object.entries(data.answers)
   .join("\n\n")}`;
 
   try {
+    await enforceAiLimit("essay_tool");
     return await callAI({
       systemPrompt,
       userPrompt,
@@ -113,6 +122,7 @@ ${Object.entries(data.answers)
     });
   } catch (error: any) {
     console.error("Generate First Draft Essay Error:", error);
+    if (error.message?.includes("monthly")) throw error;
     throw new Error("Failed to generate first draft essay.");
   }
 }
@@ -124,7 +134,8 @@ Rules:
 1. Maintain all original factual details, personal experiences, and authentic tone.
 2. Adjust the focus, tone, or emphasis as requested.
 3. Keep it framed as a draft.
-4. Return ONLY the revised essay text.`;
+4. Return ONLY the revised essay text.
+5. Do NOT use any Markdown formatting, headings, or bold text. Return pure plain text.`;
 
   const userPrompt = `Student Instruction: "${instruction}"
 
@@ -134,6 +145,7 @@ ${content}
 """`;
 
   try {
+    await enforceAiLimit("essay_tool");
     return await callAI({
       systemPrompt,
       userPrompt,
@@ -141,6 +153,7 @@ ${content}
     });
   } catch (error: any) {
     console.error("Refine Essay Error:", error);
+    if (error.message?.includes("monthly")) throw error;
     throw new Error("Failed to refine essay.");
   }
 }
@@ -151,7 +164,8 @@ Polish the provided essay draft for grammar, spelling, clarity, flow, and senten
 Rules:
 1. Preserve the student's unique voice and all facts.
 2. Fix all typos, grammatical mistakes, awkward phrasing, and passive voice where appropriate.
-3. Return ONLY the improved essay text without extra commentary.`;
+3. Return ONLY the improved essay text without extra commentary.
+4. Do NOT use any Markdown formatting, headings, or bold text. Return pure plain text.`;
 
   const userPrompt = `Current Essay Draft:
 """
@@ -159,6 +173,7 @@ ${content}
 """`;
 
   try {
+    await enforceAiLimit("essay_tool");
     return await callAI({
       systemPrompt,
       userPrompt,
@@ -166,6 +181,7 @@ ${content}
     });
   } catch (error: any) {
     console.error("Improve Essay Error:", error);
+    if (error.message?.includes("monthly")) throw error;
     throw new Error("Failed to improve essay.");
   }
 }

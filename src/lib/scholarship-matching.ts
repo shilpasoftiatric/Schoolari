@@ -27,6 +27,8 @@ function isGradeEligible(reqGrades: string[], studentGrade: string | undefined |
     studentCategory = "undergraduate";
   }
 
+  if (!reqGrades || reqGrades.length === 0) return true;
+
   for (const rawReq of reqGrades) {
     const req = rawReq.toLowerCase().trim();
     if (req === "all" || req === "any" || req === "open" || req === "" || req.includes("all")) return true;
@@ -150,9 +152,9 @@ export function isScholarshipEligible(scholarship: any, profile: any): boolean {
     const isOpenEth = openEth.includes(sEth) || sEth.includes("all");
     if (!isOpenEth) {
       const studentEths = (Array.isArray(profile.ethnicity) ? profile.ethnicity : [profile.ethnicity])
-        .map(e => String(e).toLowerCase().trim());
+        .map((e: any) => String(e).toLowerCase().trim());
       if (studentEths.length > 0) {
-        const matchesEth = studentEths.some(se => sEth.includes(se) || se.split(" ").some(word => word.length > 3 && sEth.includes(word)));
+        const matchesEth = studentEths.some((se: string) => sEth.includes(se) || se.split(" ").some((word: string) => word.length > 3 && sEth.includes(word)));
         if (!matchesEth) return false;
       }
     }
@@ -173,14 +175,15 @@ export function isScholarshipEligible(scholarship: any, profile: any): boolean {
 }
 
 export function scoreScholarshipForProfile(scholarship: any, profile: any): { score: number; reason: string } {
-  let score = 0;
+  // Base score so students don't see 0% for eligible open scholarships
+  let score = 40; 
   const reasons: string[] = [];
 
   if (!profile) {
-    return { score: 50, reason: "Open scholarship — no profile data." };
+    return { score: 70, reason: "Open scholarship — no profile data." };
   }
 
-  // Major match (+30)
+  // Major match (+25)
   const studentMajors = [
     ...(Array.isArray(profile.intended_major) ? profile.intended_major : (profile.intended_major ? [profile.intended_major] : [])),
     ...(Array.isArray(profile.fields_of_study) ? profile.fields_of_study : (profile.fields_of_study ? [profile.fields_of_study] : []))
@@ -188,50 +191,67 @@ export function scoreScholarshipForProfile(scholarship: any, profile: any): { sc
 
   if (studentMajors.length > 0 && scholarship.eligible_majors) {
     const majors = scholarship.eligible_majors.toLowerCase();
-    const matches = studentMajors.some((m: string) => majors.includes(m.toLowerCase()));
-    if (majors.includes("any major") || majors.includes("all majors") || matches) {
-      score += 30;
-      reasons.push(studentMajors[0] ? `your ${studentMajors[0]} major` : "major alignment");
+    const openMajors = ["any", "all", "open", "general"];
+    const isOpen = openMajors.some(o => majors.includes(o));
+    
+    // More lenient word-based matching
+    const matches = studentMajors.some((m: string) => {
+      const studentWords = m.toLowerCase().split(" ");
+      return studentWords.some(w => w.length > 3 && majors.includes(w)) || majors.includes(m.toLowerCase());
+    });
+
+    if (isOpen || matches) {
+      score += 25;
+      reasons.push(studentMajors[0] && matches ? `your ${studentMajors[0]} major` : "major alignment");
     }
+  } else if (!scholarship.eligible_majors || scholarship.eligible_majors.trim() === "") {
+    // If scholarship has no major restriction, give partial points for broad eligibility
+    score += 15;
   }
 
-  // State match (+20)
+  // State match (+15)
   if (profile.state && scholarship.eligible_states) {
     const states = scholarship.eligible_states.toLowerCase();
     if (states.includes("all") || states.includes("national") || states.includes("no geographic restrictions") || states.includes(profile.state.toLowerCase())) {
-      score += 20;
+      score += 15;
       reasons.push(`${profile.state} state eligibility`);
     }
+  } else if (!scholarship.eligible_states || scholarship.eligible_states.trim() === "") {
+    score += 10;
   }
 
-  // Grade level match (+20)
+  // Grade level match (+10)
   if (profile.grade_level && scholarship.grade_levels) {
     const reqGrades = Array.isArray(scholarship.grade_levels)
       ? scholarship.grade_levels.map((g: string) => String(g))
       : [String(scholarship.grade_levels)];
     if (isGradeEligible(reqGrades, profile.grade_level)) {
-      score += 20;
+      score += 10;
       reasons.push(`${profile.grade_level} standing`);
     }
+  } else if (!scholarship.grade_levels || scholarship.grade_levels.length === 0) {
+    score += 10;
   }
 
-  // GPA meets minimum (+15)
+  // GPA meets minimum (+10)
   if (scholarship.min_gpa_required) {
     const req = parseFloat(scholarship.min_gpa_required);
     const studentGpa = parseGpa(profile.unweighted_gpa || profile.weighted_gpa || profile.gpa);
     if (!isNaN(req) && !isNaN(studentGpa) && studentGpa >= req) {
-      score += 15;
+      score += 10;
       reasons.push(`your GPA`);
+    } else if (isNaN(req)) {
+       score += 10;
     }
   } else {
     // No GPA restriction
     score += 10;
   }
 
-  // Deadline urgency boost (+10)
+  // Deadline urgency boost (+5)
   if (scholarship.deadline) {
     const days = Math.ceil((new Date(scholarship.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    if (days > 0 && days <= 30) score += 10;
+    if (days > 0 && days <= 30) score += 5;
   }
 
   // Featured boost (+5)
@@ -239,8 +259,8 @@ export function scoreScholarshipForProfile(scholarship: any, profile: any): { sc
 
   const reason = reasons.length > 0
     ? `Matches based on ${reasons.join(", ")}.`
-    : "Open scholarship — verified for your profile.";
+    : "Open scholarship — broadly matches your profile.";
 
-  return { score: Math.min(score, 100), reason };
+  return { score: Math.min(Math.round(score), 99), reason };
 }
 

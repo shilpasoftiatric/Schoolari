@@ -141,5 +141,6 @@ export const NAV_PERMISSIONS: Record<string, Permission> = {
   "/admin/income": "manage_income",
   "/admin/staff": "manage_staff",
   "/admin/settings": "manage_settings",
+  "/admin/ai-limits": "manage_settings",
   "/admin/payments": "manage_payments",
 };

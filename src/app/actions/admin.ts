@@ -37,6 +37,34 @@ export async function requirePermission(permission: Permission) {
   return role;
 }
 
+export async function resetUserAiUsage(userId: string) {
+  await requirePermission("manage_users");
+  const adminClient = await createAdminClient();
+  const { getCurrentMonthString } = await import("@/lib/ai-limits");
+  const currentMonth = getCurrentMonthString();
+
+  const { error } = await adminClient
+    .from("ai_usage")
+    .upsert({
+      user_id: userId,
+      current_month: currentMonth,
+      ask_ai_count: 0,
+      essay_count: 0,
+      resume_count: 0,
+      cover_letter_count: 0,
+      essay_docs_count: 0,
+      resume_docs_count: 0,
+      estimated_cost_usd: 0,
+      last_limit_reason: "None",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/ai-limits");
+  return { success: true };
+}
+
 export async function updateUserRole(userId: string, newRole: string) {
   await requirePermission("manage_users");
   const adminClient = await createAdminClient();
@@ -102,6 +130,7 @@ export async function createScholarship(data: any) {
   const adminClient = await createAdminClient();
 
   const sanitized = sanitizeScholarshipPayload(data);
+  sanitized.featured = true; // Admin created scholarships are always marked as featured (Schoolari Recommended)
 
   const { error } = await adminClient
     .from("scholarships")

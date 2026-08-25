@@ -28,7 +28,7 @@ const featureAccessMap: Record<SubscriptionFeature, SubscriptionPlan[]> = {
   colleges:     ["starter", "scholar", "elite"],
   documents:    ["starter", "scholar", "elite"],
   tracker:      ["starter", "scholar", "elite"],
-  essays:       ["scholar", "elite"],
+  essays:       ["starter", "scholar", "elite"],
   resume:       ["scholar", "elite"],
   jobs:         ["scholar", "elite"],
   income:       ["scholar", "elite"],
@@ -50,6 +50,7 @@ export const PLAN_INFO: Record<
       "AI College Match",
       "Document Vault",
       "Member Dashboard & Analytics",
+      "AI Essay Workspace (Limited Usage)",
     ],
   },
   scholar: {

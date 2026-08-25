@@ -85,16 +85,40 @@ export async function upgradeSubscriptionPlan(newPriceId: string) {
     const amountPaid = isNewInvoice ? latestInvoice.amount_paid : 0;
 
     const adminClient = await createAdminClient();
-    await adminClient
-      .from("profiles")
-      .update({
-        stripe_price_id: newPriceId,
-        subscription_status: updated.status,
-      })
-      .eq("id", ownerId);
+    
+    // Sync new plan across entire family (both parent and student profiles)
+    if (profile.stripe_subscription_id) {
+      await adminClient
+        .from("profiles")
+        .update({
+          stripe_price_id: newPriceId,
+          subscription_status: updated.status,
+        })
+        .eq("stripe_subscription_id", profile.stripe_subscription_id);
+    } else {
+      await adminClient
+        .from("profiles")
+        .update({
+          stripe_price_id: newPriceId,
+          subscription_status: updated.status,
+        })
+        .eq("id", ownerId);
+    }
+
+    if (profile.linked_student_id) {
+      await adminClient
+        .from("profiles")
+        .update({
+          stripe_price_id: newPriceId,
+          subscription_status: updated.status,
+        })
+        .eq("id", profile.linked_student_id);
+    }
 
     revalidatePath("/profile");
     revalidatePath("/dashboard");
+    revalidatePath("/admin/ai-limits");
+    revalidatePath("/admin/users");
 
     return {
       success: true,
@@ -241,16 +265,19 @@ export async function scheduleSubscriptionUpgrade(targetPriceId: string) {
  * Get current subscription info for the profile page.
  * Returns plan label, renewal date, and status.
  */
-export async function getSubscriptionInfo() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) throw new Error("Unauthorized");
+export async function getSubscriptionInfo(targetUserId?: string) {
+  let userId = targetUserId;
+  if (!userId) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+    userId = user.id;
+  }
 
   // Use the data fetcher so that we correctly inherit the "family" subscription state 
   // (e.g. if the student paid but the parent is looking at the profile)
   const { getStudentDashboardData } = await import("@/services/data-fetcher");
-  const dbData = await getStudentDashboardData(user.id);
+  const dbData = await getStudentDashboardData(userId);
   const profile = dbData.userProfile;
 
   if (!profile) return null;

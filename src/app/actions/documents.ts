@@ -39,6 +39,9 @@ export async function uploadDocumentAction(formData: FormData) {
 
   if (!user) throw new Error("Unauthorized");
 
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+
   const file = formData.get("file") as File;
   if (!file) throw new Error("No file provided");
 
@@ -58,7 +61,7 @@ export async function uploadDocumentAction(formData: FormData) {
 
   const fileExt = file.name.split(".").pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-  const filePath = `${user.id}/${fileName}`;
+  const filePath = `${masterId}/${fileName}`;
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
@@ -87,7 +90,7 @@ export async function uploadDocumentAction(formData: FormData) {
 
   const adminClient = await createAdminClient();
   const { data: insertedData, error: dbError } = await adminClient.from("documents").insert([
-    { user_id: user.id, name: file.name, type, file_url: publicUrl, size_bytes: file.size },
+    { user_id: masterId, name: file.name, type, file_url: publicUrl, size_bytes: file.size },
   ]).select().single();
 
   if (dbError) {
@@ -105,6 +108,8 @@ export async function deleteDocument(id: string, fileUrl: string) {
 
   if (!user) throw new Error("Unauthorized");
 
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
   const adminClient = await createAdminClient();
 
   if (hasAWSCredentials() && fileUrl.includes(".amazonaws.com/")) {
@@ -140,7 +145,7 @@ export async function deleteDocument(id: string, fileUrl: string) {
     .from("documents")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", masterId);
 
   if (dbError) throw new Error(dbError.message);
 
@@ -154,6 +159,9 @@ export async function renameDocumentAction(id: string, newName: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+
   const trimmed = newName.trim();
   if (!trimmed) throw new Error("Document name cannot be empty");
 
@@ -162,7 +170,7 @@ export async function renameDocumentAction(id: string, newName: string) {
     .from("documents")
     .update({ name: trimmed })
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", masterId);
 
   if (error) throw new Error(`Failed to rename document: ${error.message}`);
 

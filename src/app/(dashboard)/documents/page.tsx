@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DocumentsVault } from "./DocumentsVault";
 import { FolderOpen } from "lucide-react";
@@ -13,11 +13,15 @@ export default async function DocumentsPage() {
 
   if (!user) redirect("/login");
 
-  // Fetch all documents in parallel
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+  const adminClient = await createAdminClient();
+
+  // Fetch all documents in parallel for the shared household account
   const [docsRes, resumesRes, essaysRes] = await Promise.all([
-    supabase.from("documents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-    supabase.from("resumes").select("*").eq("user_id", user.id),
-    supabase.from("essays").select("*").eq("user_id", user.id).order("updated_at", { ascending: false })
+    adminClient.from("documents").select("*").eq("user_id", masterId).order("created_at", { ascending: false }),
+    adminClient.from("resumes").select("*").eq("user_id", masterId),
+    adminClient.from("essays").select("*").eq("user_id", masterId).order("updated_at", { ascending: false })
   ]);
 
   if (docsRes.error) {
@@ -85,7 +89,7 @@ export default async function DocumentsPage() {
         </p>
       </div>
 
-      <DocumentsVault initialDocuments={allDocuments} userId={user.id} />
+      <DocumentsVault initialDocuments={allDocuments} userId={masterId} />
     </div>
   );
 }

@@ -16,7 +16,8 @@ const TIERS = [
       "AI Scholarship Search + Tracker — finds scholarships, tracks deadlines, sends reminders",
       "AI College Match — recommends colleges based on student profile",
       "Document Vault — upload transcripts, letters of rec, resume",
-      "Member Dashboard — daily tasks, goals, deadline alerts"
+      "Member Dashboard — daily tasks, goals, deadline alerts",
+      "AI Essay Workspace (Limited Usage) — brainstorm and review essays"
     ],
     priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER,
   },

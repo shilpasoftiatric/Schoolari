@@ -100,10 +100,16 @@ export function ScholarshipCard({ scholarship, userActionStatus }: ScholarshipCa
           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase border ${getCategoryColor(scholarship.category)}`}>
             {scholarship.category || "General"}
           </span>
-          {scholarship.featured && !isWon && (
-            <span className="flex items-center gap-1 bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm">
-              <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Featured
-            </span>
+          {!isWon && (
+            scholarship.featured ? (
+              <span className="flex items-center gap-1 bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm">
+                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Schoolari Recommended
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm">
+                <Sparkles className="w-3 h-3 fill-indigo-500 text-indigo-500" /> AI Recommended
+              </span>
+            )
           )}
           {isWon && (
             <span className="flex items-center gap-1 bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide shadow-sm">

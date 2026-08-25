@@ -141,18 +141,22 @@ export async function getResumesAction(): Promise<UserResumesPayload> {
 
   if (!user) throw new Error("Unauthorized");
 
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+  const adminClient = await createAdminClient();
+
   // Fetch student profile for automatic prefill fallback
-  const { data: profile } = await supabase
+  const { data: profile } = await adminClient
     .from("profiles")
     .select("*")
-    .eq("id", user.id)
+    .eq("id", masterId)
     .maybeSingle();
 
-  const { data: existing, error } = await supabase
+  const { data: existing, error } = await adminClient
     .from("resumes")
     .select("*")
-    .eq("user_id", user.id)
-    .single();
+    .eq("user_id", masterId)
+    .maybeSingle();
 
   if (error && error.code !== "PGRST116") {
     throw new Error(error.message);
@@ -161,12 +165,44 @@ export async function getResumesAction(): Promise<UserResumesPayload> {
   if (!existing || !existing.content) {
     // Generate initial structured payload
     const initialPayload = migrateLegacyResumeContent({}, profile);
-    await supabase.from("resumes").insert([
+    await adminClient.from("resumes").insert([
       {
-        user_id: user.id,
+        user_id: masterId,
         content: initialPayload
       }
     ]);
+
+    // Sync the count (which is 1) to ai_usage
+    const { getCurrentMonthString } = await import("@/lib/ai-limits");
+    const currentMonth = getCurrentMonthString();
+    const { data: usage } = await adminClient
+      .from("ai_usage")
+      .select("user_id")
+      .eq("user_id", masterId)
+      .maybeSingle();
+
+    if (usage) {
+      await adminClient
+        .from("ai_usage")
+        .update({ resume_docs_count: 1 })
+        .eq("user_id", masterId);
+    } else {
+      await adminClient
+        .from("ai_usage")
+        .insert({
+          user_id: masterId,
+          current_month: currentMonth,
+          resume_docs_count: 1,
+          ask_ai_count: 0,
+          essay_count: 0,
+          resume_count: 0,
+          cover_letter_count: 0,
+          essay_docs_count: 0,
+          estimated_cost_usd: 0,
+          last_limit_reason: "None",
+        });
+    }
+
     return initialPayload;
   }
 
@@ -174,13 +210,69 @@ export async function getResumesAction(): Promise<UserResumesPayload> {
 
   // If we migrated from legacy format, save updated structured format
   if (!existing.content.resumes || !Array.isArray(existing.content.resumes)) {
-    await supabase
+    await adminClient
       .from("resumes")
       .update({ content: payload, updated_at: new Date().toISOString() })
       .eq("id", existing.id);
   }
 
+  // Sync the usage count to the database!
+  const resumeCount = Array.isArray(payload.resumes) ? payload.resumes.length : 0;
+  const { getCurrentMonthString } = await import("@/lib/ai-limits");
+  const currentMonth = getCurrentMonthString();
+  const { data: usage } = await adminClient
+    .from("ai_usage")
+    .select("user_id")
+    .eq("user_id", masterId)
+    .maybeSingle();
+
+  if (usage) {
+    await adminClient
+      .from("ai_usage")
+      .update({ resume_docs_count: resumeCount })
+      .eq("user_id", masterId);
+  } else {
+    await adminClient
+      .from("ai_usage")
+      .insert({
+        user_id: masterId,
+        current_month: currentMonth,
+        resume_docs_count: resumeCount,
+        ask_ai_count: 0,
+        essay_count: 0,
+        resume_count: 0,
+        cover_letter_count: 0,
+        essay_docs_count: 0,
+        estimated_cost_usd: 0,
+        last_limit_reason: "None",
+      });
+  }
+
   return payload;
+}
+
+export async function checkResumeCreationLimitAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { canCreate: false, used: 0, limit: 0, resetDate: "", error: "Unauthorized" };
+
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+
+  const { checkDocumentCreationLimit } = await import("@/lib/ai-limits");
+  return await checkDocumentCreationLimit("resume", masterId);
+}
+
+export async function enforceResumeDocCreateAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+
+  const { enforceAiLimit } = await import("@/lib/ai-limits");
+  await enforceAiLimit("resume_doc_create", masterId);
 }
 
 export async function saveResumesAction(payload: UserResumesPayload): Promise<{ success: boolean }> {
@@ -190,14 +282,26 @@ export async function saveResumesAction(payload: UserResumesPayload): Promise<{ 
 
   if (!user) throw new Error("Unauthorized");
 
-  const { data: existing } = await supabase
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+  const adminClient = await createAdminClient();
+
+  const { data: existing } = await adminClient
     .from("resumes")
-    .select("id")
-    .eq("user_id", user.id)
+    .select("id, content")
+    .eq("user_id", masterId)
     .maybeSingle();
 
+  const newCount = Array.isArray(payload?.resumes) ? payload.resumes.length : 1;
+
   if (existing) {
-    const { error } = await supabase
+    const prevCount = Array.isArray(existing.content?.resumes) ? existing.content.resumes.length : 1;
+    if (newCount > prevCount) {
+      const { enforceAiLimit } = await import("@/lib/ai-limits");
+      await enforceAiLimit("resume_doc_create", masterId);
+    }
+
+    const { error } = await adminClient
       .from("resumes")
       .update({
         content: payload,
@@ -207,11 +311,14 @@ export async function saveResumesAction(payload: UserResumesPayload): Promise<{ 
 
     if (error) throw new Error(`Failed to save resumes: ${error.message}`);
   } else {
-    const { error } = await supabase
+    const { enforceAiLimit } = await import("@/lib/ai-limits");
+    await enforceAiLimit("resume_doc_create", masterId);
+
+    const { error } = await adminClient
       .from("resumes")
       .insert([
         {
-          user_id: user.id,
+          user_id: masterId,
           content: payload
         }
       ]);
@@ -219,7 +326,39 @@ export async function saveResumesAction(payload: UserResumesPayload): Promise<{ 
     if (error) throw new Error(`Failed to create resume entry: ${error.message}`);
   }
 
+  // Explicitly sync resume docs count to match payload count
+  const { getCurrentMonthString } = await import("@/lib/ai-limits");
+  const currentMonth = getCurrentMonthString();
+  const { data: usage } = await adminClient
+    .from("ai_usage")
+    .select("user_id")
+    .eq("user_id", masterId)
+    .maybeSingle();
+
+  if (usage) {
+    await adminClient
+      .from("ai_usage")
+      .update({ resume_docs_count: newCount })
+      .eq("user_id", masterId);
+  } else {
+    await adminClient
+      .from("ai_usage")
+      .insert({
+        user_id: masterId,
+        current_month: currentMonth,
+        resume_docs_count: newCount,
+        ask_ai_count: 0,
+        essay_count: 0,
+        resume_count: 0,
+        cover_letter_count: 0,
+        essay_docs_count: 0,
+        estimated_cost_usd: 0,
+        last_limit_reason: "None",
+      });
+  }
+
   revalidatePath("/resume");
+  revalidatePath("/documents");
   revalidatePath("/career");
   revalidatePath("/dashboard");
   return { success: true };
@@ -237,6 +376,8 @@ export async function exportResumeToVaultAction(
 
   if (!user) throw new Error("Unauthorized");
 
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
   const adminClient = await createAdminClient();
 
   // Ensure vault bucket exists

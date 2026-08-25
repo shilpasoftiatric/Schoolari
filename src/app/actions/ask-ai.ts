@@ -284,7 +284,239 @@ function detectIntent(userQuery: string, historySummary: string): {
 }
 
 /**
- * Context-Aware Ask Schoolari AI Agent Orchestrator.
+ * Prepares the multi-tool context, profile data, session ID, and prompts for Ask Schoolari AI.
+ */
+export async function prepareSchoolariAIContext(
+  userId: string,
+  masterId: string,
+  messages: ChatMessage[],
+  sessionId?: string
+): Promise<{
+  currentSessionId: string | null;
+  systemPrompt: string;
+  userPrompt: string;
+  masterId: string;
+}> {
+  const supabaseAdmin = await createAdminClient();
+  const lastUserMessage = messages[messages.length - 1]?.content || "";
+
+  let currentSessionId = sessionId || null;
+  if (!currentSessionId) {
+    // Create a session automatically using the initial user message
+    const cleanedTitle = lastUserMessage.replace(/\s+/g, " ").trim().slice(0, 80) || "New Chat";
+    try {
+      const { data: newSession } = await supabaseAdmin
+        .from("ai_chat_sessions")
+        .insert({
+          user_id: masterId,
+          title: cleanedTitle,
+        })
+        .select("id")
+        .single();
+      if (newSession) {
+        currentSessionId = newSession.id;
+      }
+    } catch (sessErr) {
+      console.warn("[askSchoolariAI] Could not create session:", sessErr);
+    }
+  } else {
+    // Update session timestamp
+    try {
+      await supabaseAdmin
+        .from("ai_chat_sessions")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", currentSessionId);
+    } catch (_) {}
+  }
+
+  // Save user message to database using masterId (shared student / parent space)
+  try {
+    await supabaseAdmin.from("ai_chat_messages").insert({
+      user_id: masterId,
+      role: "user",
+      content: lastUserMessage,
+      session_id: currentSessionId || null,
+    });
+  } catch (dbErr) {
+    console.warn("[askSchoolariAI] Failed to save user message to DB:", dbErr);
+  }
+
+  // 1. Fetch verified student profile context (server-authorized)
+  const profile = await getStudentProfileContext(userId);
+
+  // 2. Detect Intent & Execute Authoritative Backend Tools
+  const recentHistoryText = messages
+    .slice(-4)
+    .map((m) => `${m.role}: ${m.content}`)
+    .join(" ");
+
+  const intent = detectIntent(lastUserMessage, recentHistoryText);
+  let toolDataSection = "";
+
+  // A. Platform Knowledge Base Integration: check if query asks about any Schoolari feature/page
+  const matchedFeatures = getRelevantPlatformKnowledge(lastUserMessage + " " + recentHistoryText);
+  if (matchedFeatures.length > 0) {
+    toolDataSection += `\n\n${formatPlatformKnowledgeForPrompt(matchedFeatures)}`;
+
+    // Inject live feature data if relevant
+    for (const feature of matchedFeatures) {
+      if (feature.id === "coaching") {
+        try {
+          const coachingData = await getLiveCoachingContext(userId);
+          if (coachingData.upcomingSessions.length > 0) {
+            const sessionList = coachingData.upcomingSessions
+              .map((s) => `- ${s.title} (${s.sessionType}) on ${s.date}${s.isEnrolled ? " [ENROLLED]" : ""}`)
+              .join("\n");
+            toolDataSection += `\n\n=== LIVE UPCOMING COACHING SESSIONS ===\n${sessionList}\n=== END COACHING SESSIONS ===`;
+          }
+        } catch (err) {
+          console.error("[askSchoolariAI] Live coaching context error:", err);
+        }
+      } else if (feature.id === "income") {
+        try {
+          const incomeData = await getLiveIncomeContext(userId);
+          toolDataSection += `\n\n=== LIVE EARN WHILE YOU LEARN HUB STATUS ===
+Available Categories: ${incomeData.categories.join(", ") || "General Skill-Building, Freelance, Tech, Work-Study"}
+Total Video Lessons: ${incomeData.totalVideos}
+Student Completed Lessons: ${incomeData.completedCount}
+=== END INCOME STATUS ===`;
+        } catch (err) {
+          console.error("[askSchoolariAI] Live income context error:", err);
+        }
+      } else if (feature.id === "jobs") {
+        try {
+          const jobsData = await getLiveJobsContext(userId);
+          if (jobsData.savedJobs.length > 0) {
+            const jobList = jobsData.savedJobs
+              .map((j) => `- ${j.title} at ${j.company} (Status: ${j.status})`)
+              .join("\n");
+            toolDataSection += `\n\n=== STUDENT'S SAVED JOBS & INTERNSHIPS ===\n${jobList}\n=== END SAVED JOBS ===`;
+          }
+        } catch (err) {
+          console.error("[askSchoolariAI] Live jobs context error:", err);
+        }
+      }
+    }
+  }
+
+  // B. Execute Scholarship Tool if intent matches
+  if (intent.isScholarshipSearch) {
+    try {
+      const scholarshipResults = await searchScholarshipsTool(userId, lastUserMessage);
+      if (scholarshipResults.results.length > 0) {
+        const list = scholarshipResults.results.map((s, idx) => {
+          return `${idx + 1}. **${s.name}** (${s.organization})
+   - Award Amount: ${s.awardAmount}
+   - Deadline: ${s.deadline}
+   - Match Score: ${s.matchScore}/100
+   - Why it matches: ${s.matchReason}
+   - Category: ${s.category}`;
+        }).join("\n\n");
+
+        toolDataSection += `\n\n=== VERIFIED SCHOLARSHIP SEARCH RESULTS (FROM SCHOOLARI DATABASE) ===
+Total Eligible Scholarships in Database: ${scholarshipResults.totalEligibleFound}
+Top Matched Scholarships for this Student:
+${list}
+${scholarshipResults.isFallback ? "\nNote: These are verified open/general scholarships because 0 strict niche filters were met." : ""}
+=== END SCHOLARSHIP RESULTS ===`;
+      }
+    } catch (toolErr) {
+      console.error("[askSchoolariAI] Scholarship tool error:", toolErr);
+    }
+  }
+
+  // C. Execute Dashboard Priorities Tool if intent matches
+  if (intent.isDashboardPriorities) {
+    try {
+      const prioritiesData = await getDashboardPrioritiesTool(userId);
+      if (prioritiesData) {
+        const priorityList = prioritiesData.todayPriorities
+          .map((p, i) => `${i + 1}. [${p.done ? "COMPLETED" : "PENDING"}] ${p.title} (${p.category})`)
+          .join("\n");
+
+        const deadlineList = prioritiesData.upcomingDeadlines
+          .map((d) => `- ${d.title}: Due ${d.date} (${d.daysLeft} days left)`)
+          .join("\n");
+
+        toolDataSection += `\n\n=== VERIFIED STUDENT DASHBOARD & PRIORITIES (FROM SCHOOLARI ENGINE) ===
+- Overall College Journey Progress: ${prioritiesData.progressPercentage}%
+- Current Milestone: ${prioritiesData.milestoneTitle}
+
+Today's Top Action Items:
+${priorityList || "No pending priority tasks for today."}
+
+Upcoming Deadlines:
+${deadlineList || "No urgent deadlines in the next 30 days."}
+=== END DASHBOARD DATA ===`;
+      }
+    } catch (toolErr) {
+      console.error("[askSchoolariAI] Priorities tool error:", toolErr);
+    }
+  }
+
+  // D. Execute Application Status Tool if intent matches
+  if (intent.isApplicationStatus) {
+    try {
+      const appStatus = await getApplicationStatusTool(userId);
+      const schList = appStatus.trackedScholarships.map((s) => `- ${s.name}: ${s.status}`).join("\n");
+      const colList = appStatus.savedColleges.map((c) => `- ${c.name}: ${c.status}`).join("\n");
+
+      toolDataSection += `\n\n=== VERIFIED STUDENT APPLICATION TRACKER ===
+Tracked Scholarships:
+${schList || "No scholarships currently tracked in application list."}
+
+Saved Colleges:
+${colList || "No colleges currently saved in list."}
+=== END APPLICATION TRACKER ===`;
+    } catch (toolErr) {
+      console.error("[askSchoolariAI] Application status tool error:", toolErr);
+    }
+  }
+
+  // 3. Construct Compact Profile Context Section (~30-60 tokens)
+  let profileContextSection = "";
+  if (profile && profile.knownFields.length > 0) {
+    profileContextSection = `[STUDENT PROFILE]: ${profile.knownFields.join(" | ")}`;
+  }
+
+  // 4. Construct Lean System Prompt (~120 tokens)
+  const systemPrompt = `You are Schoolari AI, a concise and expert US college admissions & scholarship advisor.
+Guidelines:
+- Answer directly in 2-3 structured paragraphs or bullet points without fluff or repetitive greetings.
+- Never ask for info already in the student's profile.
+- Help outline and guide essays; do not ghostwrite complete submissions.
+
+${profileContextSection}
+${toolDataSection}`.trim();
+
+  // 5. Construct conversation history window (last 3 messages max, trimming long assistant answers)
+  const recentMessages = messages.slice(-3);
+  const conversationHistory = recentMessages
+    .map((m) => {
+      const role = m.role === "user" ? "Student" : "Schoolari AI";
+      const content =
+        m.role === "assistant" && m.content.length > 300
+          ? m.content.substring(0, 300) + "..."
+          : m.content;
+      return `${role}: ${content}`;
+    })
+    .join("\n\n");
+
+  const userPrompt =
+    recentMessages.length <= 1
+      ? lastUserMessage
+      : `Recent Context:\n${conversationHistory}\n\nRespond to the latest message as Schoolari AI:`;
+
+  return {
+    currentSessionId,
+    systemPrompt,
+    userPrompt,
+    masterId,
+  };
+}
+
+/**
+ * Context-Aware Ask Schoolari AI Agent Orchestrator (Synchronous Server Action).
  */
 export async function askSchoolariAI(
   messages: ChatMessage[],
@@ -301,224 +533,20 @@ export async function askSchoolariAI(
     }
 
     const { masterId } = await getStudentDashboardData(user.id);
+    const { enforceAiLimit } = await import("@/lib/ai-limits");
+    await enforceAiLimit("ask_ai", masterId);
+
+    const context = await prepareSchoolariAIContext(user.id, masterId, messages, sessionId);
     const supabaseAdmin = await createAdminClient();
 
-    const lastUserMessage = messages[messages.length - 1]?.content || "";
-
-    let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      // Create a session automatically using the initial user message
-      const cleanedTitle = lastUserMessage.replace(/\s+/g, " ").trim().slice(0, 80) || "New Chat";
-      try {
-        const { data: newSession } = await supabaseAdmin
-          .from("ai_chat_sessions")
-          .insert({
-            user_id: masterId,
-            title: cleanedTitle,
-          })
-          .select("id")
-          .single();
-        if (newSession) {
-          currentSessionId = newSession.id;
-        }
-      } catch (sessErr) {
-        console.warn("[askSchoolariAI] Could not create session:", sessErr);
-      }
-    } else {
-      // Update session timestamp
-      try {
-        await supabaseAdmin
-          .from("ai_chat_sessions")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", currentSessionId);
-      } catch (_) {}
-    }
-
-    // Save user message to database using masterId (shared student / parent space)
-    try {
-      await supabaseAdmin.from("ai_chat_messages").insert({
-        user_id: masterId,
-        role: "user",
-        content: lastUserMessage,
-        session_id: currentSessionId || null,
-      });
-    } catch (dbErr) {
-      console.warn("[askSchoolariAI] Failed to save user message to DB:", dbErr);
-    }
-
-    // 1. Fetch verified student profile context (server-authorized)
-    const profile = await getStudentProfileContext(user.id);
-
-    // 2. Detect Intent & Execute Authoritative Backend Tools
-    const recentHistoryText = messages
-      .slice(-4)
-      .map((m) => `${m.role}: ${m.content}`)
-      .join(" ");
-
-    const intent = detectIntent(lastUserMessage, recentHistoryText);
-    let toolDataSection = "";
-
-    // A. Platform Knowledge Base Integration: check if query asks about any Schoolari feature/page
-    const matchedFeatures = getRelevantPlatformKnowledge(lastUserMessage + " " + recentHistoryText);
-    if (matchedFeatures.length > 0) {
-      toolDataSection += `\n\n${formatPlatformKnowledgeForPrompt(matchedFeatures)}`;
-
-      // Inject live feature data if relevant
-      for (const feature of matchedFeatures) {
-        if (feature.id === "coaching") {
-          try {
-            const coachingData = await getLiveCoachingContext(user.id);
-            if (coachingData.upcomingSessions.length > 0) {
-              const sessionList = coachingData.upcomingSessions
-                .map((s) => `- ${s.title} (${s.sessionType}) on ${s.date}${s.isEnrolled ? " [ENROLLED]" : ""}`)
-                .join("\n");
-              toolDataSection += `\n\n=== LIVE UPCOMING COACHING SESSIONS ===\n${sessionList}\n=== END COACHING SESSIONS ===`;
-            }
-          } catch (err) {
-            console.error("[askSchoolariAI] Live coaching context error:", err);
-          }
-        } else if (feature.id === "income") {
-          try {
-            const incomeData = await getLiveIncomeContext(user.id);
-            toolDataSection += `\n\n=== LIVE EARN WHILE YOU LEARN HUB STATUS ===
-Available Categories: ${incomeData.categories.join(", ") || "General Skill-Building, Freelance, Tech, Work-Study"}
-Total Video Lessons: ${incomeData.totalVideos}
-Student Completed Lessons: ${incomeData.completedCount}
-=== END INCOME STATUS ===`;
-          } catch (err) {
-            console.error("[askSchoolariAI] Live income context error:", err);
-          }
-        } else if (feature.id === "jobs") {
-          try {
-            const jobsData = await getLiveJobsContext(user.id);
-            if (jobsData.savedJobs.length > 0) {
-              const jobList = jobsData.savedJobs
-                .map((j) => `- ${j.title} at ${j.company} (Status: ${j.status})`)
-                .join("\n");
-              toolDataSection += `\n\n=== STUDENT'S SAVED JOBS & INTERNSHIPS ===\n${jobList}\n=== END SAVED JOBS ===`;
-            }
-          } catch (err) {
-            console.error("[askSchoolariAI] Live jobs context error:", err);
-          }
-        }
-      }
-    }
-
-    // B. Execute Scholarship Tool if intent matches
-    if (intent.isScholarshipSearch) {
-      try {
-        const scholarshipResults = await searchScholarshipsTool(user.id, lastUserMessage);
-        if (scholarshipResults.results.length > 0) {
-          const list = scholarshipResults.results.map((s, idx) => {
-            return `${idx + 1}. **${s.name}** (${s.organization})
-   - Award Amount: ${s.awardAmount}
-   - Deadline: ${s.deadline}
-   - Match Score: ${s.matchScore}/100
-   - Why it matches: ${s.matchReason}
-   - Category: ${s.category}`;
-          }).join("\n\n");
-
-          toolDataSection += `\n\n=== VERIFIED SCHOLARSHIP SEARCH RESULTS (FROM SCHOOLARI DATABASE) ===
-Total Eligible Scholarships in Database: ${scholarshipResults.totalEligibleFound}
-Top Matched Scholarships for this Student:
-${list}
-${scholarshipResults.isFallback ? "\nNote: These are verified open/general scholarships because 0 strict niche filters were met." : ""}
-=== END SCHOLARSHIP RESULTS ===`;
-        }
-      } catch (toolErr) {
-        console.error("[askSchoolariAI] Scholarship tool error:", toolErr);
-      }
-    }
-
-    // C. Execute Dashboard Priorities Tool if intent matches
-    if (intent.isDashboardPriorities) {
-      try {
-        const prioritiesData = await getDashboardPrioritiesTool(user.id);
-        if (prioritiesData) {
-          const priorityList = prioritiesData.todayPriorities
-            .map((p, i) => `${i + 1}. [${p.done ? "COMPLETED" : "PENDING"}] ${p.title} (${p.category})`)
-            .join("\n");
-
-          const deadlineList = prioritiesData.upcomingDeadlines
-            .map((d) => `- ${d.title}: Due ${d.date} (${d.daysLeft} days left)`)
-            .join("\n");
-
-          toolDataSection += `\n\n=== VERIFIED STUDENT DASHBOARD & PRIORITIES (FROM SCHOOLARI ENGINE) ===
-- Overall College Journey Progress: ${prioritiesData.progressPercentage}%
-- Current Milestone: ${prioritiesData.milestoneTitle}
-
-Today's Top Action Items:
-${priorityList || "No pending priority tasks for today."}
-
-Upcoming Deadlines:
-${deadlineList || "No urgent deadlines in the next 30 days."}
-=== END DASHBOARD DATA ===`;
-        }
-      } catch (toolErr) {
-        console.error("[askSchoolariAI] Priorities tool error:", toolErr);
-      }
-    }
-
-    // D. Execute Application Status Tool if intent matches
-    if (intent.isApplicationStatus) {
-      try {
-        const appStatus = await getApplicationStatusTool(user.id);
-        const schList = appStatus.trackedScholarships.map((s) => `- ${s.name}: ${s.status}`).join("\n");
-        const colList = appStatus.savedColleges.map((c) => `- ${c.name}: ${c.status}`).join("\n");
-
-        toolDataSection += `\n\n=== VERIFIED STUDENT APPLICATION TRACKER ===
-Tracked Scholarships:
-${schList || "No scholarships currently tracked in application list."}
-
-Saved Colleges:
-${colList || "No colleges currently saved in list."}
-=== END APPLICATION TRACKER ===`;
-      } catch (toolErr) {
-        console.error("[askSchoolariAI] Application status tool error:", toolErr);
-      }
-    }
-
-    // 3. Construct Compact Profile Context Section (~30-60 tokens)
-    let profileContextSection = "";
-    if (profile && profile.knownFields.length > 0) {
-      profileContextSection = `[STUDENT PROFILE]: ${profile.knownFields.join(" | ")}`;
-    }
-
-    // 4. Construct Lean System Prompt (~120 tokens)
-    const systemPrompt = `You are Schoolari AI, a concise and expert US college admissions & scholarship advisor.
-Guidelines:
-- Answer directly in 2-3 structured paragraphs or bullet points without fluff or repetitive greetings.
-- Never ask for info already in the student's profile.
-- Help outline and guide essays; do not ghostwrite complete submissions.
-
-${profileContextSection}
-${toolDataSection}`.trim();
-
-    // 5. Construct conversation history window (last 3 messages max, trimming long assistant answers)
-    const recentMessages = messages.slice(-3);
-    const conversationHistory = recentMessages
-      .map((m) => {
-        const role = m.role === "user" ? "Student" : "Schoolari AI";
-        const content =
-          m.role === "assistant" && m.content.length > 300
-            ? m.content.substring(0, 300) + "..."
-            : m.content;
-        return `${role}: ${content}`;
-      })
-      .join("\n\n");
-
-    const userPrompt =
-      recentMessages.length <= 1
-        ? lastUserMessage
-        : `Recent Context:\n${conversationHistory}\n\nRespond to the latest message as Schoolari AI:`;
-
     const text = await callAI({
-      systemPrompt,
-      userPrompt,
+      systemPrompt: context.systemPrompt,
+      userPrompt: context.userPrompt,
       provider: "claude",
       temperature: 0.7,
       maxTokens: 800,
       label: "Ask Schoolari AI",
+      targetUserId: masterId,
     });
 
     // Save assistant response to database using masterId
@@ -528,19 +556,50 @@ ${toolDataSection}`.trim();
           user_id: masterId,
           role: "assistant",
           content: text,
-          session_id: currentSessionId || null,
+          session_id: context.currentSessionId || null,
         });
       } catch (dbErr) {
         console.warn("[askSchoolariAI] Failed to save assistant response to DB:", dbErr);
       }
     }
 
-    return { text, sessionId: currentSessionId };
+    return {
+      text,
+      sessionId: context.currentSessionId || undefined,
+    };
   } catch (error: any) {
     console.error("[askSchoolariAI] Error:", error);
+    if (error.message?.includes("reached your monthly") || error.message?.includes("monthly")) {
+      return { error: error.message };
+    }
     return {
       error:
+        error.message ||
         "I'm having trouble connecting to the advisory server right now. Please try again in a moment.",
     };
+  }
+}
+
+export async function checkChatbotLimitAction(): Promise<{ isOverBudget: boolean; limitReached: boolean; resetDate: string }> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { isOverBudget: false, limitReached: false, resetDate: "" };
+
+    const { getUserAiUsage } = await import("@/lib/ai-limits");
+    const usageInfo = await getUserAiUsage(user.id);
+    if (!usageInfo) return { isOverBudget: false, limitReached: false, resetDate: "" };
+
+    const isOverBudget = usageInfo.estimated_cost_usd >= usageInfo.monthly_budget_cap_usd;
+    const limitReached = usageInfo.ask_ai.used >= usageInfo.ask_ai.limit;
+
+    return {
+      isOverBudget,
+      limitReached,
+      resetDate: usageInfo.resetDate
+    };
+  } catch (err) {
+    console.error("checkChatbotLimitAction error:", err);
+    return { isOverBudget: false, limitReached: false, resetDate: "" };
   }
 }

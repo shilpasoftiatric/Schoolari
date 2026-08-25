@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { Search, Plus, X, Loader2, MessageSquare, ChevronDown, Pencil, Trash, Ban, CheckCircle } from "lucide-react";
-import { updateUserRole, createUserMember, updateUserBasicInfo, resetUserPassword, toggleUserActive, deleteUserAccount } from "@/app/actions/admin";
+import { Search, Plus, X, Loader2, MessageSquare, ChevronDown, Pencil, Trash, Ban, CheckCircle, Sparkles } from "lucide-react";
+import { updateUserRole, createUserMember, updateUserBasicInfo, resetUserPassword, toggleUserActive, deleteUserAccount, resetUserAiUsage } from "@/app/actions/admin";
 import { cancelSubscription } from "@/app/actions/admin-payments";
 import { sendAdminSms } from "@/app/actions/sms";
 import { formatPhoneUS } from "@/lib/phone";
@@ -22,6 +22,27 @@ const PLAN_NAMES: Record<string, string> = {
   [process.env.NEXT_PUBLIC_STRIPE_PRICE_SCHOLAR || ""]: "Scholar",
   [process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE || ""]: "Elite",
 };
+
+function formatCycleMonth(rawCycle?: string) {
+  if (!rawCycle || rawCycle === "Current") return "Current Cycle";
+  if (/^\d{4}-\d{2}$/.test(rawCycle)) {
+    const [y, m] = rawCycle.split("-");
+    const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+    return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  }
+  const dateMatches = rawCycle.match(/(\d{4}-\d{2}-\d{2})/g);
+  if (dateMatches && dateMatches.length >= 2) {
+    const d1 = new Date(dateMatches[0]);
+    const d2 = new Date(dateMatches[1]);
+    const f1 = d1.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const f2 = d2.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return `${f1} – ${f2}`;
+  } else if (dateMatches && dateMatches.length === 1) {
+    const d = new Date(dateMatches[0]);
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  }
+  return rawCycle;
+}
 
 function UserActions({
   user,
@@ -55,7 +76,7 @@ function UserActions({
           </optgroup>
         </select>
       )}
-            {onManage && (
+      {onManage && (
         <div
           role="button"
           tabIndex={0}
@@ -92,8 +113,8 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
         <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${user.role === 'admin'
           ? 'bg-amber-50 text-amber-700 border-amber-200'
           : user.role !== 'user'
-          ? 'bg-violet-50 text-violet-700 border-violet-200'
-          : 'bg-slate-100 text-slate-600 border-slate-200'
+            ? 'bg-violet-50 text-violet-700 border-violet-200'
+            : 'bg-slate-100 text-slate-600 border-slate-200'
           }`}>
           {user.role === 'admin' ? 'Admin' : user.role !== 'user' ? ROLE_LABELS[user.role as StaffRole] || user.role : 'Member'}
         </span>
@@ -123,9 +144,9 @@ function ParentSection({ user, actions, isPrimary = false }: { user: any, action
   }
 
   return (
-    <div className={`p-4 sm:p-6 ${!isPrimary ? "bg-slate-50/80 border-t border-slate-100" : ""}`}>
+    <div className={!isPrimary ? "p-4 sm:p-6 bg-slate-50/80 border-t border-slate-100" : ""}>
       {!isPrimary && <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Linked Parent</h4>}
-      <div className="grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 items-center w-full text-left">
+      <div className={`grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 items-center w-full text-left ${isPrimary ? "pr-4" : ""}`}>
         <div>
           <p className="font-semibold text-slate-800">{user.parent_first_name ? `${user.parent_first_name} ${user.parent_last_name}` : "—"}</p>
           <p className="text-slate-500 text-xs">{user.parent_email || "—"}</p>
@@ -236,12 +257,11 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
   const [createError, setCreateError] = useState("");
 
 
-  // Manage User Modal state
   const [manageModalOpen, setManageModalOpen] = useState(false);
   const [manageUser, setManageUser] = useState<any>(null);
   const [manageFormData, setManageFormData] = useState<any>({});
-  const [manageTab, setManageTab] = useState<"info" | "security" | "subscription">("info");
-  
+  const [manageTab, setManageTab] = useState<"info" | "security" | "subscription" | "ai_usage">("info");
+
   const triggerManage = (user: any) => {
     setManageUser(user);
     setManageFormData({
@@ -340,6 +360,39 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
       setManageModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to cancel subscription");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetAiUsage = async () => {
+    if (!manageUser) return;
+    const confirm = await Swal.fire({
+      title: "Reset Monthly AI Usage?",
+      text: `Reset all document counters, questions asked, and dollar spend back to $0 for ${manageUser.student_first_name || manageUser.first_name}?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Reset AI Usage",
+      confirmButtonColor: "#4f46e5",
+      cancelButtonColor: "#94a3b8"
+    });
+    if (!confirm.isConfirmed) return;
+
+    setIsSubmitting(true);
+    try {
+      await resetUserAiUsage(manageUser.id);
+      toast.success("AI usage reset successfully");
+      if (manageUser.usage) {
+        manageUser.usage.ask_ai_count = 0;
+        manageUser.usage.essay_docs_count = 0;
+        manageUser.usage.essay_count = 0;
+        manageUser.usage.resume_docs_count = 0;
+        manageUser.usage.resume_count = 0;
+        manageUser.usage.estimated_cost_usd = 0;
+        manageUser.usage.last_limit_reason = "None";
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to reset AI usage");
     } finally {
       setIsSubmitting(false);
     }
@@ -691,10 +744,13 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                   <X className="w-5 h-5 text-slate-400" />
                 </button>
               </div>
-              
+
               <div className="flex border-b border-slate-100 px-6 shrink-0 bg-slate-50/50">
                 <button onClick={() => setManageTab("info")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "info" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Basic Info</button>
                 <button onClick={() => setManageTab("subscription")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "subscription" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Subscription</button>
+                <button onClick={() => setManageTab("ai_usage")} className={`py-3 px-4 text-sm font-bold border-b-2 flex items-center gap-1.5 ${manageTab === "ai_usage" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>
+                  <Sparkles className="w-3.5 h-3.5" /> AI Usage & Spend
+                </button>
                 <button onClick={() => setManageTab("security")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "security" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Security</button>
               </div>
 
@@ -704,37 +760,37 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student First Name</label>
-                        <input value={manageFormData.student_first_name} onChange={(e) => setManageFormData({...manageFormData, student_first_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_first_name} onChange={(e) => setManageFormData({ ...manageFormData, student_first_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Last Name</label>
-                        <input value={manageFormData.student_last_name} onChange={(e) => setManageFormData({...manageFormData, student_last_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_last_name} onChange={(e) => setManageFormData({ ...manageFormData, student_last_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Email</label>
-                        <input value={manageFormData.student_email} onChange={(e) => setManageFormData({...manageFormData, student_email: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_email} onChange={(e) => setManageFormData({ ...manageFormData, student_email: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Phone</label>
-                        <input value={manageFormData.student_phone} onChange={(e) => setManageFormData({...manageFormData, student_phone: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_phone} onChange={(e) => setManageFormData({ ...manageFormData, student_phone: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                     </div>
                     <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent First Name</label>
-                        <input value={manageFormData.parent_first_name} onChange={(e) => setManageFormData({...manageFormData, parent_first_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_first_name} onChange={(e) => setManageFormData({ ...manageFormData, parent_first_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Last Name</label>
-                        <input value={manageFormData.parent_last_name} onChange={(e) => setManageFormData({...manageFormData, parent_last_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_last_name} onChange={(e) => setManageFormData({ ...manageFormData, parent_last_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Email</label>
-                        <input value={manageFormData.parent_email} onChange={(e) => setManageFormData({...manageFormData, parent_email: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_email} onChange={(e) => setManageFormData({ ...manageFormData, parent_email: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Phone</label>
-                        <input value={manageFormData.parent_phone} onChange={(e) => setManageFormData({...manageFormData, parent_phone: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_phone} onChange={(e) => setManageFormData({ ...manageFormData, parent_phone: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
                       </div>
                     </div>
                     <div className="flex justify-end pt-4">
@@ -772,6 +828,67 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                   </div>
                 )}
 
+                {manageTab === "ai_usage" && (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ask AI Questions</p>
+                        <p className="text-xl font-extrabold text-slate-900 mt-1">
+                          {manageUser.usage?.ask_ai_count || 0}
+                        </p>
+                      </div>
+                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Essay Docs</p>
+                        <p className="text-xl font-extrabold text-slate-900 mt-1">
+                          {manageUser.usage?.essay_docs_count ?? manageUser.usage?.essay_count ?? 0}
+                        </p>
+                      </div>
+                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Resume Docs</p>
+                        <p className="text-xl font-extrabold text-slate-900 mt-1">
+                          {manageUser.usage?.resume_docs_count ?? manageUser.usage?.resume_count ?? 0}
+                        </p>
+                      </div>
+                      <div className="p-3.5 bg-violet-50 rounded-xl border border-violet-100">
+                        <p className="text-xs font-bold text-violet-600 uppercase tracking-wider">Est. Monthly Spend</p>
+                        <p className="text-xl font-extrabold text-violet-900 mt-1">
+                          ${Number(manageUser.usage?.estimated_cost_usd || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500 font-medium">Tracking Cycle</span>
+                        <span className="font-bold text-slate-800">{formatCycleMonth(manageUser.usage?.current_month)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500 font-medium">Limit / Cap Status</span>
+                        <span className={`font-bold px-2.5 py-0.5 rounded-full text-xs ${manageUser.usage?.last_limit_reason && manageUser.usage?.last_limit_reason !== "None"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-emerald-100 text-emerald-700"
+                          }`}>
+                          {manageUser.usage?.last_limit_reason || "Active (Under Limits)"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 border border-violet-100 bg-violet-50/50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-slate-900">Reset Member AI Quota</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Clears document counters, questions asked, and dollar spend back to 0.</p>
+                      </div>
+                      <button
+                        onClick={handleResetAiUsage}
+                        disabled={isSubmitting}
+                        className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors whitespace-nowrap"
+                      >
+                        Reset AI Usage
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {manageTab === "security" && (
                   <div className="space-y-4">
                     <div className="p-4 border border-amber-100 bg-amber-50 rounded-xl flex items-center justify-between gap-4">
@@ -783,7 +900,7 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                         Reset Password
                       </button>
                     </div>
-                    
+
                     <div className="p-4 border border-orange-100 bg-orange-50 rounded-xl flex items-center justify-between gap-4">
                       <div>
                         <p className="font-bold text-orange-900">{manageUser.is_active === false ? "Enable" : "Disable"} Account</p>

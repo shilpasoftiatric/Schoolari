@@ -63,7 +63,7 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
       
       // State update
       if (isCreating) {
-        const newJob = result?.data || { id: editingId || "", ...jobForm, created_at: new Date().toISOString() };
+        const newJob = (result as any)?.data || { id: editingId || "", ...jobForm, created_at: new Date().toISOString() };
         setJobs([newJob, ...jobs]);
       } else {
         setJobs(jobs.map(j => j.id === editingId ? { ...j, ...jobForm } : j));
@@ -105,7 +105,7 @@ export function CareerAdmin({ initialJobs, initialArticles }: { initialJobs: any
       toast.success(`Article ${isCreating ? "created" : "updated"}!`);
       
       if (isCreating) {
-        const newArticle = result?.data || { id: editingId || "", ...articleForm, created_at: new Date().toISOString() };
+        const newArticle = (result as any)?.data || { id: editingId || "", ...articleForm, created_at: new Date().toISOString() };
         setArticles([newArticle, ...articles]);
       } else {
         setArticles(articles.map(a => a.id === editingId ? { ...a, ...articleForm } : a));

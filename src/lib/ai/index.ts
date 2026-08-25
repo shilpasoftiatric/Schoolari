@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { recordAiSpend } from "@/lib/ai-limits";
 
 export type AIProvider = 'openai' | 'claude';
 
@@ -10,6 +11,7 @@ export interface AICallOptions {
   temperature?: number;
   maxTokens?: number;
   label?: string;
+  targetUserId?: string;
 }
 
 // Pricing rates per million tokens (USD)
@@ -39,7 +41,7 @@ function logTokenUsageAndCost({
   inputTokens: number;
   outputTokens: number;
   label?: string;
-}) {
+}): number {
   const rates = PRICING[provider];
   const inputCost = (inputTokens / 1_000_000) * rates.inputPerMillion;
   const outputCost = (outputTokens / 1_000_000) * rates.outputPerMillion;
@@ -59,6 +61,8 @@ function logTokenUsageAndCost({
 │ Output Cost:    $${outputCost.toFixed(6)} USD`.padEnd(64) + `│
 │ 💰 TOTAL COST:  $${totalCost.toFixed(6)} USD (~$${totalCost.toFixed(4)})`.padEnd(64) + `│
 └───────────────────────────────────────────────────────────────┘`);
+
+  return totalCost;
 }
 
 export async function callAI({
@@ -69,21 +73,22 @@ export async function callAI({
   temperature,
   maxTokens = 1500,
   label = "Schoolari AI Engine",
+  targetUserId,
 }: AICallOptions): Promise<string> {
   let responseText: string;
   if (provider === 'claude') {
     try {
-      responseText = await callClaude(systemPrompt, userPrompt, temperature, maxTokens, label);
+      responseText = await callClaude(systemPrompt, userPrompt, temperature, maxTokens, label, targetUserId);
     } catch (err: any) {
       console.warn(`Claude API failed (${err.message || err}). Falling back to OpenAI...`);
-      responseText = await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature, maxTokens, label);
+      responseText = await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature, maxTokens, label, targetUserId);
     }
   } else if (provider === 'openai') {
     try {
-      responseText = await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature, maxTokens, label);
+      responseText = await callOpenAI(systemPrompt, userPrompt, jsonMode, temperature, maxTokens, label, targetUserId);
     } catch (err: any) {
       console.warn(`OpenAI API failed (${err.message || err}). Falling back to Claude...`);
-      responseText = await callClaude(systemPrompt, userPrompt, temperature, maxTokens, label);
+      responseText = await callClaude(systemPrompt, userPrompt, temperature, maxTokens, label, targetUserId);
     }
   } else {
     throw new Error(`Unsupported AI provider: ${provider}`);
@@ -101,7 +106,8 @@ async function callOpenAI(
   jsonMode: boolean,
   temperature?: number,
   maxTokens: number = 1500,
-  label?: string
+  label?: string,
+  targetUserId?: string
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
@@ -134,13 +140,19 @@ async function callOpenAI(
   const inputTokens = data.usage?.prompt_tokens || 0;
   const outputTokens = data.usage?.completion_tokens || 0;
 
-  logTokenUsageAndCost({
+  const cost = logTokenUsageAndCost({
     provider: "openai",
     model,
     inputTokens,
     outputTokens,
     label,
   });
+
+  if (cost > 0) {
+    recordAiSpend(cost, targetUserId).catch((e) =>
+      console.warn("Failed to record OpenAI spend:", e)
+    );
+  }
 
   return data.choices[0].message.content;
 }
@@ -150,7 +162,8 @@ async function callClaude(
   userPrompt: string,
   temperature?: number,
   maxTokens: number = 1500,
-  label?: string
+  label?: string,
+  targetUserId?: string
 ): Promise<string> {
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) throw new Error("CLAUDE_API_KEY is not set");
@@ -190,13 +203,19 @@ async function callClaude(
   const inputTokens = data.usage?.input_tokens || 0;
   const outputTokens = data.usage?.output_tokens || 0;
 
-  logTokenUsageAndCost({
+  const cost = logTokenUsageAndCost({
     provider: "claude",
     model,
     inputTokens,
     outputTokens,
     label,
   });
+
+  if (cost > 0) {
+    recordAiSpend(cost, targetUserId).catch((e) =>
+      console.warn("Failed to record Claude spend:", e)
+    );
+  }
 
   return data.content[0].text;
 }

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { PenTool, Plus, FileText, Clock, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -31,18 +31,32 @@ export default async function EssaysDashboardPage() {
 
   if (!user) redirect("/login");
 
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+  const adminClient = await createAdminClient();
+
   const [{ essayDisclaimerAccepted }, { data: essays, error }] = await Promise.all([
     getAiDisclaimerStatus(),
-    supabase
+    adminClient
       .from("essays")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", masterId)
       .order("updated_at", { ascending: false }),
   ]);
 
   if (error) {
     return <div className="p-8 text-red-500">Failed to load essays: {error.message}</div>;
   }
+
+  const { getUserAiUsage } = await import("@/lib/ai-limits");
+  const aiUsage = await getUserAiUsage(masterId);
+  const resetDate = aiUsage?.resetDate || "the 1st of next month";
+
+  const isOverBudget = Number(aiUsage?.estimated_cost_usd || 0) >= Number(aiUsage?.monthly_budget_cap_usd || 999999);
+  const essayLimit = aiUsage?.essay.limit ?? (plan === "starter" ? 3 : plan === "scholar" ? 10 : 999999);
+  const essayUsed = aiUsage?.essay.used ?? 0;
+  const isLimitedPlan = essayLimit < 900000;
+  const limitReached = isOverBudget || (isLimitedPlan && essayUsed >= essayLimit);
 
   return (
     <>
@@ -63,11 +77,32 @@ export default async function EssaysDashboardPage() {
           </p>
         </div>
 
-        <Link href="/essays/new" className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-sm shadow-violet-200">
-          <Plus className="w-5 h-5" />
-          New Essay
-        </Link>
+        {limitReached ? (
+          <button
+            disabled
+            title={`You have reached your monthly limit of ${essayLimit} essays. Resets on ${resetDate}.`}
+            className="flex items-center gap-2 bg-slate-200 text-slate-500 font-bold py-3 px-6 rounded-xl cursor-not-allowed"
+          >
+            <Plus className="w-5 h-5" />
+            New Essay
+          </button>
+        ) : (
+          <Link href="/essays/new" className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-sm shadow-violet-200">
+            <Plus className="w-5 h-5" />
+            New Essay
+          </Link>
+        )}
       </div>
+
+      {isLimitedPlan && (
+        <div className="bg-violet-50 border border-violet-100 text-violet-800 px-4 py-3 rounded-xl flex items-center justify-between text-sm">
+          <span>
+            Monthly Essay Documents: <strong>{essayUsed} of {essayLimit}</strong> created this month.{" "}
+            {limitReached ? `You have reached your monthly limit. Access resets on ${resetDate}.` : `Your limit resets on ${resetDate}.`}
+          </span>
+          <Link href="/profile" className="font-bold underline ml-4 hover:text-violet-950">Upgrade Plan</Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {(!essays || essays.length === 0) ? (
@@ -84,25 +119,24 @@ export default async function EssaysDashboardPage() {
           essays.map((essay) => (
             <Link key={essay.id} href={`/essays/${essay.id}`} className="group bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 block relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-32 h-32 bg-gradient-to-br from-violet-100 to-indigo-100 rounded-full blur-2xl opacity-0 group-hover:opacity-50 transition-opacity duration-500" />
-              
+
               <div className="relative z-10 flex flex-col h-full">
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 text-slate-400 group-hover:text-violet-600 group-hover:bg-violet-50 transition-colors">
                     <FileText className="w-6 h-6" />
                   </div>
-                  <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                    essay.status === 'draft' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                  <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${essay.status === 'draft' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                     essay.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                    'bg-blue-50 text-blue-600 border border-blue-100'
-                  }`}>
+                      'bg-blue-50 text-blue-600 border border-blue-100'
+                    }`}>
                     {essay.status.replace('_', ' ')}
                   </span>
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-slate-900 mb-2 line-clamp-1 group-hover:text-violet-700 transition-colors">
                   {essay.title || "Untitled Essay"}
                 </h3>
-                
+
                 <p className="text-sm text-slate-500 line-clamp-2 mb-6 flex-1">
                   {essay.topic || "No topic specified."}
                 </p>

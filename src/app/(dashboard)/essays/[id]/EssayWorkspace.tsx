@@ -25,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { generateBrainstorm, reviewEssay, refineEssayDraft, improveEssayDraft } from "@/app/actions/ai";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAIState } from "@/context/AIStateContext";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const PROMPT_LIBRARY = [
   "Discuss an accomplishment, event, or realization that sparked a period of personal growth.",
@@ -34,11 +36,28 @@ const PROMPT_LIBRARY = [
   "Discuss your reasons for pursuing the major you have selected."
 ];
 
-export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
+const stripMarkdown = (text: string) => {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .replace(/^#+\s*/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
+};
+
+export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | null, aiUsage?: any }) {
   const router = useRouter();
   const [title, setTitle] = useState(initialEssay?.title || "");
   const [topic, setTopic] = useState(initialEssay?.topic || "");
   const [content, setContent] = useState(initialEssay?.content || "");
+  
+  const isLimitReached = aiUsage ? aiUsage.essay.used >= aiUsage.essay.limit : false;
+  const isOverBudget = aiUsage ? aiUsage.estimated_cost_usd >= aiUsage.monthly_budget_cap_usd : false;
+  const isAiBlocked = isOverBudget;
   
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "error" | "saved">("idle");
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState<string | null>(null);
@@ -200,7 +219,8 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
     setAiLoading(true);
     setAiError("");
     try {
-      const refinedText = await refineEssayDraft(content, refineInstruction);
+      let refinedText = await refineEssayDraft(content, refineInstruction);
+      refinedText = stripMarkdown(refinedText);
       setContent(refinedText);
       setRefineInstruction("");
       if (initialEssay?.id) {
@@ -219,7 +239,8 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
     setAiLoading(true);
     setAiError("");
     try {
-      const improvedText = await improveEssayDraft(content);
+      let improvedText = await improveEssayDraft(content);
+      improvedText = stripMarkdown(improvedText);
       setContent(improvedText);
       if (initialEssay?.id) {
         await updateEssay(initialEssay.id, { content: improvedText });
@@ -313,8 +334,9 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
               variant="outline"
               size="sm"
               onClick={() => setIsRefineModalOpen(true)}
-              disabled={aiLoading || !content}
-              className="h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-xs gap-1.5 font-bold"
+              disabled={aiLoading || !content || isAiBlocked}
+              title="Instruct the AI to rewrite your draft with a specific focus, tone, or style."
+              className="h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-xs gap-1.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
             >
               <Sliders className="w-3.5 h-3.5" /> Refine It
             </Button>
@@ -324,8 +346,9 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
               variant="outline"
               size="sm"
               onClick={handleImproveDraft}
-              disabled={aiLoading || !content}
-              className="h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-xs gap-1.5 font-bold"
+              disabled={aiLoading || !content || isAiBlocked}
+              title="Automatically polish your draft for grammar, clarity, flow, and sentence variety."
+              className="h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-xs gap-1.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
             >
               <Wand2 className="w-3.5 h-3.5" /> Improve It
             </Button>
@@ -417,28 +440,40 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <button 
                   onClick={handleBrainstorm}
-                  disabled={aiLoading}
-                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50"
+                  disabled={aiLoading || isAiBlocked}
+                  title="Generate outline ideas and unique angles based on your prompt."
+                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Bot className="w-6 h-6 mb-2" />
                   <span className="text-xs font-bold text-center">Brainstorm Angles</span>
                 </button>
                 <button 
                   onClick={handleReview}
-                  disabled={aiLoading}
-                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  disabled={aiLoading || isAiBlocked}
+                  title="Get constructive feedback and actionable advice on your current draft."
+                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <PenTool className="w-6 h-6 mb-2" />
                   <span className="text-xs font-bold text-center">Review Draft</span>
                 </button>
               </div>
 
-              {aiError && (
+              {isOverBudget ? (
+                <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-600 text-sm font-medium">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
+                  <p>You have reached your monthly AI spend limit. Your access resets on {aiUsage?.resetDate || "the 1st of next month"}. Upgrade your plan for more access.</p>
+                </div>
+              ) : isLimitReached ? (
+                <div className="mb-6 p-4 bg-orange-50 border border-orange-100 rounded-xl flex items-start gap-3 text-orange-700 text-sm">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <p>You have reached your monthly limit for this feature. Your limit resets on {aiUsage?.resetDate || "the 1st of next month"}. Upgrade your plan for more access.</p>
+                </div>
+              ) : aiError ? (
                 <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3 text-red-600 text-sm">
                   <AlertCircle className="w-5 h-5 flex-shrink-0" />
                   <p>{aiError}</p>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-5 overflow-y-auto text-sm text-slate-700 leading-relaxed shadow-inner">
                 {aiLoading ? (
@@ -447,10 +482,10 @@ export function EssayWorkspace({ initialEssay }: { initialEssay: any | null }) {
                     <span className="font-medium animate-pulse">AI is thinking...</span>
                   </div>
                 ) : aiOutput ? (
-                  <div className="prose prose-sm prose-slate max-w-none">
-                    {aiOutput.split('\n').map((line, i) => (
-                      <p key={i} className="mb-2">{line.replace(/\*\*/g, '')}</p> 
-                    ))}
+                  <div className="prose prose-sm prose-slate prose-headings:font-bold prose-headings:text-slate-900 prose-a:text-violet-600 prose-li:marker:text-violet-400 max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {aiOutput}
+                    </ReactMarkdown>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center gap-2">

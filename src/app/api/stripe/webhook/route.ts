@@ -5,6 +5,7 @@ import { Database } from "@/types/supabase";
 import { sendTrialEndingSMS } from "@/lib/twilio";
 import { getSupabaseAdmin, mirrorStripeSubscription } from "@/lib/stripe-mirror";
 import { syncContact, removeFromList } from "@/lib/constant-contact";
+import { getPlanFromPriceId } from "@/lib/subscription";
 
 let stripe: Stripe | null = null;
 let supabaseAdmin: any = null;

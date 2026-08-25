@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, CheckCircle2, ArrowRight, Loader2, CalendarClock, Zap, Star, Crown } from "lucide-react";
 import { getUpgradePreview, upgradeSubscriptionPlan, scheduleSubscriptionUpgrade } from "@/app/actions/subscription";
 import { PLAN_INFO, type SubscriptionPlan } from "@/lib/subscription";
@@ -32,6 +33,7 @@ export function UpgradeFlowModal({
   currentPlan,
   featureName,
 }: UpgradeFlowModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(true);
   const [previewData, setPreviewData] = useState<{ amountDue: number; nextBillingDate: string; isTrialing?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,10 @@ export function UpgradeFlowModal({
   const planInfo = PLAN_INFO[targetPlan];
   const color = PLAN_COLOR[targetPlan];
   const Icon = PLAN_ICON[targetPlan];
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -74,7 +80,7 @@ export function UpgradeFlowModal({
     };
   }, [isOpen, targetPlan]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const handleImmediateClick = () => {
     if (!showConfirmImmediate) {
@@ -148,8 +154,8 @@ export function UpgradeFlowModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 h-[100dvh] w-screen">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 h-[100dvh] w-screen">
       <div className="absolute inset-0 w-full h-full bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
 
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300 z-10 flex flex-col max-h-[90vh]">
@@ -227,14 +233,14 @@ export function UpgradeFlowModal({
                         <span className="font-bold text-green-600">$0.00</span>
                       </div>
                       <p className="text-xs text-slate-500 leading-snug">
-                        * You won't be charged anything today. Your subscription will automatically renew at {planInfo.price} when your trial ends.
+                        * You won&apos;t be charged anything today. Your subscription will automatically renew at {planInfo.price} when your trial ends.
                       </p>
                     </div>
 
                     <button
                       onClick={handleImmediateClick}
                       disabled={isProcessingImmediate || isProcessingScheduled}
-                      className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all`}
+                      className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all cursor-pointer`}
                     >
                       {isProcessingImmediate ? <Loader2 className="w-4 h-4 animate-spin" /> : (showConfirmImmediate ? <CheckCircle2 className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
                       {showConfirmImmediate ? `Confirm Upgrade` : `Upgrade Now`}
@@ -242,7 +248,7 @@ export function UpgradeFlowModal({
                     {showConfirmImmediate && !isProcessingImmediate && (
                       <button 
                         onClick={() => setShowConfirmImmediate(false)} 
-                        className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700"
+                        className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -269,14 +275,14 @@ export function UpgradeFlowModal({
                         <span className="font-semibold text-slate-700">{planInfo.price}</span>
                       </div>
                       <p className="text-xs text-slate-500 leading-snug">
-                        * Unlock {planInfo.label} today by paying only today's upgrade amount. Your subscription will automatically renew at {planInfo.price} starting from your next billing date on <strong className="text-slate-700">{new Date(previewData.nextBillingDate).toLocaleDateString()}</strong>.
+                        * Unlock {planInfo.label} today by paying only today&apos;s upgrade amount. Your subscription will automatically renew at {planInfo.price} starting from your next billing date on <strong className="text-slate-700">{new Date(previewData.nextBillingDate).toLocaleDateString()}</strong>.
                       </p>
                     </div>
 
                     <button
                       onClick={handleImmediateClick}
                       disabled={isProcessingImmediate || isProcessingScheduled}
-                      className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all`}
+                      className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all cursor-pointer`}
                     >
                       {isProcessingImmediate ? <Loader2 className="w-4 h-4 animate-spin" /> : (showConfirmImmediate ? <CheckCircle2 className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
                       {showConfirmImmediate ? `Confirm Charge of $${(previewData.amountDue / 100).toFixed(2)}` : `Pay $${(previewData.amountDue / 100).toFixed(2)} Now`}
@@ -284,7 +290,7 @@ export function UpgradeFlowModal({
                     {showConfirmImmediate && !isProcessingImmediate && (
                       <button 
                         onClick={() => setShowConfirmImmediate(false)} 
-                        className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700"
+                        className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -313,7 +319,7 @@ export function UpgradeFlowModal({
                     <button
                       onClick={handleScheduledUpgrade}
                       disabled={isProcessingImmediate || isProcessingScheduled}
-                      className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-bold py-2.5 rounded-xl transition-all mt-4"
+                      className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-bold py-2.5 rounded-xl transition-all mt-4 cursor-pointer"
                     >
                       {isProcessingScheduled ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}
                       Schedule Upgrade
@@ -325,6 +331,7 @@ export function UpgradeFlowModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

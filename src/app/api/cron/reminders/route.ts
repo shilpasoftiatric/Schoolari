@@ -94,7 +94,8 @@ export async function GET(req: Request) {
         const msgHtml = `<p>Hi there,</p><p>This is a quick reminder that your deadline for <strong>${title}</strong> is approaching on <strong>${deadlineStr}</strong>.</p><p>Good luck!</p>`;
 
         // Try SMS
-        const phones = [profile.student_phone, profile.parent_phone, profile.phone].filter(Boolean);
+        const pAny = profile as any;
+        const phones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean);
         const uniquePhones = Array.from(new Set(phones));
         for (const phone of uniquePhones) {
           const e164 = formatPhoneE164(phone as string);
@@ -107,7 +108,7 @@ export async function GET(req: Request) {
         }
 
         // Try Email
-        const emails = [profile.student_email, profile.parent_email, profile.email].filter(Boolean);
+        const emails = [pAny?.student_email, pAny?.parent_email, pAny?.email].filter(Boolean);
         const uniqueEmails = Array.from(new Set(emails));
         for (const email of uniqueEmails) {
           await sendAlertEmail(email as string, `Reminder: Deadline approaching for ${title}`, msgHtml);
@@ -142,11 +143,12 @@ export async function GET(req: Request) {
           // Fetch profile to get contact info
           const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
           if (profile) {
+            const pAny = profile as any;
             const msgText = `Schoolari: It's been a week since your last Earn While You Learn video! Check out the next video in your path and unlock more income opportunities. Reply STOP to unsubscribe.`;
-            const msgHtml = `<p>Hi ${profile.student_first_name || 'there'},</p><p>It's been a week since your last <strong>Earn While You Learn</strong> video! Check out the next video in your path and unlock more income opportunities.</p><p>Log in to your Dashboard to continue.</p>`;
+            const msgHtml = `<p>Hi ${pAny?.student_first_name || 'there'},</p><p>It's been a week since your last <strong>Earn While You Learn</strong> video! Check out the next video in your path and unlock more income opportunities.</p><p>Log in to your Dashboard to continue.</p>`;
 
             // Try SMS
-            const phones = [profile.student_phone, profile.parent_phone, profile.phone].filter(Boolean);
+            const phones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean);
             const uniquePhones = Array.from(new Set(phones));
             for (const phone of uniquePhones) {
               const e164 = formatPhoneE164(phone as string);
@@ -159,7 +161,7 @@ export async function GET(req: Request) {
             }
 
             // Try Email
-            const emails = [profile.student_email, profile.parent_email, profile.email].filter(Boolean);
+            const emails = [pAny?.student_email, pAny?.parent_email, pAny?.email].filter(Boolean);
             const uniqueEmails = Array.from(new Set(emails));
             for (const email of uniqueEmails) {
               await sendAlertEmail(email as string, `Ready for your next video?`, msgHtml);

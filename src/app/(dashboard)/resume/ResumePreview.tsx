@@ -98,9 +98,118 @@ export function ResumePreview({
   };
 
   const handleDownloadDocs = () => {
-    const text = generatePlaintextResume(resume);
-    // Use application/msword to indicate a Word document. Word can easily read plain text if wrapped or simply read it directly.
-    const blob = new Blob([text], { type: "application/msword" });
+    const { header, education, experience, extracurriculars, awards, skills } = resume;
+
+    const row = (left: string, right: string) => `
+      <table width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin-bottom:4px; border:none; padding:0;">
+        <tr>
+          <td style="text-align:left; vertical-align:top; border:none; padding:0; color:#000;">${left}</td>
+          <td style="text-align:right; vertical-align:top; border:none; padding:0; color:#000;">${right}</td>
+        </tr>
+      </table>
+    `;
+
+    const links = [header.city_state, header.phone, header.email, header.linkedin_url, header.portfolio_url].filter(Boolean).join(" &nbsp;&bull;&nbsp; ");
+
+    let htmlContent = `
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+  <meta charset="utf-8">
+  <title>Resume Export</title>
+  <style>
+    body { font-family: "Times New Roman", Times, serif; font-size: 11pt; color: #000; line-height: 1.3; margin: 0; padding: 0; }
+    h1 { font-size: 24pt; font-weight: bold; text-align: center; margin: 0 0 6px 0; text-transform: uppercase; color: #000; }
+    h2 { font-size: 13pt; font-weight: bold; border-bottom: 1px solid #000; margin: 16px 0 8px 0; padding-bottom: 2px; text-transform: uppercase; color: #000; }
+    p { margin: 0 0 4px 0; color: #000; }
+    ul { margin: 4px 0 8px 0; padding-left: 24px; color: #000; }
+    li { margin-bottom: 3px; color: #000; }
+    .header-links { text-align: center; font-size: 10.5pt; margin-bottom: 16px; color: #000; }
+  </style>
+</head>
+<body>
+  <h1>${header.first_name || "Student"} ${header.last_name || "Name"}</h1>
+  <div class="header-links">
+    ${links}
+  </div>
+`;
+
+    if (header.summary) {
+      htmlContent += `<h2>Summary</h2><p>${header.summary}</p>`;
+    }
+
+    if (education && education.length > 0) {
+      htmlContent += `<h2>Education</h2>`;
+      education.forEach(edu => {
+        htmlContent += row(
+          `<b>${edu.institution}</b> &ndash; ${edu.location}`,
+          `Expected: ${edu.graduation_year}`
+        );
+        htmlContent += row(
+          `<i>${edu.grade_level_or_degree}</i>`,
+          `GPA: ${edu.gpa_unweighted || "N/A"}${edu.gpa_weighted ? ` / ${edu.gpa_weighted} Weighted` : ""}`
+        );
+        if (edu.honors_coursework) {
+          htmlContent += `<p style="margin-top:2px;"><b>Honors Coursework:</b> ${edu.honors_coursework}</p>`;
+        }
+      });
+    }
+
+    if (experience && experience.length > 0) {
+      htmlContent += `<h2>Professional & Leadership Experience</h2>`;
+      experience.forEach(exp => {
+        htmlContent += row(
+          `<b>${exp.title}</b> &mdash; <i>${exp.organization}</i>`,
+          `${exp.start_date} &ndash; ${exp.is_current ? "Present" : exp.end_date} | ${exp.location}`
+        );
+        if (exp.bullets && exp.bullets.length > 0) {
+          htmlContent += `<ul>${exp.bullets.map(b => `<li>${b}</li>`).join("")}</ul>`;
+        }
+      });
+    }
+
+    if (extracurriculars && extracurriculars.length > 0) {
+      htmlContent += `<h2>Extracurricular Activities & Community Service</h2>`;
+      extracurriculars.forEach(ext => {
+        htmlContent += row(
+          `<b>${ext.role}</b> &mdash; <i>${ext.activity}</i>`,
+          `${ext.start_date} &ndash; ${ext.end_date}${ext.hours_per_week ? ` (${ext.hours_per_week} hrs/wk)` : ""}`
+        );
+        if (ext.bullets && ext.bullets.length > 0) {
+          htmlContent += `<ul>${ext.bullets.map(b => `<li>${b}</li>`).join("")}</ul>`;
+        }
+      });
+    }
+
+    if (awards && awards.length > 0) {
+      htmlContent += `<h2>Honors & Awards</h2>`;
+      awards.forEach(aw => {
+        htmlContent += row(
+          `<b>${aw.title}</b> (${aw.issuer})`,
+          `${aw.year} &ndash; ${aw.level} Level`
+        );
+        if (aw.description) {
+          htmlContent += `<p style="margin-top:2px;"><i>${aw.description}</i></p>`;
+        }
+      });
+    }
+
+    const allSkills = [];
+    if (skills?.technical?.length) allSkills.push(`<b>Technical:</b> ${skills.technical.join(", ")}`);
+    if (skills?.soft?.length) allSkills.push(`<b>Interpersonal:</b> ${skills.soft.join(", ")}`);
+    if (skills?.languages?.length) allSkills.push(`<b>Languages:</b> ${skills.languages.join(", ")}`);
+    if (skills?.certifications?.length) allSkills.push(`<b>Certifications:</b> ${skills.certifications.join(", ")}`);
+
+    if (allSkills.length > 0) {
+      htmlContent += `<h2>Skills, Languages & Certifications</h2><ul style="margin-top:4px;">`;
+      allSkills.forEach(s => {
+        htmlContent += `<li>${s}</li>`;
+      });
+      htmlContent += `</ul>`;
+    }
+
+    htmlContent += `</body></html>`;
+
+    const blob = new Blob(['\ufeff', htmlContent], { type: "application/msword;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;

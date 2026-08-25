@@ -14,6 +14,7 @@ export function StudentProfile({
   profile,
   email,
   subscriptionInfo,
+  aiUsage,
 }: {
   profile: any;
   email: string;
@@ -24,6 +25,7 @@ export function StudentProfile({
     renewalDate: string | null;
     hasSubscription: boolean;
   } | null;
+  aiUsage?: any;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -285,6 +287,7 @@ export function StudentProfile({
                 status={subscriptionInfo.status}
                 renewalDate={subscriptionInfo.renewalDate}
                 hasSubscription={subscriptionInfo.hasSubscription}
+                aiUsage={aiUsage}
               />
             </div>
           )}

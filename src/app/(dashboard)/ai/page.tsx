@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -18,6 +19,7 @@ import {
   AlertCircle,
   Copy,
   Check,
+  Loader2,
 } from "lucide-react";
 import {
   askSchoolariAI,
@@ -25,6 +27,7 @@ import {
   getAIChatSessions,
   deleteAIChatSession,
   clearAIChatHistory,
+  checkChatbotLimitAction,
   type ChatMessage,
   type AIChatSession,
 } from "@/app/actions/ask-ai";
@@ -331,88 +334,180 @@ const WELCOME_MESSAGE: Message = {
 export default function AIPage() {
   const [sessions, setSessions] = useState<AIChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSessionsLoaded, setIsSessionsLoaded] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [aiLimitState, setAiLimitState] = useState<{ isOverBudget: boolean; limitReached: boolean; resetDate: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isWelcomeOnly = messages.length === 1 && messages[0].id === "welcome";
 
-  // Load sessions from database on mount
+  // Load sessions and check limits on mount
   useEffect(() => {
     let isMounted = true;
-    async function loadSessions() {
+    async function loadSessionsAndLimits() {
+      // Optimistic load for sessions
+      try {
+        const cachedSessions = localStorage.getItem("ai_chat_sessions");
+        if (cachedSessions && isMounted) setSessions(JSON.parse(cachedSessions));
+      } catch (_) { }
+
       try {
         const fetchedSessions = await getAIChatSessions();
         if (isMounted) {
           setSessions(fetchedSessions);
-          if (fetchedSessions.length > 0) {
-            // Load latest session
-            const firstSession = fetchedSessions[0];
-            setActiveSessionId(firstSession.id);
-            const history = await getAIChatHistory(firstSession.id);
-            if (isMounted && history.length > 0) {
-              setMessages(
-                history.map((m) => ({
-                  id: m.id,
-                  role: m.role,
-                  content: m.content,
-                  timestamp: new Date(m.createdAt),
-                }))
-              );
+          localStorage.setItem("ai_chat_sessions", JSON.stringify(fetchedSessions));
+        }
+      } catch (err) {
+        console.error("Failed to load AI chat sessions:", err);
+      } finally {
+        if (isMounted) setIsSessionsLoaded(true);
+      }
+
+      try {
+        const cachedLimitsStr = sessionStorage.getItem("schoolari_ai_limits");
+        let shouldCheckLimits = true;
+
+        if (cachedLimitsStr) {
+          try {
+            const cachedLimits = JSON.parse(cachedLimitsStr);
+            if ((cachedLimits.limitReached || cachedLimits.isOverBudget) && cachedLimits.resetDate) {
+              const resetTime = new Date(cachedLimits.resetDate).getTime();
+              // If limit reached and reset date is still in the future, skip the network check
+              if (!isNaN(resetTime) && resetTime > Date.now()) {
+                if (isMounted) setAiLimitState(cachedLimits);
+                shouldCheckLimits = false;
+              }
+            }
+          } catch (e) { }
+        }
+
+        if (shouldCheckLimits) {
+          const limits = await checkChatbotLimitAction();
+          if (isMounted) {
+            setAiLimitState(limits);
+            if (limits.limitReached || limits.isOverBudget) {
+              sessionStorage.setItem("schoolari_ai_limits", JSON.stringify(limits));
+            } else {
+              sessionStorage.removeItem("schoolari_ai_limits");
             }
           }
         }
       } catch (err) {
-        console.error("Failed to load sessions:", err);
-      } finally {
-        if (isMounted) setIsSessionsLoaded(true);
+        console.error("Failed to check AI chat limits:", err);
       }
     }
-    loadSessions();
+    loadSessionsAndLimits();
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Switch to a chat session
-  const handleSelectSession = async (sessionId: string) => {
-    if (activeSessionId === sessionId || isLoading) return;
-    setActiveSessionId(sessionId);
-    setInput("");
-    try {
-      const history = await getAIChatHistory(sessionId);
-      if (history.length > 0) {
-        setMessages(
-          history.map((m) => ({
-            id: m.id,
-            role: m.role,
-            content: m.content,
-            timestamp: new Date(m.createdAt),
-          }))
-        );
-      } else {
-        setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
-      }
-    } catch (err) {
-      console.error("Error loading chat history for session:", err);
+  // Auto-scroll on new messages or streaming chunks
+  useEffect(() => {
+    if (isLoading || streamingText) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    }
+  }, [messages, streamingText, isLoading]);
+
+  // Persist messages and sessions to localStorage for Optimistic UI
+  useEffect(() => {
+    if (activeSessionId && messages.length > 1) {
+      localStorage.setItem(`ai_chat_session_${activeSessionId}`, JSON.stringify(messages));
+    }
+  }, [messages, activeSessionId]);
+
+  useEffect(() => {
+    if (sessions.length > 0) {
+      localStorage.setItem("ai_chat_sessions", JSON.stringify(sessions));
+    }
+  }, [sessions]);
+
+  // Adjust textarea height dynamically
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
     }
   };
 
-  // Start fresh chat
   const handleNewChat = () => {
     setActiveSessionId(null);
-    setMessages([{ ...WELCOME_MESSAGE, timestamp: new Date() }]);
+    currentSessionIdRef.current = null;
+    setMessages([WELCOME_MESSAGE]);
     setInput("");
+    window.history.replaceState({}, '', '/ai');
     if (textareaRef.current) {
-      textareaRef.current.focus();
+      textareaRef.current.style.height = "auto";
     }
   };
 
-  // Delete a chat session
+  const handleSelectSession = async (sessionId: string) => {
+    if (sessionId === activeSessionId) return;
+    setActiveSessionId(sessionId);
+    currentSessionIdRef.current = sessionId;
+    window.history.replaceState({}, '', `/ai?session=${sessionId}`);
+
+    // Optimistic UI for chat history
+    let hasCached = false;
+    try {
+      const cachedHistory = localStorage.getItem(`ai_chat_session_${sessionId}`);
+      if (cachedHistory) {
+        const parsed = JSON.parse(cachedHistory);
+        if (currentSessionIdRef.current === sessionId) {
+          setMessages(parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
+          hasCached = true;
+        }
+      }
+    } catch (_) { }
+
+    if (!hasCached) setIsHistoryLoading(true);
+
+    try {
+      const history = await getAIChatHistory(sessionId);
+      if (currentSessionIdRef.current !== sessionId) return;
+
+      if (history.length > 0) {
+        const mapped = history.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.createdAt),
+        }));
+        setMessages(mapped);
+        localStorage.setItem(`ai_chat_session_${sessionId}`, JSON.stringify(mapped));
+      } else {
+        setMessages([WELCOME_MESSAGE]);
+      }
+    } catch (err) {
+      console.error("Failed to load chat history:", err);
+    } finally {
+      if (currentSessionIdRef.current === sessionId) {
+        setIsHistoryLoading(false);
+      }
+    }
+  };
+
+  // Check URL for session on initial mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionParam = params.get("session");
+    if (sessionParam && !activeSessionId) {
+      handleSelectSession(sessionParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     try {
@@ -422,21 +517,8 @@ export default function AIPage() {
         handleNewChat();
       }
     } catch (err) {
-      console.error("Error deleting session:", err);
+      console.error("Failed to delete chat session:", err);
     }
-  };
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
-
-  // Auto-resize textarea
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    const ta = e.target;
-    ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
   };
 
   const sendMessage = useCallback(
@@ -457,65 +539,146 @@ export default function AIPage() {
         textareaRef.current.style.height = "auto";
       }
       setIsLoading(true);
+      setStreamingText("");
 
-      // Build conversation history for the server action
+      // Build conversation history
       const history: ChatMessage[] = [...messages, userMessage]
         .filter((m) => m.id !== "welcome")
         .map((m) => ({ role: m.role, content: m.content }));
 
-      if (history.length === 0 || history[history.length - 1].role !== "user") {
-        history.push({ role: "user", content: trimmed });
-      }
+      try {
+        const response = await fetch("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: history,
+            sessionId: activeSessionId || undefined,
+          }),
+        });
 
-      const result = await askSchoolariAI(history, activeSessionId || undefined);
-      setIsLoading(false);
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const errorMessage = errData.error || "Sorry, I encountered an issue. Please try again.";
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: (Date.now() + 1).toString(),
+              role: "assistant",
+              content: errorMessage,
+              isError: true,
+              timestamp: new Date(),
+            },
+          ]);
+          setIsLoading(false);
+          setStreamingText("");
+          return;
+        }
 
-      if (result.error) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: result.error || "An unexpected error occurred. Please try again.",
-            timestamp: new Date(),
-            isError: true,
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: result.text ?? "",
-            timestamp: new Date(),
-          },
-        ]);
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error("Streaming reader not available.");
+        }
 
-        // If a new session was created on the server, update the session list and active session
-        if (result.sessionId) {
-          setActiveSessionId(result.sessionId);
-          setSessions((prev) => {
-            const exists = prev.some((s) => s.id === result.sessionId);
-            if (!exists) {
-              const cleanedTitle = trimmed.replace(/\s+/g, " ").trim().slice(0, 80);
-              return [
-                {
-                  id: result.sessionId!,
-                  title: cleanedTitle,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                },
-                ...prev,
-              ];
-            } else {
-              return prev.map((s) =>
-                s.id === result.sessionId
-                  ? { ...s, updatedAt: new Date().toISOString() }
-                  : s
-              );
+        const decoder = new TextDecoder("utf-8");
+        let accumulated = "";
+        let buffer = "";
+        let streamLimitReached = false;
+        let streamResetDate = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine.startsWith("data: ")) continue;
+            const jsonStr = trimmedLine.slice(6);
+            if (!jsonStr) continue;
+
+            try {
+              const parsed = JSON.parse(jsonStr);
+              if (parsed.text) {
+                accumulated += parsed.text;
+                setStreamingText(accumulated);
+              }
+              if (parsed.limitReached) {
+                streamLimitReached = true;
+                streamResetDate = parsed.resetDate || "";
+              }
+              if (parsed.done && parsed.sessionId) {
+                if (parsed.sessionId !== activeSessionId) {
+                  setActiveSessionId(parsed.sessionId);
+                  setSessions((prev) => {
+                    const exists = prev.some((s) => s.id === parsed.sessionId);
+                    if (!exists) {
+                      const cleanedTitle = trimmed.replace(/\s+/g, " ").trim().slice(0, 80);
+                      return [
+                        {
+                          id: parsed.sessionId,
+                          title: cleanedTitle,
+                          createdAt: new Date().toISOString(),
+                          updatedAt: new Date().toISOString(),
+                        },
+                        ...prev,
+                      ];
+                    }
+                    return prev;
+                  });
+                }
+              }
+            } catch (_) { }
+          }
+        }
+
+        if (accumulated) {
+          setMessages((prev) => {
+            const baseMsgs = [
+              ...prev,
+              {
+                id: (Date.now() + 1).toString(),
+                role: "assistant" as const,
+                content: accumulated,
+                timestamp: new Date(),
+              },
+            ];
+            if (streamLimitReached) {
+              baseMsgs.push({
+                id: (Date.now() + 2).toString(),
+                role: "assistant" as const,
+                content: `You have reached your monthly Ask Schoolari AI limit. Your access resets on ${streamResetDate || "the 1st of next month"}. Upgrade your plan for more access.`,
+                isError: true,
+                timestamp: new Date(),
+              });
             }
+            return baseMsgs;
           });
+        }
+      } catch (err: any) {
+        console.error("Streaming error:", err);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content:
+              err.message ||
+              "I'm having trouble connecting to the advisory server right now. Please try again.",
+            isError: true,
+            timestamp: new Date(),
+          },
+        ]);
+      } finally {
+        setIsLoading(false);
+        setStreamingText("");
+        try {
+          const limits = await checkChatbotLimitAction();
+          setAiLimitState(limits);
+        } catch (err) {
+          console.warn("Failed to update AI limits post-message:", err);
         }
       }
     },
@@ -637,7 +800,12 @@ export default function AIPage() {
               </span>
             </div>
 
-            {sessions.length === 0 ? (
+            {!isSessionsLoaded ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-violet-500">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-[10px] font-bold tracking-wider animate-pulse">Loading history...</span>
+              </div>
+            ) : sessions.length === 0 ? (
               <div className="px-3 py-6 text-center text-xs text-slate-400">
                 <MessageSquare className="w-6 h-6 mx-auto mb-2 text-slate-300 opacity-60" />
                 <p>No chat history yet.</p>
@@ -713,66 +881,112 @@ export default function AIPage() {
         {/* ── Messages Stream ────────────────────────────────────────────── */}
         <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/50 pb-32">
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-            {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))}
-
-            {isLoading && <TypingIndicator />}
-
-            {/* Suggestion chips — visible when starting a fresh chat */}
-            {isWelcomeOnly && !isLoading && (
-              <div className="pt-4 animate-in fade-in duration-200">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                  Suggested questions
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {SUGGESTIONS.map((s) => {
-                    const Icon = s.icon;
-                    return (
-                      <button
-                        key={s.label}
-                        onClick={() => sendMessage(s.label)}
-                        className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50/70 rounded-xl text-left text-sm text-slate-700 hover:text-violet-700 transition-all duration-150 group shadow-xs cursor-pointer active:scale-99"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-violet-50 group-hover:bg-violet-100 flex items-center justify-center shrink-0 transition-colors">
-                          <Icon className="w-4 h-4 text-violet-600" />
-                        </div>
-                        <span className="font-medium leading-snug">{s.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+            {isHistoryLoading ? (
+              <div className="flex flex-col items-center justify-center min-h-[300px] text-violet-500 gap-3 py-12">
+                <Loader2 className="w-8 h-8 animate-spin" />
+                <span className="font-semibold animate-pulse text-sm">Loading chat...</span>
               </div>
-            )}
+            ) : (
+              <>
+                {messages.map((message) => (
+                  <MessageBubble key={message.id} message={message} />
+                ))}
 
-            <div ref={messagesEndRef} />
+                {isLoading && (
+                  streamingText ? (
+                    <div className="flex items-start gap-3.5 max-w-3xl group animate-in fade-in slide-in-from-bottom-1 duration-150">
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                        <Sparkles className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="bg-white border border-slate-200/80 rounded-2xl rounded-tl-xs p-4 sm:p-5 shadow-xs">
+                          <MarkdownContent content={streamingText} />
+                          <span className="inline-block w-2 h-4 bg-violet-600 animate-pulse ml-0.5 align-middle" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <TypingIndicator />
+                  )
+                )}
+
+                {/* Suggestion chips — visible when starting a fresh chat */}
+                {isWelcomeOnly && !isLoading && (
+                  <div className="pt-4 animate-in fade-in duration-200">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                      Suggested questions
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {SUGGESTIONS.map((s) => {
+                        const Icon = s.icon;
+                        return (
+                          <button
+                            key={s.label}
+                            onClick={() => sendMessage(s.label)}
+                            className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 hover:border-violet-300 hover:bg-violet-50/70 rounded-xl text-left text-sm text-slate-700 hover:text-violet-700 transition-all duration-150 group shadow-xs cursor-pointer active:scale-99"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-violet-50 group-hover:bg-violet-100 flex items-center justify-center shrink-0 transition-colors">
+                              <Icon className="w-4 h-4 text-violet-600" />
+                            </div>
+                            <span className="font-medium leading-snug">{s.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </>
+            )}
           </div>
         </div>
 
         {/* ── Floating Centered Input Bar ────────────────────────────────── */}
         <div className="absolute bottom-0 inset-x-0 bg-transparent pt-8 pb-4 px-4 pointer-events-none z-10">
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto pointer-events-auto">
-            <div className="flex items-end gap-2 bg-white hover:bg-white focus-within:bg-white border border-slate-200 focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-100 rounded-2xl px-4 py-2.5 transition-all shadow-lg">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask anything about college, scholarships, or essays…"
-                rows={1}
-                disabled={isLoading}
-                className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-slate-800 placeholder:text-slate-400 leading-relaxed disabled:opacity-60 py-1"
-                style={{ minHeight: "24px", maxHeight: "120px" }}
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading}
-                className="shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md active:scale-95 cursor-pointer"
-                aria-label="Send message"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            {aiLimitState === null ? (
+              <div className="flex items-center justify-center gap-2 bg-white/50 border border-slate-200 rounded-2xl px-4 py-3.5 shadow-lg text-slate-400 text-sm font-medium">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="animate-pulse">Checking access...</span>
+              </div>
+            ) : aiLimitState.isOverBudget ? (
+              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 shadow-lg text-red-700 text-sm font-medium animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" />
+                <p>
+                  You have reached your monthly AI spend limit. Your access resets on {aiLimitState.resetDate || "the 1st of next month"}. Upgrade your plan for more access.
+                </p>
+              </div>
+            ) : aiLimitState.limitReached ? (
+              <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-2xl px-4 py-3 shadow-lg text-orange-700 text-sm font-medium animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 text-orange-500 mt-0.5" />
+                <p>
+                  You have reached your monthly Ask Schoolari AI limit. Your access resets on {aiLimitState.resetDate || "the 1st of next month"}. Upgrade your plan for more access.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-end gap-2 bg-white hover:bg-white focus-within:bg-white border border-slate-200 focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-100 rounded-2xl px-4 py-2.5 transition-all shadow-lg">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask anything about college, scholarships, or essays…"
+                  rows={1}
+                  disabled={isLoading}
+                  className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-slate-800 placeholder:text-slate-400 leading-relaxed disabled:opacity-60 py-1"
+                  style={{ minHeight: "24px", maxHeight: "120px" }}
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md active:scale-95 cursor-pointer"
+                  aria-label="Send message"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </main>

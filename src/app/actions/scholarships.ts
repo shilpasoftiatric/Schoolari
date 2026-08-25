@@ -65,21 +65,18 @@ export async function searchScholarships(query: string = "") {
   const eligibleScholarships = scholarships.filter(scholarship => isScholarshipEligible(scholarship, profile));
 
   const rankedScholarships = eligibleScholarships.map(scholarship => {
-    let score = 0;
-    if (query && scholarship.name.toLowerCase().includes(query.toLowerCase())) score += 20;
-    if (profile) {
-      if (profile.state && (scholarship.eligible_states?.toLowerCase().includes(profile.state.toLowerCase()) || scholarship.eligible_states?.toLowerCase().includes('all'))) score += 15;
-      if (profile.grade_level && scholarship.grade_levels) {
-        const levels = Array.isArray(scholarship.grade_levels) ? scholarship.grade_levels.map(g => String(g).toLowerCase()) : [String(scholarship.grade_levels).toLowerCase()];
-        if (levels.some(l => l.includes(profile.grade_level.toLowerCase()))) score += 10;
-      }
-      if (profile.intended_major && profile.intended_major.length > 0 && scholarship.eligible_majors) {
-        const matchesMajor = profile.intended_major.some((field: string) => scholarship.eligible_majors.toLowerCase().includes(field.toLowerCase()));
-        if (matchesMajor) score += 10;
-      }
+    let searchBoost = 0;
+    if (query && scholarship.name.toLowerCase().includes(query.toLowerCase())) {
+      searchBoost = 15; // Give a small boost if the name matches their explicit search query
     }
-    if (scholarship.featured) score += 5;
-    return { ...scholarship, _score: score };
+    
+    // Call the newly updated centralized scoring engine
+    const { score, reason } = scoreScholarshipForProfile(scholarship, profile);
+    
+    // Combine base profile match score + explicit text search boost (capped at 99)
+    const finalScore = Math.min(score + searchBoost, 99);
+    
+    return { ...scholarship, _score: finalScore, _why_match: reason };
   });
 
   rankedScholarships.sort((a, b) => {

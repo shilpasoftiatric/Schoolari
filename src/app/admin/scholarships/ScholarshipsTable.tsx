@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
-import { Search, Plus, Edit, Trash2, Power, Star, RefreshCcw } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Power, Star, RefreshCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,6 +15,7 @@ import {
 export function ScholarshipsTable({ initialScholarships }: { initialScholarships: any[] }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
+  const [filterSource, setFilterSource] = useState("all");
   const [isPending, startTransition] = useTransition();
   const [saveError, setSaveError] = useState("");
   const [modalState, setModalState] = useState<{ isOpen: boolean, type: "create" | "edit", scholarship: any | null }>({ isOpen: false, type: "create", scholarship: null });
@@ -31,6 +32,12 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
         s.category?.toLowerCase().includes(q)
       );
     }
+
+    if (filterSource !== "all") {
+      const isFeatured = filterSource === "schoolari";
+      result = result.filter(s => !!s.featured === isFeatured);
+    }
+
     result.sort((a, b) => {
       if (sortBy === "deadline") return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
       if (sortBy === "award") return String(a.award_amount).localeCompare(String(b.award_amount), undefined, { numeric: true });
@@ -38,7 +45,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
       return String(a.name).localeCompare(String(b.name));
     });
     return result;
-  }, [initialScholarships, search, sortBy]);
+  }, [initialScholarships, search, sortBy, filterSource]);
 
   const handleToggle = (id: string, currentStatus: boolean) => {
     startTransition(async () => {
@@ -128,6 +135,15 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
             />
           </div>
           <select
+            value={filterSource}
+            onChange={(e) => setFilterSource(e.target.value)}
+            className="h-10 border border-slate-200 text-sm rounded-lg px-3 focus:ring-violet-500 bg-white min-w-[150px]"
+          >
+            <option value="all">All Sources</option>
+            <option value="schoolari">Schoolari Created</option>
+            <option value="ai">AI Fetched</option>
+          </select>
+          <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             className="h-10 border border-slate-200 text-sm rounded-lg px-3 focus:ring-violet-500 bg-white min-w-[140px]"
@@ -181,7 +197,17 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                 filteredSorted.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3">
-                      <p className="font-bold text-slate-900 line-clamp-1">{item.name}</p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-bold text-slate-900 line-clamp-1" title={item.name}>{item.name}</p>
+                        {!item.featured && (
+                          <span 
+                            title="AI Sourced / Auto-Fetched Scholarship"
+                            className="shrink-0 flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+                          >
+                            <Sparkles className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-3">
                       <span className="px-2 py-1 text-[11px] font-bold rounded-md bg-blue-50 text-blue-700">

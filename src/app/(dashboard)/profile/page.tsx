@@ -5,6 +5,8 @@ import { StudentProfile } from "./StudentProfile";
 import { getProfile } from "@/app/actions/profile";
 import { getSubscriptionInfo } from "@/app/actions/subscription";
 
+import { getUserAiUsage } from "@/lib/ai-limits";
+
 export const metadata = {
   title: "My Profile",
 };
@@ -16,6 +18,7 @@ export default async function ProfilePage() {
 
   const profile = await getProfile();
   const subscriptionInfo = await getSubscriptionInfo();
+  const aiUsage = await getUserAiUsage();
 
   if (!profile) {
     return (
@@ -27,7 +30,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">
-      <StudentProfile profile={profile} email={user.email || ""} subscriptionInfo={subscriptionInfo} />
+      <StudentProfile profile={profile} email={user.email || ""} subscriptionInfo={subscriptionInfo} aiUsage={aiUsage} />
     </div>
   );
 }

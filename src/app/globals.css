@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -137,6 +138,7 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -152,6 +154,7 @@ nextjs-portal {
    US STUDENT RESUME BUILDER — ENTERPRISE PRINT & PDF FORMATTING
    ========================================================================== */
 @media print {
+
   /* 1. Standard US Letter (8.5 x 11 inches) Portrait with 0 page margin.
         Setting margin to 0 automatically prevents Chrome, Edge, and Safari from
         printing default browser headers & footers (URL, Date, Page title/numbers). */
@@ -262,10 +265,12 @@ div:where(.swal2-container) button:where(.swal2-styled) {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* slate-300 */
+  background: #cbd5e1;
+  /* slate-300 */
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* slate-400 */
+  background: #94a3b8;
+  /* slate-400 */
 }

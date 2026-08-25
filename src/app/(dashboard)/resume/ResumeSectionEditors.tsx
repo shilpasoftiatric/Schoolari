@@ -34,9 +34,10 @@ export interface SectionEditorProps {
     roleTitle: string,
     onApply: (newText: string) => void
   ) => void;
+  isLimitReached?: boolean;
 }
 
-export function ContactEditor({ resume, onChange }: SectionEditorProps) {
+export function ContactEditor({ resume, onChange, isLimitReached }: SectionEditorProps) {
   const [generatingSummary, setGeneratingSummary] = useState(false);
 
   const updateHeader = (key: keyof ResumeDocument["header"], value: string) => {
@@ -147,10 +148,11 @@ export function ContactEditor({ resume, onChange }: SectionEditorProps) {
           <Button
             type="button"
             onClick={handleGenerateSummary}
-            disabled={generatingSummary}
+            disabled={generatingSummary || isLimitReached}
             variant="outline"
             size="sm"
-            className="h-8 px-3 rounded-xl text-xs font-bold text-violet-700 border border-violet-200/80 bg-violet-50/70 hover:bg-violet-100/80 transition-all shadow-2xs"
+            title="Automatically generate a professional summary based on your profile and resume content."
+            className="h-8 px-3 rounded-xl text-xs font-bold text-violet-700 border border-violet-200/80 bg-violet-50/70 hover:bg-violet-100/80 transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           >
             <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" />
             {generatingSummary ? "Generating..." : "AI Write Summary"}
@@ -371,7 +373,8 @@ export function EducationEditor({ resume, onChange }: SectionEditorProps) {
 export function ExperienceEditor({
   resume,
   onChange,
-  onOpenStarModal
+  onOpenStarModal,
+  isLimitReached
 }: SectionEditorProps) {
   const addExperience = () => {
     const newExp = {
@@ -562,10 +565,11 @@ export function ExperienceEditor({
                           (newText) => updateBullet(exp.id, bIdx, newText)
                         )
                       }
+                      disabled={isLimitReached}
                       variant="outline"
                       size="sm"
-                      className="h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0"
-                      title="AI STAR Polish"
+                      className="h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                      title="Use AI to rewrite this bullet point using the STAR (Situation, Task, Action, Result) method."
                     >
                       <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" /> AI STAR Polish
                     </Button>
@@ -591,7 +595,8 @@ export function ExperienceEditor({
 export function ExtracurricularsEditor({
   resume,
   onChange,
-  onOpenStarModal
+  onOpenStarModal,
+  isLimitReached
 }: SectionEditorProps) {
   const addExt = () => {
     const newExt = {
@@ -772,9 +777,10 @@ export function ExtracurricularsEditor({
                           (newText) => updateBullet(ext.id, bIdx, newText)
                         )
                       }
+                      disabled={isLimitReached}
                       variant="outline"
                       size="sm"
-                      className="h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0"
+                      className="h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
                     >
                       <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" /> AI STAR Polish
                     </Button>

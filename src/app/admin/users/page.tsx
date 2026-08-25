@@ -11,8 +11,19 @@ export default async function AdminUsersPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
-  // Fetch auth users (to get their emails)
-  const { data: { users }, error: authError } = await adminClient.auth.admin.listUsers();
+  // Fetch auth users (to get their emails), ai_usage and ai_limits
+  const [
+    { data: { users }, error: authError },
+    { data: aiUsages },
+    { data: aiLimits }
+  ] = await Promise.all([
+    adminClient.auth.admin.listUsers(),
+    adminClient.from("ai_usage").select("*"),
+    adminClient.from("ai_limits").select("*"),
+  ]);
+
+  const usageMap = new Map<string, any>();
+  (aiUsages || []).forEach((u) => usageMap.set(u.user_id, u));
 
   if (profilesError || authError) {
     return (
@@ -67,12 +78,14 @@ export default async function AdminUsersPage() {
     }
   });
 
-  // Merge profile data with auth email, and mark linked parents
+  // Merge profile data with auth email, AI usage, and mark linked parents
   const mergedUsers = (profiles || []).map((profile) => {
     const authUser = users.find((u) => u.id === profile.id);
     return {
       ...profile,
       email: authUser?.email || "Unknown Email",
+      usage: usageMap.get(profile.id) || null,
+      ai_limits: aiLimits || [],
       // Flag tells the table not to render this profile as a standalone top-level row
       _isLinkedParent: parentIdSet.has(profile.id),
     };

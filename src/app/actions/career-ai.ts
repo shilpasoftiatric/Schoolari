@@ -77,14 +77,23 @@ ${JSON.stringify(liteJobs)}
 Return ONLY a JSON array of matching IDs:`;
 
   try {
-    const aiResponse = await callAI({
-      systemPrompt,
-      userPrompt,
-      provider: "claude",
-      jsonMode: true,
-      maxTokens: 400,
-      label: "Career Center Job Matcher",
-    });
+    const { unstable_cache } = await import("next/cache");
+    const getCachedAIIds = unstable_cache(
+      async () => {
+        return await callAI({
+          systemPrompt,
+          userPrompt,
+          provider: "claude",
+          jsonMode: true,
+          maxTokens: 400,
+          label: "Career Center Job Matcher",
+        });
+      },
+      ["career-ai-match", user.id],
+      { revalidate: 86400 } // Cache for 24 hours
+    );
+
+    const aiResponse = await getCachedAIIds();
 
     let cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
 
@@ -167,6 +176,9 @@ ${JSON.stringify(resume?.content || {}, null, 2)}`;
 }
 
 export async function generateCoverLetterDraftAction(jobTitle: string, company: string, jobDescription: string, q1: string, q2: string, q3: string) {
+  const { enforceAiLimit } = await import("@/lib/ai-limits");
+  await enforceAiLimit("cover_letter");
+  
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

@@ -28,12 +28,24 @@ export default async function ResumeBuilderPage() {
 
   const { resumeDisclaimerAccepted } = await getAiDisclaimerStatus();
 
+  const { getUserAiUsage } = await import("@/lib/ai-limits");
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { createClient } = await import("@/lib/supabase/server");
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let aiUsage = null;
+  if (user) {
+    const { masterId } = await getStudentDashboardData(user.id);
+    aiUsage = await getUserAiUsage(masterId);
+  }
+
   return (
     <>
       {!resumeDisclaimerAccepted && (
         <AIDisclaimerModal isOpen={true} feature="resume" />
       )}
-      <ResumeBuilderClient />
+      <ResumeBuilderClient aiUsage={aiUsage} />
     </>
   );
 }

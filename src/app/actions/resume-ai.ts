@@ -8,9 +8,24 @@ import {
   ATSTailorResult
 } from "@/types/resume";
 import { formatPhoneE164 } from "@/lib/phone";
+
+function parseAIJson<T = any>(raw: string): T {
+  let cleaned = raw.trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  } else {
+    cleaned = cleaned.replace(/```(?:json)?/gi, "").trim();
+  }
+  return JSON.parse(cleaned);
+}
+
 export async function generateResumeFromProfileAction(
   resumeType: "academic" | "professional" | "both" = "professional"
 ): Promise<ResumeDocument> {
+  const { enforceAiLimit } = await import("@/lib/ai-limits");
+  await enforceAiLimit("resume_tool");
   const supabase = await createClient();
   const {
     data: { user }
@@ -150,11 +165,11 @@ Generate a complete, ATS-clean US Student Resume Document JSON object strictly a
       systemPrompt,
       userPrompt,
       provider: "claude",
-      jsonMode: true
+      jsonMode: true,
+      maxTokens: 4096,
     });
 
-    const cleanedJson = rawJson.replace(/```(?:json)?/gi, "").trim();
-    const parsed = JSON.parse(cleanedJson);
+    const parsed = parseAIJson(rawJson);
     return {
       id: "resume-" + Date.now(),
       title:
@@ -207,6 +222,9 @@ export async function optimizeResumeBulletAIAction(
   bulletText: string,
   roleTitle: string = "Student"
 ): Promise<StarBulletVariations> {
+  const { enforceAiLimit } = await import("@/lib/ai-limits");
+  await enforceAiLimit("resume_tool");
+
   const systemPrompt = `You are an elite US Career Coach and Harvard ATS Resume Expert specializing in student resumes.
 Your task is to transform a basic activity or job description into 3 high-impact STAR (Situation, Task, Action, Result) resume bullet variations without inventing any information.
 
@@ -236,8 +254,7 @@ Provide the 3 STAR method variations in JSON format.`;
       jsonMode: true
     });
 
-    const cleanedJson = responseJson.replace(/```(?:json)?/gi, "").trim();
-    const parsed = JSON.parse(cleanedJson);
+    const parsed = parseAIJson(responseJson);
     const cleanPlaceholders = (text: string) => text.replace(/\[.*?\]/g, '').replace(/\s+/g, ' ').trim();
 
     return {
@@ -252,6 +269,9 @@ Provide the 3 STAR method variations in JSON format.`;
 }
 
 export async function importResumeWithAIAction(formData: FormData): Promise<ResumeDocument> {
+  const { enforceAiLimit } = await import("@/lib/ai-limits");
+  await enforceAiLimit("resume_tool");
+
   const supabase = await createClient();
   const {
     data: { user }
@@ -276,7 +296,13 @@ export async function importResumeWithAIAction(formData: FormData): Promise<Resu
         const pdfParser = new PDFParser(null, 1);
         pdfParser.on("pdfParser_dataError", (errData: any) => reject(errData.parserError));
         pdfParser.on("pdfParser_dataReady", () => {
-          resolve(pdfParser.getRawTextContent());
+          try {
+            const text = pdfParser.getRawTextContent();
+            const decoded = decodeURIComponent(text.replace(/----------------Page \(\d+\) Break----------------/g, "\n"));
+            resolve(decoded);
+          } catch {
+            resolve(pdfParser.getRawTextContent());
+          }
         });
         pdfParser.parseBuffer(buffer);
       });
@@ -383,11 +409,11 @@ Parse this text, improve the bullet points, and return the structured JSON.`;
       systemPrompt,
       userPrompt,
       provider: "claude",
-      jsonMode: true
+      jsonMode: true,
+      maxTokens: 4096,
     });
 
-    const cleanedJson = rawJson.replace(/```(?:json)?/gi, "").trim();
-    const parsed = JSON.parse(cleanedJson);
+    const parsed = parseAIJson(rawJson);
     return {
       id: "resume-" + Date.now(),
       title: parsed.title || "Imported Resume — AI Improved",
@@ -418,6 +444,8 @@ export async function tailorResumeToJobAIAction(
   resumeDoc: ResumeDocument,
   jobTitleOrDescription: string
 ): Promise<ATSTailorResult> {
+  const { enforceAiLimit } = await import("@/lib/ai-limits");
+  await enforceAiLimit("resume_tool");
   const systemPrompt = `You are a senior US ATS (Applicant Tracking System) algorithm expert and Executive Recruiter.
 You are evaluating a student's resume against a target US job, internship, or scholarship prompt.
 
@@ -456,11 +484,10 @@ Provide ATS analysis JSON.`;
       userPrompt,
       provider: "claude",
       jsonMode: true,
-      temperature: 0
+      maxTokens: 4096,
     });
 
-    const cleanedJson = rawJson.replace(/```(?:json)?/gi, "").trim();
-    const parsed = JSON.parse(cleanedJson);
+    const parsed = parseAIJson(rawJson);
     return {
       ats_score: typeof parsed.ats_score === "number" ? parsed.ats_score : 78,
       matched_keywords: Array.isArray(parsed.matched_keywords) ? parsed.matched_keywords : ["Communication", "Teamwork"],
@@ -483,6 +510,8 @@ export async function generateProfessionalSummaryAIAction(
   resumeDoc: ResumeDocument,
   targetRole: string = ""
 ): Promise<string> {
+  const { enforceAiLimit } = await import("@/lib/ai-limits");
+  await enforceAiLimit("resume_tool");
   const systemPrompt = `You are a professional US Resume Coach and Strict Fact-Checker.
 Write a concise, compelling 2-3 sentence Professional Summary for a US student's resume based purely on the provided facts.
 

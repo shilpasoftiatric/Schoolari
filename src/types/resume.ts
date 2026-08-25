@@ -89,6 +89,7 @@ export interface ResumeDocument {
   skills: ResumeSkillsSection;
   student_experience_level?: string;
   missing_information?: string[];
+  is_unsaved?: boolean;
   last_modified: string;
 }
 
