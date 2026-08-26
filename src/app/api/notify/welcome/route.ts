@@ -161,11 +161,11 @@ export async function POST(req: Request) {
     }
 
     // ── 4. Welcome Email for the Inviter ─────────────────────────────────────
-    const inviterEmail = account_type === "parent" ? parent_email : student_email;
+    const inviterEmail = (account_type === "parent" ? parent_email : student_email) || user.email;
     const inviterRole = account_type;
 
-    // Check if user is on a trial
-    const { data: profile } = await supabase.from('profiles').select('subscription_status').eq('id', user.id).single();
+    // Check if user is on a trial using adminClient to avoid RLS restrictions
+    const { data: profile } = await adminClient.from('profiles').select('subscription_status').eq('id', user.id).maybeSingle();
     const isTrialing = profile?.subscription_status === 'trialing';
 
     if (inviterEmail) {

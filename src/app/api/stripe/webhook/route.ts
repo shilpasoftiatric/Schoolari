@@ -127,11 +127,12 @@ export async function POST(req: NextRequest) {
 
         // Detect cancellation during trial:
         // - soft cancel (cancel_at_period_end) while still trialing
-        // - hard cancel (deleted) where previous status was trialing OR canceled_at is before trial_end
+        // - hard cancel (deleted) where previous status was trialing OR subscription had a trial_end
         const isCancelledDuringTrial =
           (event.type === "customer.subscription.updated" && subscription.cancel_at_period_end && subscription.status === "trialing") ||
           (event.type === "customer.subscription.deleted" &&
             (prevAttributes?.status === "trialing" ||
+             !!subscription.trial_end ||
              (subscription.trial_end && subscription.canceled_at && subscription.canceled_at <= subscription.trial_end)));
 
         // Detect trial converting to active (trialing → active)
@@ -164,7 +165,7 @@ export async function POST(req: NextRequest) {
           for (const payer of payerProfiles) {
             await mirrorStripeSubscription(payer.id, stripeFields);
 
-            const email = payer.student_email || payer.parent_email;
+            const email = payer.student_email || payer.parent_email || payer.email;
             const first = payer.first_name || payer.student_first_name || payer.parent_first_name || "Student";
             const pAny = payer as any;
 
