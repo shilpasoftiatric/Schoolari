@@ -31,22 +31,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Price ID is required" }, { status: 400 });
     }
 
-    // Get the user's email and name to pre-fill the checkout
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
+    // Fetch full dashboard/profile data using data-fetcher (bypasses RLS, resolves linked student/parent)
+    const { getStudentDashboardData } = await import("@/services/data-fetcher");
+    const dbData = await getStudentDashboardData(user.id);
+    const userProfile = dbData.userProfile;
+    const masterProfile = dbData.profile;
 
-    if (profileError) {
-      console.error("DEBUG: profile fetch error in checkout route:", profileError);
-    }
+    // Check if the current user profile or linked master profile has had a trial or subscription
+    const hasHadTrial = 
+      !!userProfile?.trial_start_date || 
+      !!userProfile?.subscription_status ||
+      !!userProfile?.stripe_subscription_id ||
+      !!userProfile?.stripe_customer_id ||
+      !!userProfile?.trial_welcome_email_sent ||
+      !!userProfile?.trial_cancelled_email_sent ||
+      !!masterProfile?.trial_start_date ||
+      !!masterProfile?.subscription_status ||
+      !!masterProfile?.stripe_subscription_id ||
+      !!masterProfile?.stripe_customer_id ||
+      !!masterProfile?.trial_welcome_email_sent ||
+      !!masterProfile?.trial_cancelled_email_sent;
 
-    const activeStatuses = ["active", "trialing", "past_due", "unpaid"];
-    const hasHadTrial = !!profile?.trial_start_date || activeStatuses.includes(profile?.subscription_status || "");
+    const existingCustomerId = userProfile?.stripe_customer_id || masterProfile?.stripe_customer_id || undefined;
+    const ownerId = dbData.subscriptionOwnerId || user.id;
+
     console.log("=== DEBUG CHECKOUT ===");
-    console.log("User:", user.id);
-    console.log("Profile Subscription Status:", profile?.subscription_status);
+    console.log("User ID:", user.id);
+    console.log("Account Type:", userProfile?.account_type);
+    console.log("Existing Customer ID:", existingCustomerId);
     console.log("hasHadTrial Evaluated to:", hasHadTrial);
 
     // Prefer the request origin so the user is returned to the EXACT domain they started from (e.g., localhost vs member.localhost)
@@ -70,9 +82,9 @@ export async function POST(req: NextRequest) {
       }),
       success_url: successUrl,
       cancel_url: cancelUrl,
-      client_reference_id: user.id, // VERY IMPORTANT: links payment to Supabase user
-      customer_email: profile?.stripe_customer_id ? undefined : user.email,
-      customer: profile?.stripe_customer_id || undefined, // Use existing customer if present
+      client_reference_id: user.id, // Links payment to the active user
+      customer_email: existingCustomerId ? undefined : (user.email || userProfile?.student_email || userProfile?.parent_email || undefined),
+      customer: existingCustomerId, // Use existing customer ID if present to prevent creating duplicates
     };
     console.log("Session Params we are sending to Stripe:", JSON.stringify(sessionParams, null, 2));
 

@@ -8,13 +8,25 @@ async function getHasHadTrial(): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("subscription_status")
-    .eq("id", user.id)
-    .single();
-    
-  return !!profile?.subscription_status;
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const dbData = await getStudentDashboardData(user.id);
+  const userProfile = dbData.userProfile;
+  const masterProfile = dbData.profile;
+
+  return (
+    !!userProfile?.trial_start_date || 
+    !!userProfile?.subscription_status || 
+    !!userProfile?.stripe_customer_id || 
+    !!userProfile?.stripe_subscription_id ||
+    !!userProfile?.trial_welcome_email_sent ||
+    !!userProfile?.trial_cancelled_email_sent ||
+    !!masterProfile?.trial_start_date ||
+    !!masterProfile?.subscription_status ||
+    !!masterProfile?.stripe_customer_id ||
+    !!masterProfile?.stripe_subscription_id ||
+    !!masterProfile?.trial_welcome_email_sent ||
+    !!masterProfile?.trial_cancelled_email_sent
+  );
 }
 
 export default async function PricingPage() {
