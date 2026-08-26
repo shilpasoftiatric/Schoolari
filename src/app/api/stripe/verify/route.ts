@@ -17,7 +17,6 @@ const supabaseAdmin = createClient<Database>(
 );
 
 import { getSupabaseAdmin, mirrorStripeSubscription } from "@/lib/stripe-mirror";
-import { syncContact } from "@/lib/constant-contact";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -64,17 +63,6 @@ export async function GET(req: NextRequest) {
 
         // 2. Mirror to linked family members
         await mirrorStripeSubscription(userId, stripePayload);
-
-        // 3. Sync to Constant Contact Trial List if trial started
-        if (subscription.status === "trialing" && profile) {
-          const email = profile.student_email || profile.parent_email || session.customer_details?.email;
-          const first = profile.first_name || profile.student_first_name || profile.parent_first_name || "Student";
-          const last = profile.student_last_name || profile.parent_last_name || "";
-          const ccTrialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID;
-          if (email && ccTrialListId) {
-            await syncContact(email, first, last, ccTrialListId).catch(console.error);
-          }
-        }
       }
 
       // Redirect successfully to onboarding using a standard redirect

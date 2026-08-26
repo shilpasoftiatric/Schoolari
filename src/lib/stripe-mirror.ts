@@ -22,7 +22,7 @@ export function getSupabaseAdmin() {
  */
 export async function mirrorStripeSubscription(
   payerProfileId: string,
-  stripeFields: Record<string, string | null>
+  stripeFields: Record<string, any>
 ) {
   const adminClient = getSupabaseAdmin();
 

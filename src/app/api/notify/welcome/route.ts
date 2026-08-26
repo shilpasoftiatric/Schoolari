@@ -15,7 +15,7 @@ import { formatPhoneE164 } from "@/lib/phone";
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { createClient } from "@/lib/supabase/server";
-import { sendInviteEmail, sendWelcomeEmail } from "@/lib/email";
+import { sendInviteEmail, sendWelcomeEmail, sendTrialWelcomeEmail } from "@/lib/email";
 
 const hasTwilio = () =>
   !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
@@ -98,18 +98,10 @@ export async function POST(req: Request) {
     if (hasConstantContact()) {
       const parentsListId = process.env.CONSTANT_CONTACT_PARENT_LIST || process.env.CONSTANT_CONTACT_PARENTS_LIST_ID || "";
       const studentsListId = process.env.CONSTANT_CONTACT_STUDENT_LIST || process.env.CONSTANT_CONTACT_STUDENTS_LIST_ID || "";
-      const trialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID || "";
-
-      // Check if they are on a trial
-      const { data: profile } = await supabase.from('profiles').select('subscription_status').eq('id', user.id).single();
-      const isTrialing = profile?.subscription_status === 'trialing';
 
       try {
         if (parent_email && parentsListId) {
           await syncContact(parent_email, parent_first_name, parent_last_name, parentsListId);
-          if (isTrialing && trialListId) {
-            await syncContact(parent_email, parent_first_name, parent_last_name, trialListId);
-          }
         }
         results.cc_parent = "added";
       } catch (err: any) {
@@ -119,9 +111,6 @@ export async function POST(req: Request) {
       try {
         if (student_email && studentsListId) {
           await syncContact(student_email, student_first_name, student_last_name, studentsListId);
-          if (isTrialing && trialListId) {
-            await syncContact(student_email, student_first_name, student_last_name, trialListId);
-          }
         }
         results.cc_student = "added";
       } catch (err: any) {
@@ -175,14 +164,27 @@ export async function POST(req: Request) {
     const inviterEmail = account_type === "parent" ? parent_email : student_email;
     const inviterRole = account_type;
 
+    // Check if user is on a trial
+    const { data: profile } = await supabase.from('profiles').select('subscription_status').eq('id', user.id).single();
+    const isTrialing = profile?.subscription_status === 'trialing';
+
     if (inviterEmail) {
       try {
-        const welcomeRes = await sendWelcomeEmail(
-          inviterEmail,
-          inviterFirstName || "there",
-          inviterRole as "student" | "parent"
-        );
-        if (!welcomeRes.success) throw new Error(welcomeRes.error);
+        if (isTrialing) {
+          const trialRes = await sendTrialWelcomeEmail(
+            inviterEmail,
+            inviterFirstName || "there"
+          );
+          if (!trialRes.success) throw new Error(trialRes.error);
+          await adminClient.from("profiles").update({ trial_welcome_email_sent: true }).eq("id", user.id);
+        } else {
+          const welcomeRes = await sendWelcomeEmail(
+            inviterEmail,
+            inviterFirstName || "there",
+            inviterRole as "student" | "parent"
+          );
+          if (!welcomeRes.success) throw new Error(welcomeRes.error);
+        }
         results.welcome_email = "sent via email";
       } catch (err: any) {
         results.welcome_email = `failed: ${err.message}`;

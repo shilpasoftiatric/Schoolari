@@ -5,7 +5,7 @@ import { formatPhoneE164 } from "@/lib/phone";
 import { redirect } from "next/navigation";
 import { syncOnboardingContacts, syncContact, CONSTANT_CONTACT_PARENT_LIST, CONSTANT_CONTACT_STUDENT_LIST } from "@/lib/constant-contact";
 import { sendWelcomeSMS } from "@/lib/twilio";
-import { sendInviteEmail, sendWelcomeEmail } from "@/lib/email";
+import { sendInviteEmail, sendWelcomeEmail, sendTrialWelcomeEmail } from "@/lib/email";
 
 // Hardcoded fallback to members.localhost:3000 to match Supabase Site URL
 const APP_URL = process.env.NODE_ENV === 'production' ? "https://members.schoolari.com" : "http://members.localhost:3000";
@@ -170,46 +170,13 @@ export async function saveOnboardingStep(step: number, data: any) {
 
   // Trigger integrations when moving past Step 1
   if (step === 2 && updatedProfile) {
-    // 1. Sync Constant Contact — Student/Parent lists (fire and forget)
+    // 1. Sync Constant Contact — Student/Parent general marketing lists (fire and forget)
     syncOnboardingContacts(
       updatedProfile.student_email || "", updatedProfile.student_first_name || "", updatedProfile.student_last_name || "",
       updatedProfile.parent_email || "", updatedProfile.parent_first_name || "", updatedProfile.parent_last_name || ""
     ).catch(console.error);
 
-    // 2. If the payer is on a trial, sync real name to CC Trial List now that we have it.
-    //    The payer is always user.id (not targetId, which could be the linked student).
-    const ccTrialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID;
-    if (ccTrialListId) {
-      try {
-        const { data: payerProfile } = await supabaseAdmin
-          .from("profiles")
-          .select("subscription_status, student_email, student_first_name, student_last_name, parent_email, parent_first_name, parent_last_name, account_type")
-          .eq("id", user.id)
-          .single();
-
-        if (payerProfile?.subscription_status === "trialing") {
-          // Sync the correct person (the payer) to the Trial List with their real name
-          const trialEmail = payerProfile.account_type === "parent"
-            ? (payerProfile.parent_email || updatedProfile.parent_email)
-            : (payerProfile.student_email || updatedProfile.student_email);
-          const trialFirst = payerProfile.account_type === "parent"
-            ? (payerProfile.parent_first_name || updatedProfile.parent_first_name || "")
-            : (payerProfile.student_first_name || updatedProfile.student_first_name || "");
-          const trialLast = payerProfile.account_type === "parent"
-            ? (payerProfile.parent_last_name || updatedProfile.parent_last_name || "")
-            : (payerProfile.student_last_name || updatedProfile.student_last_name || "");
-
-          if (trialEmail) {
-            console.log(`[Trial Sync] Syncing ${trialEmail} to CC Trial List with name: ${trialFirst} ${trialLast}`);
-            syncContact(trialEmail, trialFirst, trialLast, ccTrialListId).catch(console.error);
-          }
-        }
-      } catch (trialSyncError) {
-        console.error("[Trial Sync] Error syncing to CC Trial List:", trialSyncError);
-      }
-    }
-
-    // 2. Send SMS and Invite
+    // 2. Send SMS, Welcome Email, and Family Account Invite
     try {
       const studentEmail = updatedProfile.student_email;
       const studentPhone = updatedProfile.student_phone;
@@ -227,11 +194,24 @@ export async function saveOnboardingStep(step: number, data: any) {
         await sendWelcomeSMS(parentPhone, 'parent', !isCurrentUserStudent).catch(console.error);
       }
 
-      // Send Welcome Email to the person who signed up
+      // Check if subscriber is on a trial
+      const isTrialing = updatedProfile.subscription_status === "trialing";
+
+      // Send Welcome Email to the person who signed up (using Google Workspace via students@schoolari.com)
       if (isCurrentUserStudent && studentEmail) {
-        await sendWelcomeEmail(studentEmail, studentFirstName || "there", "student").catch(console.error);
+        if (isTrialing) {
+          await sendTrialWelcomeEmail(studentEmail, studentFirstName || "Student").catch(console.error);
+          await supabaseAdmin.from("profiles").update({ trial_welcome_email_sent: true }).eq("id", targetId);
+        } else {
+          await sendWelcomeEmail(studentEmail, studentFirstName || "there", "student").catch(console.error);
+        }
       } else if (!isCurrentUserStudent && parentEmail) {
-        await sendWelcomeEmail(parentEmail, parentFirstName || "there", "parent").catch(console.error);
+        if (isTrialing) {
+          await sendTrialWelcomeEmail(parentEmail, parentFirstName || "there").catch(console.error);
+          await supabaseAdmin.from("profiles").update({ trial_welcome_email_sent: true }).eq("id", user.id);
+        } else {
+          await sendWelcomeEmail(parentEmail, parentFirstName || "there", "parent").catch(console.error);
+        }
       }
 
       // If current user is student, create parent account if it doesn't exist

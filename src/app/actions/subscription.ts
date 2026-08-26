@@ -5,6 +5,8 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { getPlanFromPriceId, PLAN_INFO, getUserPlan } from "@/lib/subscription-server";
 import type { SubscriptionPlan } from "@/lib/subscription-server";
+import { sendTrialCancelledEmail } from "@/lib/email";
+import { mirrorStripeSubscription } from "@/lib/stripe-mirror";
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error("Missing STRIPE_SECRET_KEY");
@@ -338,16 +340,41 @@ export async function cancelOwnSubscription() {
     const subscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
 
     let immediate = false;
+    const adminClient = await createAdminClient();
+
     if (subscription.status === "trialing") {
-      // Cancel immediately for trials
+      // Cancel immediately for trials in Stripe
       await stripe.subscriptions.cancel(profile.stripe_subscription_id);
       immediate = true;
       
-      // Manually update DB so they lose access instantly without waiting for the webhook
-      const adminClient = await createAdminClient();
-      await adminClient.from("profiles").update({ 
-        subscription_status: "canceled"
-      }).eq("id", ownerId);
+      const updateData = { 
+        subscription_status: "canceled",
+        trial_cancelled_email_sent: true,
+      };
+
+      // 1. Update all profiles sharing this subscription ID
+      await adminClient
+        .from("profiles")
+        .update(updateData)
+        .eq("stripe_subscription_id", profile.stripe_subscription_id);
+
+      // 2. Ensure current user, owner, and linked student are all marked canceled
+      const profileIds = Array.from(new Set([user.id, ownerId, profile.linked_student_id, dbData.userProfile?.id])).filter(Boolean) as string[];
+      await adminClient
+        .from("profiles")
+        .update(updateData)
+        .in("id", profileIds);
+
+      // 3. Mirror across parent/student link
+      await mirrorStripeSubscription(ownerId, updateData);
+      await mirrorStripeSubscription(user.id, updateData);
+
+      // 4. Send cancellation notice email immediately
+      const email = profile.student_email || profile.parent_email || user.email;
+      const firstName = profile.student_first_name || profile.parent_first_name || "there";
+      if (email) {
+        await sendTrialCancelledEmail(email, firstName).catch(console.error);
+      }
     } else {
       // Cancel at period end so they can finish their billed cycle
       await stripe.subscriptions.update(profile.stripe_subscription_id, {
@@ -355,11 +382,10 @@ export async function cancelOwnSubscription() {
       });
     }
 
-    // We don't immediately change status to 'canceled' since the webhook handles it,
-    // but the webhook will fire very quickly.
-    
     revalidatePath("/profile");
     revalidatePath("/dashboard");
+    revalidatePath("/pricing");
+    revalidatePath("/onboarding");
 
     return { success: true, immediate };
   } catch (error: any) {

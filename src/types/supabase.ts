@@ -114,6 +114,10 @@ export interface Database {
           trial_start_date: string | null;
           trial_day5_sms_sent: boolean | null;
           trial_day7_sms_sent: boolean | null;
+          trial_welcome_email_sent: boolean | null;
+          trial_day5_email_sent: boolean | null;
+          trial_day7_email_sent: boolean | null;
+          trial_cancelled_email_sent: boolean | null;
           ai_dashboard_data: any;
           current_streak: number;
           longest_streak: number;

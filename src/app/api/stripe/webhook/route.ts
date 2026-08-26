@@ -4,8 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
 import { sendTrialEndingSMS } from "@/lib/twilio";
 import { getSupabaseAdmin, mirrorStripeSubscription } from "@/lib/stripe-mirror";
-import { syncContact, removeFromList } from "@/lib/constant-contact";
 import { getPlanFromPriceId } from "@/lib/subscription";
+import { 
+  sendTrialDay5ReminderEmail, 
+  sendTrialDay7ConvertedEmail, 
+  sendTrialCancelledEmail 
+} from "@/lib/email";
 
 let stripe: Stripe | null = null;
 let supabaseAdmin: any = null;
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
           stripe_price_id: priceId,
-          subscription_status: subscription.status, // e.g. "active"
+          subscription_status: subscription.status, // e.g. "trialing" or "active"
         };
 
         if (subscription.status === "trialing") {
@@ -97,20 +101,6 @@ export async function POST(req: NextRequest) {
 
         // Mirror to student/parent profile depending on who paid
         await mirrorStripeSubscription(userId, stripeFields);
-
-        // Sync to Constant Contact Trial List if trial started
-        if (subscription.status === "trialing" && profile) {
-          const email = profile.student_email || profile.parent_email || session.customer_details?.email;
-          const first = profile.first_name || profile.student_first_name || profile.parent_first_name || "Student";
-          const last = profile.student_last_name || profile.parent_last_name || "";
-          const ccTrialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID;
-          if (email && ccTrialListId) {
-            console.log(`[CC Trial Sync] Enrolling ${email} (userId: ${userId}) in Trial List via checkout.session.completed`);
-            await syncContact(email, first, last, ccTrialListId).catch(console.error);
-          } else {
-            console.warn(`[CC Trial Sync] Skipping — email: ${email}, ccTrialListId: ${ccTrialListId}`);
-          }
-        }
 
         // If Elite subscription, ensure welcome message is auto-delivered
         try {
@@ -156,8 +146,6 @@ export async function POST(req: NextRequest) {
           stripeFields.stripe_customer_id = null;
         }
 
-        // Trial start date remains in the DB permanently to track that the user used their trial
-
         // Find all profiles by subscription ID and update them
         const adminClient = getSupabaseAdmin();
         const { data: payerProfiles, error } = await adminClient
@@ -171,36 +159,27 @@ export async function POST(req: NextRequest) {
           throw error;
         }
 
-        // Mirror to linked family members and sync CC
+        // Mirror to linked family members and send lifecycle emails
         if (payerProfiles) {
           for (const payer of payerProfiles) {
             await mirrorStripeSubscription(payer.id, stripeFields);
 
             const email = payer.student_email || payer.parent_email;
             const first = payer.first_name || payer.student_first_name || payer.parent_first_name || "Student";
-            const last = payer.student_last_name || payer.parent_last_name || "";
-            const ccTrialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID;
-            const ccCancelledListId = process.env.CONSTANT_CONTACT_CANCELLED_TRIAL_LIST_ID;
+            const pAny = payer as any;
 
-            if (isCancelledDuringTrial && email) {
-              // 1. Remove from Trial List so CC automations stop
-              if (ccTrialListId) {
-                console.log(`[CC Lifecycle] Removing ${email} from Trial List`);
-                await removeFromList(email, ccTrialListId).catch(console.error);
-              }
-              // 2. Add to Cancelled Trial List to trigger cancellation email
-              if (ccCancelledListId) {
-                console.log(`[CC Lifecycle] Adding ${email} to Cancelled Trial List`);
-                await syncContact(email, first, last, ccCancelledListId).catch(console.error);
-              }
+            // 1. Send Trial Cancellation Email via Google Workspace
+            if (isCancelledDuringTrial && email && !pAny?.trial_cancelled_email_sent) {
+              console.log(`[Trial Lifecycle] Sending cancellation email to ${email} (userId: ${payer.id})`);
+              await sendTrialCancelledEmail(email, first).catch(console.error);
+              await adminClient.from("profiles").update({ trial_cancelled_email_sent: true }).eq("id", payer.id);
             }
 
-            if (isTrialConverted && email) {
-              // Remove from Trial List since they are now a paid subscriber
-              if (ccTrialListId) {
-                console.log(`[CC Lifecycle] Trial converted to active. Removing ${email} from Trial List`);
-                await removeFromList(email, ccTrialListId).catch(console.error);
-              }
+            // 2. Send Day 7 Conversion Email via Google Workspace (if not sent yet)
+            if (isTrialConverted && email && !pAny?.trial_day7_email_sent) {
+              console.log(`[Trial Lifecycle] Trial converted to active. Sending Day 7 email to ${email}`);
+              await sendTrialDay7ConvertedEmail(email, first).catch(console.error);
+              await adminClient.from("profiles").update({ trial_day7_email_sent: true }).eq("id", payer.id);
             }
           }
         }
@@ -211,49 +190,51 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
 
-        // Fetch user profile to get phone number
+        // Fetch user profile to get contact info
         const adminClient = getSupabaseAdmin();
         const { data: profile } = await adminClient
           .from("profiles")
-          .select("phone, student_phone, parent_phone, first_name, student_first_name")
+          .select("id, student_phone, parent_phone, student_first_name, parent_first_name, student_email, parent_email, trial_day5_email_sent, trial_day5_sms_sent")
           .eq("stripe_customer_id", customerId)
           .single();
 
         if (profile) {
-          const phoneNumber = profile.phone || profile.student_phone || profile.parent_phone;
-          const name = profile.first_name || profile.student_first_name || "there";
-          
-          if (phoneNumber) {
-            // Format renewal date
-            const currentPeriodEnd = (subscription as any).current_period_end ?? (subscription as any).current_period?.end;
-            const renewalDate = new Date(currentPeriodEnd * 1000).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric"
-            });
-            const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://schoolari.com";
-            const manageLink = `${appUrl}/pricing`; // Or wherever they manage subscriptions
-            
+          const phoneNumber = profile.student_phone || profile.parent_phone;
+          const name = profile.student_first_name || profile.parent_first_name || "there";
+          const email = profile.student_email || profile.parent_email;
+          const pAny = profile as any;
+
+          const currentPeriodEnd = (subscription as any).current_period_end ?? (subscription as any).current_period?.end;
+          const renewalDate = new Date(currentPeriodEnd * 1000).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          });
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com";
+          const manageLink = `${appUrl}/pricing`;
+
+          // Send SMS reminder
+          if (phoneNumber && !profile.trial_day5_sms_sent) {
             await sendTrialEndingSMS(phoneNumber, name, renewalDate, manageLink);
+            await adminClient.from("profiles").update({ trial_day5_sms_sent: true }).eq("id", profile.id);
             console.log(`Sent trial ending SMS to ${phoneNumber} for customer ${customerId}`);
-          } else {
-            console.log(`No phone number found for customer ${customerId}, skipping SMS.`);
+          }
+
+          // Send Day 5 Email reminder via Google Workspace
+          if (email && !pAny?.trial_day5_email_sent) {
+            await sendTrialDay5ReminderEmail(email, name);
+            await adminClient.from("profiles").update({ trial_day5_email_sent: true }).eq("id", profile.id);
+            console.log(`Sent trial ending reminder email to ${email} for customer ${customerId}`);
           }
         }
         break;
       }
 
-      // Phase 4: Handle successful invoice payment (Day-7 trial conversion backup)
-      // Stripe fires invoice.payment_succeeded when the trial ends and the card is charged.
-      // This is a backup to customer.subscription.updated to ensure DB + CC are always updated.
+      // Handle successful invoice payment (Day-7 trial conversion backup)
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        // invoice.subscription is the standard property; we cast safely to any for subscription_details if needed
         const subscriptionId = ((invoice as any).subscription || (invoice as any).subscription_details?.subscription) as string;
-        const customerId = invoice.customer as string;
 
-        // Only process if this is billing_reason=subscription_cycle or subscription_create
-        // subscription_cycle = recurring charge (Day-7 trial conversion falls here)
         if (!subscriptionId) break;
 
         const stripeClient = getStripe();
@@ -261,7 +242,6 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Invoice] payment_succeeded for sub ${subscriptionId}, status: ${subscription.status}, billing_reason: ${invoice.billing_reason}`);
 
-        // Only act on billing_reason that implies a trial just converted
         if (invoice.billing_reason !== "subscription_cycle" && invoice.billing_reason !== "subscription_create") break;
         if (subscription.status !== "active") break;
 
@@ -278,12 +258,12 @@ export async function POST(req: NextRequest) {
 
             const email = payer.student_email || payer.parent_email;
             const first = payer.first_name || payer.student_first_name || payer.parent_first_name || "Student";
-            const last = payer.student_last_name || payer.parent_last_name || "";
-            const ccTrialListId = process.env.CONSTANT_CONTACT_TRIAL_LIST_ID;
+            const pAny = payer as any;
 
-            if (email && ccTrialListId) {
-              console.log(`[CC Lifecycle] invoice.payment_succeeded — removing ${email} (userId: ${payer.id}) from Trial List`);
-              await removeFromList(email, ccTrialListId).catch(console.error);
+            if (email && !pAny?.trial_day7_email_sent) {
+              console.log(`[Trial Lifecycle] invoice.payment_succeeded — sending Day 7 email to ${email}`);
+              await sendTrialDay7ConvertedEmail(email, first).catch(console.error);
+              await adminClient.from("profiles").update({ trial_day7_email_sent: true }).eq("id", payer.id);
             }
           }
         }

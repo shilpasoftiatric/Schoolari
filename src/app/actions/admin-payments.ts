@@ -14,6 +14,8 @@ function getStripe() {
   });
 }
 
+import { mirrorStripeSubscription } from "@/lib/stripe-mirror";
+
 /**
  * Cancel a user's subscription immediately in Stripe + update DB
  */
@@ -24,15 +26,20 @@ export async function cancelSubscription(stripeSubscriptionId: string, userId: s
   const deleted = await stripe.subscriptions.cancel(stripeSubscriptionId);
 
   const adminClient = await createAdminClient();
+  const updateFields = {
+    subscription_status: "canceled",
+    stripe_subscription_id: null,
+    stripe_price_id: null,
+    stripe_customer_id: null,
+    trial_cancelled_email_sent: true,
+  };
+
   await adminClient
     .from("profiles")
-    .update({
-      subscription_status: "canceled",
-      stripe_subscription_id: null,
-      stripe_price_id: null,
-      stripe_customer_id: null,
-    })
+    .update(updateFields)
     .eq("stripe_subscription_id", stripeSubscriptionId);
+
+  await mirrorStripeSubscription(userId, updateFields);
 
   revalidatePath("/admin/payments");
   return { success: true, status: deleted.status };

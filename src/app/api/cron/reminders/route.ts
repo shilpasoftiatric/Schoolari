@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import twilio from "twilio";
 import { formatPhoneE164 } from "@/lib/phone";
-import { sendAlertEmail } from "@/lib/email";
+import { 
+  sendAlertEmail, 
+  sendTrialDay5ReminderEmail, 
+  sendTrialDay7ConvertedEmail 
+} from "@/lib/email";
 
 /**
  * GET /api/cron/reminders
@@ -170,10 +174,10 @@ export async function GET(req: Request) {
         }
       }
     }
-    // 6. Trial SMS Reminders (Day 5 & Day 7)
+    // 6. Trial Reminders (Day 5 & Day 7 — SMS + Google Workspace Email)
     const { data: trialProfiles, error: trialError } = await supabase
       .from("profiles")
-      .select("id, first_name, student_first_name, parent_first_name, phone, student_phone, parent_phone, subscription_status, trial_start_date, trial_day5_sms_sent, trial_day7_sms_sent")
+      .select("id, student_first_name, parent_first_name, student_last_name, parent_last_name, student_email, parent_email, student_phone, parent_phone, subscription_status, trial_start_date, trial_day5_sms_sent, trial_day7_sms_sent, trial_day5_email_sent, trial_day7_email_sent, trial_cancelled_email_sent")
       .not("trial_start_date", "is", null);
 
     if (!trialError && trialProfiles) {
@@ -181,50 +185,104 @@ export async function GET(req: Request) {
       for (const profile of trialProfiles) {
         if (!profile.trial_start_date) continue;
         
+        // Compute precise days since trial started
         const daysSinceStart = (now - new Date(profile.trial_start_date).getTime()) / (1000 * 60 * 60 * 24);
-        const name = profile.first_name || profile.student_first_name || profile.parent_first_name || "Student";
-        const phones = [profile.phone, profile.student_phone, profile.parent_phone].filter(Boolean);
+        const name = profile.student_first_name || profile.parent_first_name || "Student";
+        const phones = [profile.student_phone, profile.parent_phone].filter(Boolean);
         const uniquePhones = Array.from(new Set(phones));
+
+        const pAny = profile as any;
+        const emails = [pAny?.student_email, pAny?.parent_email].filter(Boolean);
+        const uniqueEmails = Array.from(new Set(emails));
         
-        // Day 5 SMS (Reminding trial ends in 2 days)
-        // Send if 5-6 days have elapsed and status is still trialing
-        if (daysSinceStart >= 5 && daysSinceStart < 6 && profile.subscription_status === "trialing" && !profile.trial_day5_sms_sent) {
-          const msgText = `Hi ${name}, a quick reminder from Schoolari that your free trial ends in 2 days. Manage your subscription at ${process.env.NEXT_PUBLIC_APP_URL || "https://schoolari.com"}/pricing`;
-          
-          let success = false;
-          for (const phone of uniquePhones) {
-            const e164 = formatPhoneE164(phone as string);
-            if (e164) {
-              try {
-                await client.messages.create({ body: msgText, from: twilioPhone, to: e164 });
-                success = true;
-                sentCount++;
-              } catch (e) { failCount++; }
+        // ── Day 5 Reminder (2 Days Before Trial Ends) ──────────────────────────
+        // Trigger if:
+        // 1. User has reached Day 5 window (between 4.5 and 6.5 days)
+        // 2. Subscription status is strictly 'trialing' (if cancelled, status is not 'trialing' -> skipped!)
+        // 3. Not cancelled
+        if (daysSinceStart >= 4.5 && daysSinceStart < 6.5 && profile.subscription_status === "trialing" && !pAny?.trial_cancelled_email_sent) {
+          // Send Day 5 SMS if not sent yet
+          if (!profile.trial_day5_sms_sent) {
+            const msgText = `Hi ${name}, a quick reminder from Schoolari that your free trial ends in 2 days. Manage your subscription at ${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/pricing`;
+            let smsSuccess = false;
+            for (const phone of uniquePhones) {
+              const e164 = formatPhoneE164(phone as string);
+              if (e164) {
+                try {
+                  await client.messages.create({ body: msgText, from: twilioPhone, to: e164 });
+                  smsSuccess = true;
+                  sentCount++;
+                } catch (e) { failCount++; }
+              }
+            }
+            if (smsSuccess) {
+              await supabase.from("profiles").update({ trial_day5_sms_sent: true }).eq("id", profile.id);
             }
           }
-          if (success) {
-            await supabase.from("profiles").update({ trial_day5_sms_sent: true }).eq("id", profile.id);
+
+          // Send Day 5 Email if not sent yet
+          if (!pAny?.trial_day5_email_sent && uniqueEmails.length > 0) {
+            let emailSent = false;
+            for (const email of uniqueEmails) {
+              try {
+                const res = await sendTrialDay5ReminderEmail(email as string, name);
+                if (res.success) {
+                  emailSent = true;
+                  sentCount++;
+                  console.log(`[cron/reminders] Day 5 reminder email sent to ${email} (userId: ${profile.id})`);
+                }
+              } catch (e) {
+                console.error(`[cron/reminders] Failed Day 5 email to ${email}:`, e);
+              }
+            }
+            if (emailSent) {
+              await supabase.from("profiles").update({ trial_day5_email_sent: true } as any).eq("id", profile.id);
+            }
           }
         }
         
-        // Day 7 SMS (Notifying trial has ended and card charged)
-        // Send if 7-8 days have elapsed and status is active
-        if (daysSinceStart >= 7 && daysSinceStart < 8 && profile.subscription_status === "active" && !profile.trial_day7_sms_sent) {
-          const msgText = `Hi ${name}, your Schoolari free trial has ended and your card has been successfully charged. Thank you for subscribing!`;
-          
-          let success = false;
-          for (const phone of uniquePhones) {
-            const e164 = formatPhoneE164(phone as string);
-            if (e164) {
-              try {
-                await client.messages.create({ body: msgText, from: twilioPhone, to: e164 });
-                success = true;
-                sentCount++;
-              } catch (e) { failCount++; }
+        // ── Day 7 Confirmation (Trial Converted to Paid Subscription) ─────────
+        // Trigger if:
+        // 1. User has reached Day 7 window (between 6.75 and 8.5 days)
+        // 2. Subscription status is strictly 'active' (meaning trial completed and payment succeeded)
+        if (daysSinceStart >= 6.75 && daysSinceStart < 8.5 && profile.subscription_status === "active") {
+          // Send Day 7 SMS if not sent yet
+          if (!profile.trial_day7_sms_sent) {
+            const msgText = `Hi ${name}, your Schoolari free trial has ended and your card has been successfully charged. Thank you for subscribing!`;
+            let smsSuccess = false;
+            for (const phone of uniquePhones) {
+              const e164 = formatPhoneE164(phone as string);
+              if (e164) {
+                try {
+                  await client.messages.create({ body: msgText, from: twilioPhone, to: e164 });
+                  smsSuccess = true;
+                  sentCount++;
+                } catch (e) { failCount++; }
+              }
+            }
+            if (smsSuccess) {
+              await supabase.from("profiles").update({ trial_day7_sms_sent: true }).eq("id", profile.id);
             }
           }
-          if (success) {
-            await supabase.from("profiles").update({ trial_day7_sms_sent: true }).eq("id", profile.id);
+
+          // Send Day 7 Email if not sent yet
+          if (!pAny?.trial_day7_email_sent && uniqueEmails.length > 0) {
+            let emailSent = false;
+            for (const email of uniqueEmails) {
+              try {
+                const res = await sendTrialDay7ConvertedEmail(email as string, name);
+                if (res.success) {
+                  emailSent = true;
+                  sentCount++;
+                  console.log(`[cron/reminders] Day 7 active confirmation email sent to ${email} (userId: ${profile.id})`);
+                }
+              } catch (e) {
+                console.error(`[cron/reminders] Failed Day 7 email to ${email}:`, e);
+              }
+            }
+            if (emailSent) {
+              await supabase.from("profiles").update({ trial_day7_email_sent: true } as any).eq("id", profile.id);
+            }
           }
         }
       }
