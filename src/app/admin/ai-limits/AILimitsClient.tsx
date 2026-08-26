@@ -264,6 +264,7 @@ export function AILimitsClient({ initialLimits, students, defaultTab }: AILimits
                   <th className="px-4 py-3">Questions Asked</th>
                   <th className="px-4 py-3">Essay Docs</th>
                   <th className="px-4 py-3">Resume Docs</th>
+                  <th className="px-4 py-3">Cover Letters</th>
                   <th className="px-4 py-3">Estimated Spend</th>
                   <th className="px-4 py-3 rounded-tr-lg">Cap Status</th>
                 </tr>
@@ -295,6 +296,7 @@ export function AILimitsClient({ initialLimits, students, defaultTab }: AILimits
                   const coverCount = student.usage?.cover_letter_count || 0;
                   const coverLimit = planLimit?.cover_letter_limit ?? 0;
                   const isCoverLimitReached = coverLimit < 900000 && coverCount >= coverLimit;
+                  const isCoverTriggered = isOverBudget || isCoverLimitReached;
 
                   return (
                     <tr key={student.id} className="hover:bg-slate-50 transition-colors">
@@ -318,13 +320,16 @@ export function AILimitsClient({ initialLimits, students, defaultTab }: AILimits
                         <span className={`font-semibold ${isResumeTriggered ? "text-red-600 font-bold" : "text-slate-950"}`}>{resumeCount}</span> / {resumeLimit > 900000 ? "∞" : resumeLimit}
                       </td>
                       <td className="px-4 py-4">
+                        <span className={`font-semibold ${isCoverTriggered ? "text-red-600 font-bold" : "text-slate-950"}`}>{coverCount}</span> / {coverLimit > 900000 ? "∞" : coverLimit}
+                      </td>
+                      <td className="px-4 py-4">
                         <span className={`font-semibold ${isOverBudget ? "text-red-600" : "text-emerald-700"}`}>
                           ${currentSpend.toFixed(2)}
                         </span>
                         <span className="text-slate-400 text-xs ml-1">/ ${budgetCap.toFixed(2)}</span>
                       </td>
                       <td className="px-4 py-4">
-                        {isOverBudget || (isAskLimitReached && isEssayLimitReached && isResumeLimitReached) ? (
+                        {isOverBudget || (isAskLimitReached && isEssayLimitReached && isResumeLimitReached && isCoverLimitReached) ? (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-red-100 text-red-700">
                             Limit Triggered
                           </span>

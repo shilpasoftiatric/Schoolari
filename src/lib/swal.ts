@@ -8,7 +8,7 @@ const customSwal = Swal.mixin({
     confirmButton: 'bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-violet-500/30 transition-all duration-200 hover:scale-[1.02] active:scale-95',
     cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-8 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-95',
     actions: 'flex gap-4 mt-6',
-    icon: '!border-0 !mt-6 !mb-2 !mx-auto bg-slate-50 rounded-2xl shadow-sm p-2',
+    icon: '!mt-6 !mb-2 !mx-auto',
   },
   buttonsStyling: false,
   showClass: {

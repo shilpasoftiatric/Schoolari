@@ -28,7 +28,7 @@ export async function createContent(data: {
   await requirePermission("manage_content");
   const adminClient = await createAdminClient();
 
-  const { error } = await adminClient.from("dashboard_content").insert({
+  const { error } = await adminClient.from("dashboard_content" as any).insert({
     ...data,
     is_active: data.is_active ?? true,
   });
@@ -53,7 +53,7 @@ export async function updateContent(id: string, data: Partial<{
   const adminClient = await createAdminClient();
 
   const { error } = await adminClient
-    .from("dashboard_content")
+    .from("dashboard_content" as any)
     .update(data)
     .eq("id", id);
 

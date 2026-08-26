@@ -26,8 +26,8 @@ export default async function WatchVideoPage({
   const masterId = profile?.linked_student_id || user.id;
 
   // Fetch the video and its action items
-  const { data: video } = await supabase
-    .from("earn_videos")
+  const { data: video }: any = await supabase
+    .from("earn_videos" as any)
     .select("*, earn_video_action_items(*), earn_categories(name)")
     .eq("id", videoId)
     .single();
@@ -37,16 +37,16 @@ export default async function WatchVideoPage({
   }
 
   // Fetch student progress for this video
-  const { data: progress } = await supabase
-    .from("student_video_progress")
+  const { data: progress }: any = await supabase
+    .from("student_video_progress" as any)
     .select("*")
     .eq("user_id", masterId)
     .eq("video_id", video.id)
     .single();
 
   // Find the next video in the same category
-  const { data: nextVideos } = await supabase
-    .from("earn_videos")
+  const { data: nextVideos }: any = await supabase
+    .from("earn_videos" as any)
     .select("id")
     .eq("category_id", video.category_id)
     .eq("is_published", true)

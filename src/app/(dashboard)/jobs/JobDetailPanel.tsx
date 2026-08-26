@@ -1,24 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building, MapPin, ExternalLink, Sparkles, CheckCircle2, FileText, Bot, Globe, Laptop, GraduationCap, Briefcase } from "lucide-react";
+import { Building, MapPin, ExternalLink, Sparkles, CheckCircle2, FileText, Bot, Globe, Laptop, GraduationCap, Briefcase, AlertCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
-import { matchResumeToJobAction, saveJobToTrackerAction, generateCoverLetterDraftAction } from "@/app/actions/career-ai";
+import { matchResumeToJobAction, saveJobToTrackerAction, generateCoverLetterDraftAction, getCareerAiLimitsAction } from "@/app/actions/career-ai";
+import { getResumesAction } from "@/app/actions/resume";
 import { useRouter } from "next/navigation";
 
-export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { job: any, isOpen: boolean, onClose: () => void, isTracked: boolean, onSave: () => void }) {
+export function JobDetailPanel({ 
+  job, 
+  isOpen, 
+  onClose, 
+  isTracked, 
+  onSave,
+  initialResumes = null,
+  initialAiLimits = null
+}: { 
+  job: any; 
+  isOpen: boolean; 
+  onClose: () => void; 
+  isTracked: boolean; 
+  onSave: () => void;
+  initialResumes?: any;
+  initialAiLimits?: any;
+}) {
   const router = useRouter();
   const [matchData, setMatchData] = useState<any>(null);
   const [isMatching, setIsMatching] = useState(false);
   const [isWriting, setIsWriting] = useState(false);
 
+  const [resumes, setResumes] = useState<any[]>(initialResumes?.resumes || []);
+  const [selectedResumeId, setSelectedResumeId] = useState<string>(
+    initialResumes?.active_resume_id || (initialResumes?.resumes?.[0]?.id || "")
+  );
+  const [limitInfo, setLimitInfo] = useState<{ isLimitReached: boolean; isOverBudget: boolean; used: number; limit: number; resetDate: string } | null>(initialAiLimits || null);
+  const [isLoadingResumes, setIsLoadingResumes] = useState<boolean>(!initialResumes?.resumes?.length);
+
   const [showCoverLetterForm, setShowCoverLetterForm] = useState(false);
   const [coverLetterAnswers, setCoverLetterAnswers] = useState({ q1: "", q2: "", q3: "" });
+
+  // Sync / fetch available resumes & cover letter limits when dialog opens if not already present
+  useEffect(() => {
+    if (isOpen) {
+      if (!resumes.length) {
+        setIsLoadingResumes(true);
+        getResumesAction()
+          .then((payload) => {
+            if (payload?.resumes && payload.resumes.length > 0) {
+              setResumes(payload.resumes);
+              if (payload.active_resume_id) {
+                setSelectedResumeId(payload.active_resume_id);
+              } else {
+                setSelectedResumeId(payload.resumes[0].id);
+              }
+            }
+          })
+          .catch(() => {})
+          .finally(() => setIsLoadingResumes(false));
+      } else {
+        setIsLoadingResumes(false);
+      }
+
+      if (!limitInfo) {
+        getCareerAiLimitsAction()
+          .then((limits) => {
+            if (limits) setLimitInfo(limits);
+          })
+          .catch(() => {});
+      }
+    }
+  }, [isOpen, resumes.length, limitInfo]);
 
   // Apply Checklist state
   const [checklist, setChecklist] = useState({
@@ -47,23 +103,31 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
   const handleWriteCoverLetter = async () => {
     setIsWriting(true);
     try {
-      const res = await generateCoverLetterDraftAction(job.job_title, job.employer_name, job.job_description, coverLetterAnswers.q1, coverLetterAnswers.q2, coverLetterAnswers.q3);
+      const res = await generateCoverLetterDraftAction(
+        job.job_title, 
+        job.employer_name, 
+        job.job_description, 
+        coverLetterAnswers.q1, 
+        coverLetterAnswers.q2, 
+        coverLetterAnswers.q3,
+        selectedResumeId
+      );
       setShowCoverLetterForm(false);
       Swal.fire({
         title: "Cover Letter Drafted!",
-        text: "Your AI draft is ready in your Essays/Documents section.",
+        text: "Your AI draft is ready in your Essays & Cover Letters workspace.",
         icon: "success",
         showCancelButton: true,
         confirmButtonText: "View Draft",
         cancelButtonText: "Close"
       }).then((result) => {
         if (result.isConfirmed) {
-          router.push("/essays");
+          router.push(`/essays/${res.id}`);
         }
       });
       setChecklist(prev => ({ ...prev, coverLetter: true }));
-    } catch (error) {
-      Swal.fire({ title: "Error", text: "Failed to generate cover letter.", icon: "error" });
+    } catch (error: any) {
+      Swal.fire({ title: "Error", text: error.message || "Failed to generate cover letter.", icon: "error" });
     } finally {
       setIsWriting(false);
     }
@@ -111,35 +175,22 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
                 <DialogTitle className="text-2xl font-bold text-slate-900 leading-tight">
                   {job.job_title}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 text-sm text-slate-600">
-                  <span className="font-semibold flex items-center"><Building className="w-4 h-4 mr-1 text-slate-400" /> {job.employer_name}</span>
-                  <span className="flex items-center">
-                    <MapPin className="w-4 h-4 mr-1 text-slate-400" /> 
-                    {job.job_city && !job.job_city.toLowerCase().includes("remote") 
-                      ? `${job.job_city}${job.job_state ? `, ${job.job_state}` : ''}` 
-                      : "Remote / Online"}
+                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-sm text-slate-600 font-medium">
+                  <span className="flex items-center gap-1">
+                    <Building className="w-4 h-4 text-slate-400" />
+                    {job.employer_name}
                   </span>
-                  
-                  {/* Modality Badge */}
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                    isRemote 
-                      ? "bg-sky-50 text-sky-700 border-sky-200" 
-                      : isHybrid 
-                      ? "bg-purple-50 text-purple-700 border-purple-200" 
-                      : "bg-slate-100 text-slate-700 border-slate-200"
-                  }`}>
-                    {isRemote ? <Globe className="w-3.5 h-3.5 text-sky-600" /> : isHybrid ? <Laptop className="w-3.5 h-3.5 text-purple-600" /> : <Building className="w-3.5 h-3.5 text-slate-500" />}
-                    {isRemote ? "Remote / Virtual" : isHybrid ? "Hybrid" : "On-Site"}
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4 text-slate-400" />
+                    {job.job_city} {job.job_state && `, ${job.job_state}`}
                   </span>
-
-                  {/* Employment Type Badge */}
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                    empType === "Internship" 
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                      : empType === "Part-Time" 
-                      ? "bg-blue-50 text-blue-700 border-blue-200" 
-                      : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                  }`}>
+                  <span>•</span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                    {isRemote ? <Globe className="w-3.5 h-3.5" /> : isHybrid ? <Laptop className="w-3.5 h-3.5" /> : <Building className="w-3.5 h-3.5" />}
+                    {job.workplace_type || "On-Site"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                     <GraduationCap className="w-3.5 h-3.5" />
                     {empType}
                   </span>
@@ -154,10 +205,10 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
 
         {/* Content Body */}
         <div className="flex-1 p-6 overflow-y-auto min-h-0">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-            {/* Left Column: Job Description */}
-            <div className="lg:col-span-2 space-y-6">
+            {/* Left Column: Job Description & Limits */}
+            <div className="lg:col-span-2 space-y-4">
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-bl-full -z-0 opacity-50"></div>
                 <h3 className="text-lg font-bold text-slate-800 mb-4 relative z-10">About the Role</h3>
@@ -174,6 +225,19 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
                   </Button>
                 </div>
               </div>
+
+              {/* Cover Letter Limit Alert Banner OUTSIDE and at bottom of description */}
+              {limitInfo?.isLimitReached && (
+                <div className="p-4 rounded-2xl bg-orange-50 border border-orange-200 text-orange-950 flex items-start gap-3 shadow-xs">
+                  <AlertCircle className="w-5 h-5 text-orange-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold">Monthly Cover Letter Limit Reached</h4>
+                    <p className="text-xs text-orange-800 mt-0.5 leading-relaxed">
+                      You have created {limitInfo.used} of {limitInfo.limit} cover letters this month. Your access resets on {limitInfo.resetDate}. Upgrade your plan for more access.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column: AI & Application Tools */}
@@ -189,9 +253,20 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
                 {!matchData ? (
                   <div className="text-center py-4 relative z-10">
                     <p className="text-sm text-slate-500 mb-4">See how well your resume matches this job description.</p>
-                    <Button onClick={handleMatch} disabled={isMatching} variant="outline" className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 hover:text-violet-800">
-                      {isMatching ? "Analyzing..." : "Run AI Match"}
-                    </Button>
+                    {limitInfo?.isOverBudget ? (
+                      <button
+                        type="button"
+                        disabled
+                        title={`Monthly AI budget cap reached. Resets on ${limitInfo.resetDate}.`}
+                        className="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                      >
+                        Run AI Match (Limit Reached)
+                      </button>
+                    ) : (
+                      <Button onClick={handleMatch} disabled={isMatching} variant="outline" className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 hover:text-violet-800">
+                        {isMatching ? "Analyzing..." : "Run AI Match"}
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4 relative z-10">
@@ -245,7 +320,16 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
 
                 {!checklist.coverLetter && (
                   <div className="mt-5 pt-5 border-t border-slate-100">
-                    {!showCoverLetterForm ? (
+                    {limitInfo?.isLimitReached ? (
+                      <button
+                        type="button"
+                        disabled
+                        title={`Monthly cover letter limit reached. Resets on ${limitInfo.resetDate}.`}
+                        className="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                      >
+                        <Bot className="w-4 h-4 text-slate-400" /> Write AI Cover Letter (Limit Reached)
+                      </button>
+                    ) : !showCoverLetterForm ? (
                       <Button onClick={() => setShowCoverLetterForm(true)} disabled={isWriting} className="w-full bg-slate-900 hover:bg-slate-800 text-white shadow">
                         <Bot className="w-4 h-4 mr-2" /> Write AI Cover Letter
                       </Button>
@@ -263,6 +347,44 @@ export function JobDetailPanel({ job, isOpen, onClose, isTracked, onSave }: { jo
                           <label className="text-xs font-semibold text-slate-700">3. Any specific skills to highlight?</label>
                           <textarea className="w-full text-sm rounded-md border border-slate-200 p-2 min-h-[60px]" placeholder="My react experience..." value={coverLetterAnswers.q3} onChange={(e) => setCoverLetterAnswers(p => ({ ...p, q3: e.target.value }))} />
                         </div>
+
+                        {/* Select Resume dropdown AT BOTTOM OF QUESTIONS */}
+                        <div className="space-y-1.5 bg-violet-50/70 p-3 rounded-xl border border-violet-100">
+                          <label className="text-xs font-bold text-violet-900 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-violet-600" /> Select Resume:
+                            </span>
+                            {resumes.length > 0 && (
+                              <span className="text-[10px] text-violet-600 font-bold bg-violet-100 px-1.5 py-0.5 rounded">
+                                {resumes.length} available
+                              </span>
+                            )}
+                          </label>
+
+                          {isLoadingResumes ? (
+                            <div className="flex items-center gap-2 text-xs text-violet-700 bg-white p-2 rounded-lg border border-violet-100 font-medium">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-600" />
+                              Loading your resumes...
+                            </div>
+                          ) : resumes.length === 0 ? (
+                            <p className="text-[11px] text-slate-500 italic bg-white p-2 rounded-lg border border-violet-100">
+                              No custom resumes found in vault. AI will use default profile details.
+                            </p>
+                          ) : (
+                            <select
+                              value={selectedResumeId}
+                              onChange={(e) => setSelectedResumeId(e.target.value)}
+                              className="w-full text-xs font-semibold rounded-lg border border-violet-200 bg-white p-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                            >
+                              {resumes.map((r: any) => (
+                                <option key={r.id} value={r.id}>
+                                  {r.title || "General Resume"} ({r.header?.first_name || "Student"} {r.header?.last_name || ""})
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+
                         <div className="flex gap-2">
                           <Button variant="outline" className="flex-1 text-slate-600" onClick={() => setShowCoverLetterForm(false)}>Cancel</Button>
                           <Button onClick={handleWriteCoverLetter} disabled={isWriting || !coverLetterAnswers.q1 || !coverLetterAnswers.q2} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white">

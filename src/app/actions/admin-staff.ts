@@ -37,7 +37,7 @@ export async function createStaffAccount(
     const lName = nameParts.slice(1).join(" ") || "";
 
     const { error: profileError } = await adminClient
-      .from("profiles")
+      .from("profiles" as any)
       .upsert({
         id: userId,
         student_first_name: fName,

@@ -54,23 +54,41 @@ export function CategoriesTable({ initialCategories }: { initialCategories: Cate
     const name = (fd.get("name") as string).trim();
     const description = (fd.get("description") as string).trim();
 
-    if (!name) { setSaveError("Category name is required."); return; }
+    if (!name) { setSaveError("Category name is required. Please enter a name."); return; }
+
+    const isDuplicate = categories.some(c =>
+      c.name.toLowerCase() === name.toLowerCase() &&
+      (modal.open && modal.type === "edit" ? c.id !== modal.category.id : true)
+    );
+
+    if (isDuplicate) {
+      setSaveError(`A category named "${name}" already exists. Please use a different name.`);
+      return;
+    }
 
     setSaveError("");
     startTransition(async () => {
       try {
+        let res: any;
         if (modal.open && modal.type === "edit") {
-          await updateEarnCategory(modal.category.id, { name, description });
+          res = await updateEarnCategory(modal.category.id, { name, description });
+          if (res && res.error) {
+            setSaveError(res.error);
+            return;
+          }
           setCategories(prev =>
             prev.map(c => c.id === modal.category.id ? { ...c, name, description: description || null } : c)
           );
         } else {
-          await createEarnCategory({ name, description });
-          // Optimistic: refetch is handled by revalidatePath, page refreshes automatically
+          res = await createEarnCategory({ name, description });
+          if (res && res.error) {
+            setSaveError(res.error);
+            return;
+          }
         }
         closeModal();
       } catch (err: any) {
-        setSaveError(err.message || "Failed to save. Please try again.");
+        setSaveError(err.message || "Failed to save category. Please try again.");
       }
     });
   };
@@ -82,7 +100,11 @@ export function CategoriesTable({ initialCategories }: { initialCategories: Cate
     setDeletingId(cat.id);
     startTransition(async () => {
       try {
-        await deleteEarnCategory(cat.id);
+        const res = await deleteEarnCategory(cat.id);
+        if (res && res.error) {
+          alert(res.error);
+          return;
+        }
         setCategories(prev => prev.filter(c => c.id !== cat.id));
       } catch (err: any) {
         alert(err.message || "Failed to delete.");

@@ -458,7 +458,11 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
     setCreateError("");
     setIsSubmitting(true);
     try {
-      await createUserMember(email, firstName, phone, role, password);
+      const res: any = await createUserMember(email, firstName, phone, role, password);
+      if (res && res.error) {
+        setCreateError(res.error);
+        return;
+      }
       setIsOpen(false);
       setFirstName("");
       setEmail("");

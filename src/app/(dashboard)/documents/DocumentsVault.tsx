@@ -15,7 +15,8 @@ import {
   Pencil,
   RefreshCw,
   X,
-  CheckCircle2
+  CheckCircle2,
+  Briefcase
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,6 +32,7 @@ const DOCUMENT_TYPES = [
   { value: "report_card", label: "Report Card" },
   { value: "recommendation_letter", label: "Recommendation Letter" },
   { value: "essay", label: "Essay" },
+  { value: "cover_letter", label: "Cover Letter" },
   { value: "resume", label: "Resume" },
   { value: "certificate", label: "Certificate" },
   { value: "award", label: "Award" },
@@ -225,9 +227,14 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
         return <FileBadge className="w-8 h-8 text-amber-500" />;
       case "transcript":
       case "report_card":
-      case "resume":
-      case "essay":
+      case "recommendation_letter":
         return <FileText className="w-8 h-8 text-blue-500" />;
+      case "resume":
+        return <FileText className="w-8 h-8 text-violet-500" />;
+      case "essay":
+        return <FileText className="w-8 h-8 text-emerald-500" />;
+      case "cover_letter":
+        return <Briefcase className="w-8 h-8 text-indigo-500" />;
       default:
         return <File className="w-8 h-8 text-slate-400" />;
     }
@@ -243,8 +250,9 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
 
   // Group documents
   const resumes = localDocuments.filter(d => d.type === "resume");
+  const coverLetters = localDocuments.filter(d => d.type === "cover_letter");
   const essays = localDocuments.filter(d => d.type === "essay");
-  const others = localDocuments.filter(d => d.type !== "resume" && d.type !== "essay");
+  const others = localDocuments.filter(d => d.type !== "resume" && d.type !== "essay" && d.type !== "cover_letter");
 
   const DocumentCard = ({ doc }: { doc: any }) => (
     <div key={doc.id} className="group bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 flex flex-col justify-between h-full min-h-[175px] relative overflow-hidden">
@@ -407,6 +415,19 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
         </div>
       )}
 
+      {/* Cover Letters Section */}
+      {(coverLetters.length > 0) && (
+        <div className="space-y-4">
+          <h2 className="text-2xl font-extrabold text-slate-900 border-b border-slate-200 pb-2 flex items-center gap-2">
+            <Briefcase className="w-6 h-6 text-indigo-600" />
+            Cover Letters
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {coverLetters.map(doc => <DocumentCard key={doc.id} doc={doc} />)}
+          </div>
+        </div>
+      )}
+
       {/* Essays Section */}
       {(essays.length > 0) && (
         <div className="space-y-4">
@@ -437,7 +458,7 @@ export function DocumentsVault({ initialDocuments, userId }: { initialDocuments:
       </div>
       
       {/* Empty State when completely empty */}
-      {localDocuments.length === 0 && resumes.length === 0 && essays.length === 0 && (
+      {localDocuments.length === 0 && resumes.length === 0 && essays.length === 0 && coverLetters.length === 0 && (
         <div className="col-span-full py-12 text-center border border-slate-100 rounded-3xl bg-white shadow-xs">
           <p className="text-slate-500">Your vault is entirely empty. Upload your first document or start building your resume/essays.</p>
         </div>

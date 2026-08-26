@@ -13,8 +13,8 @@ export async function getAiDisclaimerStatus(): Promise<{
     if (!user) return { essayDisclaimerAccepted: true, resumeDisclaimerAccepted: true };
 
     const supabaseAdmin = await createAdminClient();
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
+    const { data: profile }: any = await supabaseAdmin
+      .from("profiles" as any)
       .select("essay_disclaimer_accepted, resume_disclaimer_accepted")
       .eq("id", user.id)
       .maybeSingle();
@@ -48,7 +48,7 @@ export async function acceptAiDisclaimer(feature: "essay" | "resume") {
   // 1. Update in profiles table
   try {
     await supabaseAdmin
-      .from("profiles")
+      .from("profiles" as any)
       .update({ [columnToUpdate]: true })
       .eq("id", user.id);
   } catch (err) {

@@ -126,97 +126,131 @@ function sanitizeScholarshipPayload(data: any) {
 }
 
 export async function createScholarship(data: any) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  const sanitized = sanitizeScholarshipPayload(data);
-  sanitized.featured = true; // Admin created scholarships are always marked as featured (Schoolari Recommended)
+    const sanitized = sanitizeScholarshipPayload(data);
+    sanitized.featured = true; // Admin created scholarships are always marked as featured (Schoolari Recommended)
 
-  const { error } = await adminClient
-    .from("scholarships")
-    .insert([sanitized]);
+    const { error } = await adminClient
+      .from("scholarships")
+      .insert([sanitized]);
 
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/scholarships");
+    if (error) return { success: false, error: error.message || "Failed to save scholarship." };
+    revalidatePath("/admin/scholarships");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred while saving the scholarship." };
+  }
 }
 
 export async function updateScholarship(id: string, data: any) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  const sanitized = sanitizeScholarshipPayload(data);
+    const sanitized = sanitizeScholarshipPayload(data);
 
-  const { error } = await adminClient
-    .from("scholarships")
-    .update(sanitized)
-    .eq("id", id);
+    const { error } = await adminClient
+      .from("scholarships")
+      .update(sanitized)
+      .eq("id", id);
 
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/scholarships");
+    if (error) return { success: false, error: error.message || "Failed to update scholarship." };
+    revalidatePath("/admin/scholarships");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred while updating the scholarship." };
+  }
 }
 
 export async function deleteScholarship(id: string) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  const { error } = await adminClient
-    .from("scholarships")
-    .delete()
-    .eq("id", id);
+    const { error } = await adminClient
+      .from("scholarships")
+      .delete()
+      .eq("id", id);
 
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/scholarships");
+    if (error) return { success: false, error: error.message || "Failed to delete scholarship." };
+    revalidatePath("/admin/scholarships");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred." };
+  }
 }
 
 export async function toggleScholarshipStatus(id: string, isActive: boolean) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  const { error } = await adminClient
-    .from("scholarships")
-    .update({ is_active: isActive })
-    .eq("id", id);
+    const { error } = await adminClient
+      .from("scholarships")
+      .update({ is_active: isActive })
+      .eq("id", id);
 
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/scholarships");
+    if (error) return { success: false, error: error.message || "Failed to toggle status." };
+    revalidatePath("/admin/scholarships");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred." };
+  }
 }
 
 export async function createUserMember(email: string, firstName: string, phone: string, role: "admin" | "user" = "user", password?: string) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  // Create user in Supabase auth
-  const finalPassword = password || "User@12345"; // Default temporary password if not provided
-  const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
-    email,
-    password: finalPassword,
-    email_confirm: true,
-  });
+    // Create user in Supabase auth
+    const finalPassword = password || "User@12345"; // Default temporary password if not provided
+    const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+      email,
+      password: finalPassword,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        phone: phone,
+      }
+    });
 
-  if (authError) throw new Error(authError.message);
-  const userId = authData?.user?.id;
+    if (authError) {
+      if (authError.message?.toLowerCase().includes("already registered") || authError.message?.toLowerCase().includes("already exists")) {
+        return { success: false, error: "A user with this email address already exists." };
+      }
+      return { success: false, error: authError.message || "Failed to create user." };
+    }
 
-  if (userId) {
-    // The db trigger on_auth_user_created automatically inserts the row.
-    // We update the newly created row with custom fields.
+    if (!authData.user) {
+      return { success: false, error: "Failed to create user authentication." };
+    }
+
+    // Insert or update profile
     const { error: profileError } = await adminClient
       .from("profiles")
-      .update({
+      .upsert({
+        id: authData.user.id,
         student_first_name: firstName,
         student_phone: phone,
-        role: role
-      })
-      .eq("id", userId);
+        role: role,
+        is_active: true,
+        updated_at: new Date().toISOString()
+      });
 
     if (profileError) {
-      // Clean up auth user to prevent dangling records
-      await adminClient.auth.admin.deleteUser(userId);
-      throw new Error(profileError.message);
+      await adminClient.auth.admin.deleteUser(authData.user.id);
+      return { success: false, error: profileError.message || "Failed to create user profile." };
     }
-  }
 
-  revalidatePath("/admin/users");
-  return { success: true };
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred." };
+  }
 }
 
 export async function updateUserBasicInfo(userId: string, data: {
@@ -315,51 +349,93 @@ export async function triggerApifyScraper() {
 // ─────────────────────────────────────────────────────────────
 
 export async function createEarnCategory(data: { name: string; description?: string }) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  // Place new category at the end
-  const { data: last } = await adminClient
-    .from("earn_categories")
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    const trimmedName = data.name.trim();
 
-  const nextOrder = (last?.sort_order ?? -1) + 1;
+    // Check if category with this name already exists (case-insensitive)
+    const { data: existing } = await adminClient
+      .from("earn_categories")
+      .select("id")
+      .ilike("name", trimmedName)
+      .maybeSingle();
 
-  const { error } = await adminClient
-    .from("earn_categories")
-    .insert([{ name: data.name.trim(), description: data.description?.trim() || "", sort_order: nextOrder }]);
+    if (existing) {
+      return { success: false, error: `A category named "${trimmedName}" already exists. Please choose a different name.` };
+    }
 
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/income");
+    // Place new category at the end
+    const { data: last } = await adminClient
+      .from("earn_categories")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextOrder = (last?.sort_order ?? -1) + 1;
+
+    const { error } = await adminClient
+      .from("earn_categories")
+      .insert([{ name: trimmedName, description: data.description?.trim() || "", sort_order: nextOrder }]);
+
+    if (error) return { success: false, error: error.message || "Failed to create category." };
+    revalidatePath("/admin/income");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred." };
+  }
 }
 
 export async function updateEarnCategory(id: string, data: { name: string; description?: string }) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  const { error } = await adminClient
-    .from("earn_categories")
-    .update({ name: data.name.trim(), description: data.description?.trim() || "" })
-    .eq("id", id);
+    const trimmedName = data.name.trim();
 
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/income");
+    // Check if another category already has this name (case-insensitive)
+    const { data: existing } = await adminClient
+      .from("earn_categories")
+      .select("id")
+      .ilike("name", trimmedName)
+      .neq("id", id)
+      .maybeSingle();
+
+    if (existing) {
+      return { success: false, error: `A category named "${trimmedName}" already exists. Please choose a different name.` };
+    }
+
+    const { error } = await adminClient
+      .from("earn_categories")
+      .update({ name: trimmedName, description: data.description?.trim() || "" })
+      .eq("id", id);
+
+    if (error) return { success: false, error: error.message || "Failed to update category." };
+    revalidatePath("/admin/income");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred." };
+  }
 }
 
 export async function deleteEarnCategory(id: string) {
-  await verifyAdmin();
-  const adminClient = await createAdminClient();
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
 
-  const { error } = await adminClient
-    .from("earn_categories")
-    .delete()
-    .eq("id", id);
+    const { error } = await adminClient
+      .from("earn_categories")
+      .delete()
+      .eq("id", id);
 
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin/income");
+    if (error) return { success: false, error: error.message || "Failed to delete category." };
+    revalidatePath("/admin/income");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred." };
+  }
 }
 
 export async function reorderEarnCategory(id: string, direction: "up" | "down") {
@@ -417,111 +493,120 @@ type VideoPayload = {
 };
 
 export async function createEarnVideo(payload: VideoPayload) {
-  await verifyAdmin();
+  try {
+    await verifyAdmin();
 
-  // Validate action items (1 to 3 required) before DB operations
-  const validActionItems = payload.action_items.filter((t) => t.trim());
-  if (validActionItems.length < 1 || validActionItems.length > 3) {
-    throw new Error("Please provide at least 1 and up to 3 action items for this video.");
+    // Validate action items (1 to 3 required) before DB operations
+    const validActionItems = payload.action_items.filter((t) => t.trim());
+    if (validActionItems.length < 1 || validActionItems.length > 3) {
+      return { success: false, error: "Please provide at least 1 and up to 3 action items for this video." };
+    }
+
+    const adminClient = await createAdminClient();
+
+    // Next sort_order for this category
+    const { data: last } = await adminClient
+      .from("earn_videos")
+      .select("sort_order")
+      .eq("category_id", payload.category_id)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextOrder = (last?.sort_order ?? -1) + 1;
+
+    const { data: video, error } = await adminClient
+      .from("earn_videos")
+      .insert([{
+        category_id: payload.category_id,
+        title: payload.title.trim(),
+        description: payload.description?.trim() || "",
+        video_type: payload.video_type,
+        youtube_url: payload.youtube_url?.trim() || "",
+        mp4_storage_path: payload.mp4_storage_path || null,
+        thumbnail_url: payload.thumbnail_url || null,
+        difficulty: payload.difficulty,
+        watch_time_mins: payload.watch_time_mins || null,
+        is_published: payload.is_published,
+        sort_order: nextOrder,
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') return { success: false, error: "A video with this title already exists. Please choose a different title." };
+      if (error.code === '23503') return { success: false, error: "The selected category is invalid or no longer exists." };
+      if (error.code === '23502') return { success: false, error: "A required field is missing. Please check your inputs." };
+      return { success: false, error: "Failed to save the video to the database. Please try again." };
+    }
+
+    // Insert action items
+    const actionItems = validActionItems
+      .map((t, idx) => ({ video_id: video.id, title: t.trim(), sort_order: idx }));
+
+    if (actionItems.length > 0) {
+      const { error: aiErr } = await adminClient.from("earn_video_action_items").insert(actionItems);
+      if (aiErr) return { success: false, error: "Video was created, but failed to save action items. Please edit the video to add them." };
+    }
+
+    revalidatePath("/admin/income");
+    return { success: true, video };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred while saving the video." };
   }
-
-  const adminClient = await createAdminClient();
-
-  // Next sort_order for this category
-  const { data: last } = await adminClient
-    .from("earn_videos")
-    .select("sort_order")
-    .eq("category_id", payload.category_id)
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const nextOrder = (last?.sort_order ?? -1) + 1;
-
-  const { data: video, error } = await adminClient
-    .from("earn_videos")
-    .insert([{
-      category_id: payload.category_id,
-      title: payload.title.trim(),
-      description: payload.description?.trim() || "",
-      video_type: payload.video_type,
-      youtube_url: payload.youtube_url?.trim() || "",
-      mp4_storage_path: payload.mp4_storage_path || null,
-      thumbnail_url: payload.thumbnail_url || null,
-      difficulty: payload.difficulty,
-      watch_time_mins: payload.watch_time_mins || null,
-      is_published: payload.is_published,
-      sort_order: nextOrder,
-    }])
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === '23505') throw new Error("A video with this title already exists. Please choose a different title.");
-    if (error.code === '23503') throw new Error("The selected category is invalid or no longer exists.");
-    if (error.code === '23502') throw new Error("A required field is missing. Please check your inputs.");
-    throw new Error("Failed to save the video to the database. Please try again.");
-  }
-
-  // Insert action items
-  const actionItems = validActionItems
-    .map((t, idx) => ({ video_id: video.id, title: t.trim(), sort_order: idx }));
-
-  if (actionItems.length > 0) {
-    const { error: aiErr } = await adminClient.from("earn_video_action_items").insert(actionItems);
-    if (aiErr) throw new Error("Video was created, but failed to save action items. Please edit the video to add them.");
-  }
-
-  revalidatePath("/admin/income");
-  return video;
 }
 
 export async function updateEarnVideo(id: string, payload: VideoPayload) {
-  await verifyAdmin();
+  try {
+    await verifyAdmin();
 
-  // Validate action items (1 to 3 required) before DB operations
-  const validActionItems = payload.action_items.filter((t) => t.trim());
-  if (validActionItems.length < 1 || validActionItems.length > 3) {
-    throw new Error("Please provide at least 1 and up to 3 action items for this video.");
+    // Validate action items (1 to 3 required) before DB operations
+    const validActionItems = payload.action_items.filter((t) => t.trim());
+    if (validActionItems.length < 1 || validActionItems.length > 3) {
+      return { success: false, error: "Please provide at least 1 and up to 3 action items for this video." };
+    }
+
+    const adminClient = await createAdminClient();
+
+    const { error } = await adminClient
+      .from("earn_videos")
+      .update({
+        category_id: payload.category_id,
+        title: payload.title.trim(),
+        description: payload.description?.trim() || "",
+        video_type: payload.video_type,
+        youtube_url: payload.youtube_url?.trim() || "",
+        mp4_storage_path: payload.mp4_storage_path || null,
+        thumbnail_url: payload.thumbnail_url || null,
+        difficulty: payload.difficulty,
+        watch_time_mins: payload.watch_time_mins || null,
+        is_published: payload.is_published,
+      })
+      .eq("id", id);
+
+    if (error) {
+      if (error.code === '23505') return { success: false, error: "A video with this title already exists. Please choose a different title." };
+      if (error.code === '23503') return { success: false, error: "The selected category is invalid or no longer exists." };
+      if (error.code === '23502') return { success: false, error: "A required field is missing. Please check your inputs." };
+      return { success: false, error: "Failed to update the video in the database. Please try again." };
+    }
+
+    // Replace action items: delete existing then insert new
+    await adminClient.from("earn_video_action_items").delete().eq("video_id", id);
+
+    const actionItems = validActionItems
+      .map((t, idx) => ({ video_id: id, title: t.trim(), sort_order: idx }));
+
+    if (actionItems.length > 0) {
+      const { error: aiErr } = await adminClient.from("earn_video_action_items").insert(actionItems);
+      if (aiErr) return { success: false, error: "Video was updated, but failed to save action items. Please try editing again." };
+    }
+
+    revalidatePath("/admin/income");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred while updating the video." };
   }
-
-  const adminClient = await createAdminClient();
-
-  const { error } = await adminClient
-    .from("earn_videos")
-    .update({
-      category_id: payload.category_id,
-      title: payload.title.trim(),
-      description: payload.description?.trim() || "",
-      video_type: payload.video_type,
-      youtube_url: payload.youtube_url?.trim() || "",
-      mp4_storage_path: payload.mp4_storage_path || null,
-      thumbnail_url: payload.thumbnail_url || null,
-      difficulty: payload.difficulty,
-      watch_time_mins: payload.watch_time_mins || null,
-      is_published: payload.is_published,
-    })
-    .eq("id", id);
-
-  if (error) {
-    if (error.code === '23505') throw new Error("A video with this title already exists. Please choose a different title.");
-    if (error.code === '23503') throw new Error("The selected category is invalid or no longer exists.");
-    if (error.code === '23502') throw new Error("A required field is missing. Please check your inputs.");
-    throw new Error("Failed to update the video in the database. Please try again.");
-  }
-
-  // Replace action items: delete existing then insert new
-  await adminClient.from("earn_video_action_items").delete().eq("video_id", id);
-
-  const actionItems = validActionItems
-    .map((t, idx) => ({ video_id: id, title: t.trim(), sort_order: idx }));
-
-  if (actionItems.length > 0) {
-    const { error: aiErr } = await adminClient.from("earn_video_action_items").insert(actionItems);
-    if (aiErr) throw new Error("Video was updated, but failed to save action items. Please try editing again.");
-  }
-
-  revalidatePath("/admin/income");
 }
 
 export async function deleteEarnVideo(id: string) {

@@ -42,10 +42,12 @@ export default async function JobsPage() {
     return acc;
   }, {});
 
-  // Fetch initial personalized jobs and career resources server-side
-  const [initialArticles, initialJobs] = await Promise.all([
+  // Fetch initial personalized jobs, career resources, resumes, and AI limits server-side
+  const [initialArticles, initialJobs, initialResumes, initialAiLimits] = await Promise.all([
     getCareerArticles().catch(() => []),
     getPersonalizedJobsAction().catch(() => []),
+    import("@/app/actions/resume").then(m => m.getResumesAction()).catch(() => ({ resumes: [], active_resume_id: "" })),
+    import("@/app/actions/career-ai").then(m => m.getCareerAiLimitsAction()).catch(() => null),
   ]);
 
   return (
@@ -66,6 +68,8 @@ export default async function JobsPage() {
         trackedJobMap={trackedJobMap} 
         initialJobs={initialJobs} 
         initialArticles={initialArticles} 
+        initialResumes={initialResumes}
+        initialAiLimits={initialAiLimits}
       />
     </div>
   );

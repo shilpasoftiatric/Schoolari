@@ -203,10 +203,16 @@ export function VideosTable({
   // ─── Save ─────────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim()) { setSaveError("Title is required."); return; }
-    if (!form.category_id) { setSaveError("Category is required."); return; }
-    if (form.video_type === "youtube" && !form.youtube_url.trim()) { setSaveError("YouTube URL is required."); return; }
-    if (form.video_type === "mp4" && !form.mp4_storage_path && !form.mp4File) { setSaveError("Please select an MP4 file to upload."); return; }
+    if (!form.title.trim()) { setSaveError("Title is required. Please enter a video title."); return; }
+    if (!form.category_id) { setSaveError("Category is required. Please select a category."); return; }
+    if (form.video_type === "youtube" && !form.youtube_url.trim()) { setSaveError("YouTube URL is required. Please enter a valid YouTube video link."); return; }
+    if (form.video_type === "mp4" && !form.mp4_storage_path && !form.mp4File) { setSaveError("Please select an MP4 video file to upload."); return; }
+
+    const validActionItems = form.action_items.filter(t => t.trim());
+    if (validActionItems.length === 0) {
+      setSaveError("Please provide at least 1 action item (e.g. 'Create your profile') for this video so students know what steps to take.");
+      return;
+    }
 
     setSaveError("");
 
@@ -252,19 +258,26 @@ export function VideosTable({
       difficulty: form.difficulty,
       watch_time_mins: form.watch_time_mins ? parseInt(form.watch_time_mins) : null,
       is_published: form.is_published,
-      action_items: form.action_items.filter(t => t.trim()),
+      action_items: validActionItems,
     };
 
     startTransition(async () => {
       try {
+        let res: any;
         if (modal.open && modal.type === "edit") {
-          await updateEarnVideo(modal.video.id, payload);
+          res = await updateEarnVideo(modal.video.id, payload);
         } else {
-          await createEarnVideo(payload);
+          res = await createEarnVideo(payload);
         }
+
+        if (res && res.error) {
+          setSaveError(res.error);
+          return;
+        }
+
         closeModal();
       } catch (err: any) {
-        setSaveError(err.message || "Failed to save.");
+        setSaveError(err.message || "Failed to save video. Please check your inputs.");
       }
     });
   };
@@ -692,7 +705,7 @@ export function VideosTable({
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">
                     <CheckSquare className="w-3.5 h-3.5 inline mr-1 text-emerald-500" />
-                    Action Items <span className="text-slate-300 font-normal">(up to 3 — shown on student dashboard)</span>
+                    Action Items <span className="text-red-500">*</span> <span className="text-slate-400 font-normal normal-case">(at least 1 required, up to 3 — shown on student dashboard)</span>
                   </label>
                   <p className="text-xs text-slate-400 mt-0.5">Tasks the student should complete after watching this video.</p>
                 </div>
@@ -703,7 +716,7 @@ export function VideosTable({
                       <Input
                         value={form.action_items[idx]}
                         onChange={e => setActionItem(idx, e.target.value)}
-                        placeholder={idx === 0 ? "e.g. Create a Fiverr profile" : idx === 1 ? "e.g. Post your first gig" : "e.g. Reach out to 3 potential clients"}
+                        placeholder={idx === 0 ? "e.g. Create a Fiverr profile (Required)" : idx === 1 ? "e.g. Post your first gig (Optional)" : "e.g. Reach out to 3 potential clients (Optional)"}
                         className="h-9 text-sm"
                       />
                     </div>

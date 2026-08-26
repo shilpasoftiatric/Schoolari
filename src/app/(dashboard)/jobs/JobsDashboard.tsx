@@ -25,11 +25,15 @@ import { useAIState } from "@/context/AIStateContext";
 export function JobsDashboard({ 
   initialJobs = null, 
   trackedJobMap, 
-  initialArticles = null 
+  initialArticles = null,
+  initialResumes = null,
+  initialAiLimits = null,
 }: { 
   initialJobs?: any[] | null, 
   trackedJobMap: any, 
-  initialArticles?: any[] | null 
+  initialArticles?: any[] | null,
+  initialResumes?: any,
+  initialAiLimits?: any,
 }) {
   const { jobsData, setJobsData, careerArticles, setCareerArticles } = useAIState();
   const [jobs, setJobs] = useState<any[] | null>(initialJobs || jobsData);
@@ -604,6 +608,8 @@ export function JobsDashboard({
           isOpen={!!selectedJob}
           onClose={() => setSelectedJob(null)}
           isTracked={!!tracked[selectedJob.job_id]}
+          initialResumes={initialResumes}
+          initialAiLimits={initialAiLimits}
           onSave={() => {
             setTracked((prev: any) => ({ ...prev, [selectedJob.job_id]: "Not Started" }));
           }}

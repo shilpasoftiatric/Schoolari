@@ -48,33 +48,85 @@ export async function getPersonalizedJobsAction(searchQuery?: string) {
     return rawJobs;
   }
 
-  // Partition custom admin jobs vs external Adzuna jobs
-  const customJobs = rawJobs.filter((job: any) => job.is_custom === true);
-  const externalJobs = rawJobs.filter((job: any) => !job.is_custom);
+  // Helper to score relevance between a job and student profile
+  const scoreJobRelevance = (job: any) => {
+    let score = 0;
+    const title = (job.job_title || "").toLowerCase();
+    const desc = (job.job_description || "").toLowerCase();
+    const type = (job.job_employment_type || "").toLowerCase();
+    const employer = (job.employer_name || "").toLowerCase();
 
-  if (externalJobs.length === 0) {
-    return customJobs;
-  }
+    // Deprioritize obvious dummy or test jobs
+    if (title.includes("test") || employer.includes("test") || desc.includes("test")) {
+      score -= 20;
+    }
 
-  // Create a lightweight version of external jobs to save AI tokens (~400-600 tokens)
-  const liteJobs = externalJobs.slice(0, 15).map((job: any) => ({
+    // Boost student / internship opportunities
+    if (type.includes("intern") || title.includes("intern") || desc.includes("intern") || type.includes("co-op")) {
+      score += 6;
+    }
+
+    // Match against student's major and career interests
+    for (const interest of interests) {
+      const term = interest.toLowerCase().trim();
+      if (!term || term === "general") continue;
+
+      if (title.includes(term)) {
+        score += 15;
+      } else {
+        const words = term.split(/\s+/).filter((w: string) => w.length > 3);
+        for (const w of words) {
+          if (title.includes(w)) score += 8;
+          if (desc.includes(w)) score += 2;
+        }
+      }
+
+      if (desc.includes(term)) {
+        score += 4;
+      }
+    }
+
+    // Location / Remote match
+    const studentState = (profile.state || "").toLowerCase().trim();
+    const jobLocation = `${job.job_city || ""} ${job.job_state || ""}`.toLowerCase();
+    if (job.workplace_type === "Remote" || jobLocation.includes("remote")) {
+      score += 3;
+    } else if (studentState && jobLocation.includes(studentState)) {
+      score += 4;
+    }
+
+    return score;
+  };
+
+  // Sort candidate pool by initial relevance score
+  const scoredCandidatePool = [...rawJobs].sort((a, b) => scoreJobRelevance(b) - scoreJobRelevance(a));
+
+  // Create a lightweight candidate list for AI matching (~15 top candidates)
+  const liteJobs = scoredCandidatePool.slice(0, 15).map((job: any) => ({
     id: job.job_id,
     title: job.job_title,
     company: job.employer_name,
     type: job.job_employment_type,
-    snippet: (job.job_description || "").substring(0, 70).replace(/\s+/g, " "),
+    location: job.job_city,
+    snippet: (job.job_description || "").substring(0, 80).replace(/\s+/g, " "),
   }));
 
-  const systemPrompt = `You are an AI Career Specialist matching job/internship listings for a student (${profile.grade_level || 'High School / College'}).
-Select true entry-level or student internship roles requiring no prior professional experience that match the student.
-Respond ONLY with a JSON array of string IDs representing the best matching jobs ordered by relevance.
+  const majorStr = Array.isArray(profile.intended_major) ? profile.intended_major.join(", ") : (profile.intended_major || "General");
+  const interestsStr = interests.length > 0 ? interests.join(", ") : "General";
+
+  const systemPrompt = `You are an expert student career counselor matching internships and entry-level jobs for a ${profile.grade_level || 'High School / College'} student.
+Student Major: ${majorStr}
+Student Interests: ${interestsStr}
+Student State: ${profile.state || "US"}
+
+Task: Select the jobs that best match the student's major, interests, and academic level. Exclude or deprioritize test/dummy jobs or unrelated roles.
+Return ONLY a JSON array of string IDs ordered from highest match to lowest.
 Example: ["id1", "id2", "id3"]`;
 
-  const userPrompt = `Student: Major: ${profile.intended_major?.join(", ") || "General"} | Interests: ${interests.join(", ") || "General"} | State: ${profile.state || "US"}
-Jobs:
-${JSON.stringify(liteJobs)}
+  const userPrompt = `Candidate Jobs:
+${JSON.stringify(liteJobs, null, 2)}
 
-Return ONLY a JSON array of matching IDs:`;
+Return JSON array of best matching job IDs:`;
 
   try {
     const { unstable_cache } = await import("next/cache");
@@ -89,15 +141,13 @@ Return ONLY a JSON array of matching IDs:`;
           label: "Career Center Job Matcher",
         });
       },
-      ["career-ai-match", user.id],
-      { revalidate: 86400 } // Cache for 24 hours
+      ["career-ai-match-v2", user.id, majorStr, interestsStr],
+      { revalidate: 3600 } // Cache for 1 hour
     );
 
     const aiResponse = await getCachedAIIds();
-
     let cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
 
-    // Extract only the JSON array part if Claude included conversational text
     const startIndex = cleanedResponse.indexOf('[');
     const endIndex = cleanedResponse.lastIndexOf(']');
     if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
@@ -113,26 +163,34 @@ Return ONLY a JSON array of matching IDs:`;
         return "";
       }).filter(Boolean);
 
-      // Map the AI-selected IDs back to the original full job objects
-      const matched = extractedIdStrings
-        .map(id => externalJobs.find((job: any) => 
-          job.job_id === id || 
-          job.job_id.endsWith(id) || 
-          id.includes(job.job_id) || 
+      const matched: any[] = [];
+      const matchedSet = new Set<string>();
+
+      for (const id of extractedIdStrings) {
+        const found = rawJobs.find((job: any) =>
+          job.job_id === id ||
+          job.job_id.endsWith(id) ||
+          id.includes(job.job_id) ||
           (id.length >= 6 && job.job_id.includes(id))
-        ))
-        .filter(Boolean);
+        );
+        if (found && !matchedSet.has(found.job_id)) {
+          matched.push(found);
+          matchedSet.add(found.job_id);
+        }
+      }
 
       if (matched.length > 0) {
-        const matchedSet = new Set(matched.map(m => m.job_id));
-        const remainingExternal = externalJobs.filter(ej => !matchedSet.has(ej.job_id));
-        return [...customJobs, ...matched, ...remainingExternal];
+        const remaining = rawJobs
+          .filter(job => !matchedSet.has(job.job_id))
+          .sort((a, b) => scoreJobRelevance(b) - scoreJobRelevance(a));
+        return [...matched, ...remaining];
       }
     }
-    return [...customJobs, ...externalJobs];
+
+    return scoredCandidatePool;
   } catch (error) {
-    console.error("AI Jobs filtering failed, returning raw fallback:", error);
-    return [...customJobs, ...externalJobs];
+    console.error("AI Jobs filtering failed, returning scored fallback:", error);
+    return scoredCandidatePool;
   }
 }
 
@@ -175,7 +233,42 @@ ${JSON.stringify(resume?.content || {}, null, 2)}`;
   }
 }
 
-export async function generateCoverLetterDraftAction(jobTitle: string, company: string, jobDescription: string, q1: string, q2: string, q3: string) {
+export async function getCareerAiLimitsAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+
+  const { getUserAiUsage } = await import("@/lib/ai-limits");
+  const aiUsage = await getUserAiUsage(masterId);
+  const resetDate = aiUsage?.resetDate || "the 1st of next month";
+
+  const isOverBudget = Number(aiUsage?.estimated_cost_usd || 0) >= Number(aiUsage?.monthly_budget_cap_usd || 999999);
+  const coverLetterLimit = aiUsage?.cover_letter?.limit ?? 0;
+  const coverLetterUsed = aiUsage?.cover_letter?.used ?? 0;
+  const isLimitedCoverPlan = coverLetterLimit < 900000;
+  const coverLetterLimitReached = isOverBudget || (isLimitedCoverPlan && coverLetterUsed >= coverLetterLimit);
+
+  return {
+    isLimitReached: coverLetterLimitReached,
+    isOverBudget,
+    used: coverLetterUsed,
+    limit: coverLetterLimit,
+    resetDate
+  };
+}
+
+export async function generateCoverLetterDraftAction(
+  jobTitle: string, 
+  company: string, 
+  jobDescription: string, 
+  q1: string, 
+  q2: string, 
+  q3: string,
+  selectedResumeId?: string
+) {
   const { enforceAiLimit } = await import("@/lib/ai-limits");
   await enforceAiLimit("cover_letter");
   
@@ -184,11 +277,29 @@ export async function generateCoverLetterDraftAction(jobTitle: string, company: 
 
   if (!user) throw new Error("Unauthorized");
 
-  const resume = await getResume();
+  const { getResumesAction } = await import("@/app/actions/resume");
+  const resumePayload = await getResumesAction();
+  
+  let targetResumeData: any = null;
+  if (resumePayload?.resumes && resumePayload.resumes.length > 0) {
+    if (selectedResumeId) {
+      targetResumeData = resumePayload.resumes.find(r => r.id === selectedResumeId) || resumePayload.resumes[0];
+    } else if (resumePayload.active_resume_id) {
+      targetResumeData = resumePayload.resumes.find(r => r.id === resumePayload.active_resume_id) || resumePayload.resumes[0];
+    } else {
+      targetResumeData = resumePayload.resumes[0];
+    }
+  }
 
-  const systemPrompt = `You are an expert career counselor. Write a highly professional, compelling FIRST DRAFT cover letter for a student applying for a job.
+  if (!targetResumeData) {
+    const fallbackResume = await getResume();
+    targetResumeData = fallbackResume?.content || {};
+  }
+
+  const systemPrompt = `You are an expert career counselor. Write a highly professional, compelling FIRST DRAFT cover letter for a student applying for a job or internship.
 Use the student's resume data and their specific answers to highlight relevant skills. 
-Keep it under 350 words. Do not use placeholders like [Your Name] if the resume has the info.`;
+Keep it under 350 words. Do not use placeholders like [Your Name] if the resume has the info.
+Format as a clean, standard professional business letter. Do NOT use Markdown formatting, headings, asterisks, or bold text. Return pure plain text.`;
 
   const userPrompt = `Applying for: ${jobTitle} at ${company}
 Job Description: ${jobDescription}
@@ -199,14 +310,22 @@ Student Insights:
 3. Extra skills to highlight: ${q3}
 
 Student Resume:
-${JSON.stringify(resume?.content || {}, null, 2)}`;
+${JSON.stringify(targetResumeData, null, 2)}`;
 
   try {
-    const aiResponse = await callAI({
+    const rawAiResponse = await callAI({
       systemPrompt,
       userPrompt,
       provider: "claude"
     });
+
+    const cleanContent = rawAiResponse
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/__(.*?)__/g, '$1')
+      .replace(/_(.*?)_/g, '$1')
+      .replace(/^#+\s*/gm, '')
+      .trim();
 
     // Save it as an essay tagged as Cover Letter
     const { data, error } = await supabase
@@ -215,7 +334,7 @@ ${JSON.stringify(resume?.content || {}, null, 2)}`;
         user_id: user.id,
         title: `Cover Letter: ${jobTitle} at ${company}`,
         topic: `Cover Letter - ${company}`,
-        content: aiResponse,
+        content: cleanContent,
         status: "draft"
       })
       .select("id")
@@ -225,7 +344,7 @@ ${JSON.stringify(resume?.content || {}, null, 2)}`;
 
     revalidatePath("/jobs");
     revalidatePath("/essays");
-    return { success: true, id: data.id, content: aiResponse };
+    return { success: true, id: data.id, content: cleanContent };
   } catch (error) {
     console.error("AI Cover Letter generation failed:", error);
     throw new Error("Failed to generate cover letter.");

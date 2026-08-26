@@ -71,14 +71,23 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const awardInput = formData.get("awardAmount")?.toString() || "";
-    const formattedAward = awardInput.startsWith("$") ? awardInput : `$${awardInput}`;
+    const name = formData.get("name")?.toString().trim() || "";
+    const link = formData.get("link")?.toString().trim() || "";
+    const deadline = formData.get("deadline")?.toString().trim() || "";
+    const awardRaw = formData.get("awardAmount")?.toString().trim() || "";
+
+    if (!name) { setSaveError("Scholarship name is required."); return; }
+    if (!link) { setSaveError("Application link is required."); return; }
+    if (!awardRaw) { setSaveError("Award amount is required."); return; }
+    if (!deadline) { setSaveError("Deadline date is required."); return; }
+
+    const formattedAward = awardRaw.startsWith("$") ? awardRaw : `$${awardRaw}`;
 
     const payload = {
-      name: formData.get("name"),
-      link: formData.get("link"),
+      name,
+      link,
       award_amount: formattedAward,
-      deadline: formData.get("deadline"),
+      deadline,
       category: formData.get("category"),
       description: formData.get("description"),
       eligible_majors: formData.getAll("eligibleMajors").join(", "),
@@ -95,11 +104,18 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
     startTransition(async () => {
       setSaveError("");
       try {
+        let res: any;
         if (modalState.type === "edit" && modalState.scholarship) {
-          await updateScholarship(modalState.scholarship.id, payload);
+          res = await updateScholarship(modalState.scholarship.id, payload);
         } else {
-          await createScholarship(payload);
+          res = await createScholarship(payload);
         }
+
+        if (res && res.error) {
+          setSaveError(res.error);
+          return;
+        }
+
         setModalState({ isOpen: false, type: "create", scholarship: null });
         setSaveError("");
       } catch (err: any) {

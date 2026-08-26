@@ -59,17 +59,20 @@ export default async function DocumentsPage() {
     }
   }
 
-  // Map virtual essays
-  const virtualEssays = (essaysRes.data || []).map(essay => ({
-    id: essay.id,
-    name: essay.title || "Untitled Essay",
-    type: "essay",
-    file_url: `/essays/${essay.id}`, // Link to builder
-    size_bytes: 0,
-    created_at: essay.updated_at || essay.created_at,
-    source: "essay_builder",
-    is_virtual: true
-  }));
+  // Map virtual essays and cover letters
+  const virtualEssays = (essaysRes.data || []).map(essay => {
+    const isCoverLetter = essay.topic?.toLowerCase().includes("cover letter") || essay.title?.toLowerCase().includes("cover letter");
+    return {
+      id: essay.id,
+      name: essay.title || (isCoverLetter ? "Untitled Cover Letter" : "Untitled Essay"),
+      type: isCoverLetter ? "cover_letter" : "essay",
+      file_url: `/essays/${essay.id}`, // Link to builder
+      size_bytes: 0,
+      created_at: essay.updated_at || essay.created_at,
+      source: isCoverLetter ? "cover_letter_builder" : "essay_builder",
+      is_virtual: true
+    };
+  });
 
   const allDocuments = [...physicalDocs, ...virtualResumes, ...virtualEssays].sort((a, b) => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();

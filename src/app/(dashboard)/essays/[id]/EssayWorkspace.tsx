@@ -17,7 +17,9 @@ import {
   Copy, 
   RotateCcw, 
   Wand2, 
-  Sliders 
+  Sliders,
+  Eye,
+  Edit3
 } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -55,6 +57,8 @@ export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | 
   const [topic, setTopic] = useState(initialEssay?.topic || "");
   const [content, setContent] = useState(initialEssay?.content || "");
   
+  const isCoverLetter = topic?.toLowerCase().includes("cover letter") || title?.toLowerCase().includes("cover letter");
+  const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
   const isLimitReached = aiUsage ? aiUsage.essay.used >= aiUsage.essay.limit : false;
   const isOverBudget = aiUsage ? aiUsage.estimated_cost_usd >= aiUsage.monthly_budget_cap_usd : false;
   const isAiBlocked = isOverBudget;
@@ -381,20 +385,63 @@ export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | 
           </div>
 
           <div className="flex-1 flex flex-col min-h-[360px]">
-            <div className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1 flex justify-between items-center">
-              <span>Essay Draft</span>
-              <div className="flex items-center gap-3 text-slate-500 font-semibold normal-case">
+            <div className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1 flex flex-wrap justify-between items-center gap-2">
+              <div className="flex items-center gap-2">
+                <span>{isCoverLetter ? "Cover Letter Draft" : "Essay Draft"}</span>
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200/80 ml-1">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("edit")}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      viewMode === "edit"
+                        ? "bg-white text-slate-900 shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Edit3 className="w-3 h-3" /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("preview")}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      viewMode === "preview"
+                        ? "bg-white text-violet-700 shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Eye className="w-3 h-3" /> Rendered Preview
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-slate-500 font-semibold normal-case text-xs">
                 <span>{wordCount} words</span>
                 <span>•</span>
                 <span>{charCount} characters</span>
               </div>
             </div>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Start writing your essay here..."
-              className="flex-1 w-full resize-none rounded-xl border border-slate-200 p-6 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-slate-300"
-            />
+
+            {viewMode === "edit" ? (
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder={isCoverLetter ? "Start writing your cover letter here..." : "Start writing your essay here..."}
+                className="flex-1 w-full resize-none rounded-2xl border border-slate-200 p-6 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-slate-300 font-sans min-h-[300px]"
+              />
+            ) : (
+              <div className="flex-1 w-full rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 overflow-y-auto text-slate-800 shadow-inner min-h-[300px]">
+                {content.trim() ? (
+                  <div className="prose prose-slate max-w-none font-sans text-sm sm:text-base prose-headings:font-bold prose-headings:text-slate-900 prose-headings:mt-3 prose-headings:mb-1.5 prose-p:my-1.5 prose-p:leading-relaxed prose-li:my-0.5 prose-ul:my-1.5 prose-ol:my-1.5">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {content}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center py-12">
+                    <p className="text-sm">No content yet. Switch to Edit mode to write or use the AI Coach to brainstorm a draft.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
