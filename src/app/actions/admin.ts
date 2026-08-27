@@ -108,6 +108,19 @@ function sanitizeScholarshipPayload(data: any) {
     delete sanitized.citizenship_requirement;
   }
 
+  // Ensure award_amount_value is computed if award_amount is present
+  if (sanitized.award_amount) {
+    const numericVal = parseInt(String(sanitized.award_amount).replace(/[^0-9]/g, ""), 10);
+    sanitized.award_amount_value = isNaN(numericVal) ? null : numericVal;
+  }
+
+  // Ensure state_eligibility_all is boolean
+  if (sanitized.state_eligibility_all !== undefined) {
+    sanitized.state_eligibility_all = Boolean(sanitized.state_eligibility_all);
+  } else if (sanitized.eligible_states) {
+    sanitized.state_eligibility_all = String(sanitized.eligible_states).toLowerCase().includes("all");
+  }
+
   // Fix award_frequency enum values
   if (sanitized.award_frequency !== undefined) {
     sanitized.award_frequency = AWARD_FREQUENCY_MAP[sanitized.award_frequency] ?? "";
@@ -118,9 +131,20 @@ function sanitizeScholarshipPayload(data: any) {
     sanitized.number_of_awards = String(sanitized.number_of_awards);
   }
 
+  // Ensure default category
+  if (!sanitized.category) {
+    sanitized.category = "General";
+  }
+
+  // Ensure is_active defaults to true
+  if (sanitized.is_active === undefined) {
+    sanitized.is_active = true;
+  }
+
   // Remove fields not in the DB schema
   delete sanitized.specialEligibility;
   delete sanitized.special_eligibility;
+  delete sanitized.stateEligibilityAll;
 
   return sanitized;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Lightbulb, Quote, Megaphone, CalendarDays, Star, Layout, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,13 +32,20 @@ function EmptyForm() {
   };
 }
 
+import { useRouter } from "next/navigation";
+
 export function ContentManager({ initialItems }: { initialItems: any[] }) {
+  const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [filterType, setFilterType] = useState<ContentType | "all">("all");
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EmptyForm());
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
 
   const filtered = filterType === "all" ? items : items.filter((i) => i.type === filterType);
 
@@ -52,7 +59,7 @@ export function ContentManager({ initialItems }: { initialItems: any[] }) {
       toast.success("Content created!");
       setIsCreating(false);
       setForm(EmptyForm());
-      // Optimistically reload from server would happen via revalidatePath — for now show toast
+      router.refresh();
     });
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Filter, RefreshCcw, Check, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,21 @@ export function ScholarshipsList({
   const [draftAward, setDraftAward] = useState<string>(searchParams.get("award") || "all");
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setIsCategoryOpen(false);
+      }
+    }
+    if (isCategoryOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isCategoryOpen]);
 
   // Update drafts if URL changes (e.g., user hits back button)
   useEffect(() => {
@@ -131,7 +146,7 @@ export function ScholarshipsList({
           </button>
         </div>
         
-        <div className="relative flex-1 md:flex-none md:min-w-[240px]">
+        <div className="relative flex-1 md:flex-none md:min-w-[240px]" ref={categoryDropdownRef}>
           <button 
             onClick={() => setIsCategoryOpen(!isCategoryOpen)}
             className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 flex items-center justify-between"
@@ -145,30 +160,27 @@ export function ScholarshipsList({
           </button>
           
           {isCategoryOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsCategoryOpen(false)} />
-              <div className="absolute top-full left-0 mt-2 w-[280px] bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-72 overflow-y-auto custom-scrollbar p-2">
-                {ALL_CATEGORIES.map(cat => (
-                  <label key={cat} className="flex items-start gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer group min-h-[2.5rem]">
-                    <div className={`w-4 h-4 mt-0.5 shrink-0 rounded border flex items-center justify-center transition-colors ${draftCategories.includes(cat) ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-300 bg-white group-hover:border-violet-400'}`}>
-                      {draftCategories.includes(cat) && <Check className="w-3 h-3" />}
-                    </div>
-                    <input 
-                      type="checkbox" 
-                      className="hidden"
-                      checked={draftCategories.includes(cat)}
-                      onChange={(e) => {
-                        const newCats = e.target.checked 
-                          ? [...draftCategories, cat] 
-                          : draftCategories.filter(c => c !== cat);
-                        setDraftCategories(newCats);
-                      }}
-                    />
-                    <span className="text-sm font-medium text-slate-700 leading-tight select-none">{cat}</span>
-                  </label>
-                ))}
-              </div>
-            </>
+            <div className="absolute top-full left-0 mt-2 w-[280px] bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-72 overflow-y-auto custom-scrollbar p-2">
+              {ALL_CATEGORIES.map(cat => (
+                <label key={cat} className="flex items-start gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer group min-h-[2.5rem]">
+                  <div className={`w-4 h-4 mt-0.5 shrink-0 rounded border flex items-center justify-center transition-colors ${draftCategories.includes(cat) ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-300 bg-white group-hover:border-violet-400'}`}>
+                    {draftCategories.includes(cat) && <Check className="w-3 h-3" />}
+                  </div>
+                  <input 
+                    type="checkbox" 
+                    className="hidden"
+                    checked={draftCategories.includes(cat)}
+                    onChange={(e) => {
+                      const newCats = e.target.checked 
+                        ? [...draftCategories, cat] 
+                        : draftCategories.filter(c => c !== cat);
+                      setDraftCategories(newCats);
+                    }}
+                  />
+                  <span className="text-sm font-medium text-slate-700 leading-tight select-none">{cat}</span>
+                </label>
+              ))}
+            </div>
           )}
         </div>
 

@@ -19,6 +19,7 @@ import { ScholarshipCard } from "@/components/ui/ScholarshipCard";
 
 import { UpgradeFlowModal } from "@/components/ui/UpgradeFlowModal";
 import { searchScholarships } from "@/app/actions/scholarships";
+import { ContentBanners } from "@/components/layout/ContentBanners";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useAIState } from "@/context/AIStateContext";
@@ -500,6 +501,9 @@ export function DashboardClient({
         isOpen={isRefreshingAI}
         message="Analyzing your profile & generating fresh AI recommendations..."
       />
+
+      {/* Admin Content Banners & Announcements (Dashboard Only) */}
+      <ContentBanners />
 
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>

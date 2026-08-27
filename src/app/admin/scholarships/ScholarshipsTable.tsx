@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
-import { Search, Plus, Edit, Trash2, Power, Star, RefreshCcw, Sparkles } from "lucide-react";
+import { useState, useTransition, useMemo, useRef, useEffect } from "react";
+import { Search, Plus, Edit, Trash2, Power, Star, RefreshCcw, Sparkles, ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +12,31 @@ import {
   triggerApifyScraper
 } from "@/app/actions/admin";
 
+const INTENDED_MAJORS_OPTIONS = [
+  "Any Major",
+  "Business Administration",
+  "Computer Science",
+  "Nursing",
+  "Psychology",
+  "Biology",
+  "Criminal Justice",
+  "Education",
+  "Engineering",
+  "Communications",
+  "Accounting",
+  "Marketing",
+  "Finance",
+  "Political Science",
+  "Graphic Design",
+  "Information Technology",
+  "Health Sciences",
+  "Social Work",
+  "English",
+  "Architecture",
+  "Other",
+  "Undecided"
+];
+
 export function ScholarshipsTable({ initialScholarships }: { initialScholarships: any[] }) {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
@@ -20,7 +45,24 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
   const [saveError, setSaveError] = useState("");
   const [modalState, setModalState] = useState<{ isOpen: boolean, type: "create" | "edit", scholarship: any | null }>({ isOpen: false, type: "create", scholarship: null });
   const [isAllStates, setIsAllStates] = useState(true);
+  const [selectedMajors, setSelectedMajors] = useState<string[]>(["Any Major"]);
+  const [isMajorDropdownOpen, setIsMajorDropdownOpen] = useState(false);
   const [isScraping, setIsScraping] = useState(false);
+  const majorDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (majorDropdownRef.current && !majorDropdownRef.current.contains(e.target as Node)) {
+        setIsMajorDropdownOpen(false);
+      }
+    }
+    if (isMajorDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMajorDropdownOpen]);
 
   // Filter & Sort
   const filteredSorted = useMemo(() => {
@@ -88,11 +130,12 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
       link,
       award_amount: formattedAward,
       deadline,
-      category: formData.get("category"),
+      category: (formData.get("category") as string) || "General",
       description: formData.get("description"),
-      eligible_majors: formData.getAll("eligibleMajors").join(", "),
+      eligible_majors: selectedMajors.length > 0 ? (selectedMajors.includes("Any Major") ? "Any Major" : selectedMajors.join(", ")) : "Any Major",
       min_gpa_required: formData.get("minGpaRequired") ? Number(formData.get("minGpaRequired")) : null,
-      eligible_states: formData.get("stateEligibilityAll") === "on" ? "All" : formData.getAll("eligibleStates").join(", "),
+      eligible_states: isAllStates ? "All" : formData.getAll("eligibleStates").join(", "),
+      state_eligibility_all: isAllStates,
       grade_levels: formData.getAll("gradeLevels").map(s => s.toString()),
       essay_required: formData.get("essayRequired") === "on",
       citizenship_requirement: formData.get("citizenshipRequirement") as string,
@@ -182,6 +225,9 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
           <Button onClick={() => {
             setModalState({ isOpen: true, type: "create", scholarship: null });
             setIsAllStates(true);
+            setSelectedMajors(["Any Major"]);
+            setIsMajorDropdownOpen(false);
+            setSaveError("");
           }} className="w-full md:w-auto bg-slate-900 text-white font-bold h-10 rounded-xl gap-2 shadow-sm">
             <Plus className="w-4 h-4" /> Add Scholarship
           </Button>
@@ -191,10 +237,10 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-xs tracking-wider">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 text-xs uppercase tracking-wider">
               <tr>
-                <th className="px-5 py-4 w-1/4">Name</th>
+                <th className="px-5 py-4">Scholarship Name</th>
                 <th className="px-5 py-4">Category</th>
                 <th className="px-5 py-4">Deadline</th>
                 <th className="px-5 py-4">Award</th>
@@ -250,6 +296,9 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                           onClick={() => {
                             setModalState({ isOpen: true, type: "edit", scholarship: item });
                             setIsAllStates(item.eligible_states?.toLowerCase().includes("all") ?? true);
+                            setSelectedMajors(item.eligible_majors ? item.eligible_majors.split(", ").filter(Boolean) : ["Any Major"]);
+                            setIsMajorDropdownOpen(false);
+                            setSaveError("");
                           }}
                           className="w-8 h-8 rounded-lg flex items-center justify-center border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-200 hover:bg-violet-50 transition-colors"
                         >
@@ -344,24 +393,54 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
               <div className="space-y-4 pt-4 border-t border-slate-100">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Optional (AI Matching)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative" ref={majorDropdownRef}>
                     <label className="text-sm font-semibold text-slate-700">Eligible Majors</label>
-                    <select
-                      name="eligibleMajors"
-                      multiple
-                      defaultValue={modalState.scholarship?.eligible_majors ? modalState.scholarship.eligible_majors.split(", ") : []}
-                      className="flex w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary h-40"
+                    <button
+                      type="button"
+                      onClick={() => setIsMajorDropdownOpen(!isMajorDropdownOpen)}
+                      className="flex min-h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-violet-600 text-left text-slate-700"
                     >
-                      {[
-                        "Business Administration", "Computer Science", "Nursing", "Psychology", "Biology",
-                        "Criminal Justice", "Education", "Engineering", "Communications", "Accounting",
-                        "Marketing", "Finance", "Political Science", "Graphic Design", "Information Technology",
-                        "Health Sciences", "Social Work", "English", "Architecture", "Other", "Undecided", "Any Major"
-                      ].map(major => (
-                        <option key={major} value={major}>{major}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-slate-500">Hold Ctrl (Windows) or Cmd (Mac) to select multiple.</p>
+                      <span className="truncate pr-2">
+                        {selectedMajors.length === 0 ? "Select Eligible Majors" :
+                         selectedMajors.includes("Any Major") ? "Any Major (Open to All)" :
+                         selectedMajors.length === 1 ? selectedMajors[0] :
+                         `${selectedMajors.length} Majors Selected`}
+                      </span>
+                      <ChevronDown className={`h-4 w-4 opacity-50 shrink-0 transition-transform duration-200 ${isMajorDropdownOpen ? "rotate-180" : ""}`} />
+                    </button>
+
+                    {isMajorDropdownOpen && (
+                      <div className="absolute top-full left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto p-2">
+                        {INTENDED_MAJORS_OPTIONS.map((major) => {
+                          const isSelected = selectedMajors.includes(major);
+                          return (
+                            <label key={major} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (major === "Any Major") {
+                                    setSelectedMajors(e.target.checked ? ["Any Major"] : []);
+                                  } else {
+                                    let next = selectedMajors.filter(m => m !== "Any Major");
+                                    if (e.target.checked) {
+                                      next = [...next, major];
+                                    } else {
+                                      next = next.filter(m => m !== major);
+                                    }
+                                    if (next.length === 0) next = ["Any Major"];
+                                    setSelectedMajors(next);
+                                  }
+                                }}
+                                className="rounded border-slate-300 text-violet-600 focus:ring-violet-600 w-4 h-4"
+                              />
+                              <span className={major === "Any Major" ? "font-bold text-violet-700" : ""}>{major}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500">Select specific majors or leave as "Any Major".</p>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Minimum GPA</label>
