@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   User, Phone, MapPin, GraduationCap, Award, BookOpen, Target, Sparkles,
   Edit2, Save, X, Mail, Building, Briefcase, Share2, Info, Users
@@ -163,7 +164,7 @@ export function StudentProfile({
   const initials = (formData.student_first_name?.[0] || "") + (formData.student_last_name?.[0] || "");
 
   return (
-    <div className="max-w-[1400px] mx-auto pb-12">
+    <div className="max-w-[1400px] mx-auto pb-2">
 
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -447,7 +448,27 @@ export function StudentProfile({
           </div>
 
         </div>
+
       </div>
+
+      {/* Legal & Compliance Links */}
+      <div className="mt-8 mb-1 flex flex-wrap items-center justify-between gap-4 p-5 rounded-xl bg-white border border-slate-200/80 shadow-sm text-sm text-slate-500">
+        <p>© 2026 Schoolari. All rights reserved.</p>
+        <div className="flex items-center gap-4">
+          <Link href="/terms" className="hover:text-violet-600 hover:underline font-medium transition-colors">
+            Terms &amp; Conditions
+          </Link>
+          <span>•</span>
+          <Link href="/privacy" className="hover:text-violet-600 hover:underline font-medium transition-colors">
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link href="/sms-terms" className="hover:text-violet-600 hover:underline font-medium transition-colors">
+            SMS Terms
+          </Link>
+        </div>
+      </div>
+
     </div>
   );
 }

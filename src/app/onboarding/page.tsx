@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input, PhoneInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, Check, ArrowRight, X, ChevronDown } from "lucide-react";
+import { CheckCircle2, Check, ArrowRight, X, ChevronDown, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
@@ -113,7 +113,7 @@ export default function OnboardingPage() {
 
   // Storage upload states
   const [uploading, setUploading] = useState(false);
-  const [uploadedDocs, setUploadedDocs] = useState<{ name: string; type: string }[]>([]);
+  const [uploadedDocs, setUploadedDocs] = useState<{ id?: string; name: string; type: string; filePath?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadType, setUploadType] = useState<"transcript" | "report_card" | "recommendation_letter" | "essay" | "resume" | "certificate" | "award" | "other">("other");
   const [customDocName, setCustomDocName] = useState("");
@@ -259,15 +259,15 @@ export default function OnboardingPage() {
 
       const displayName = customDocName.trim() || file.name;
 
-      await supabase.from('documents').insert({
+      const { data: insertedDoc } = await supabase.from('documents').insert({
         user_id: userData.user.id,
         name: displayName,
         type: uploadType,
         file_url: publicUrlData.publicUrl,
         size_bytes: file.size
-      });
+      }).select('id').maybeSingle();
 
-      setUploadedDocs([...uploadedDocs, { name: displayName, type: uploadType }]);
+      setUploadedDocs([...uploadedDocs, { id: insertedDoc?.id, name: displayName, type: uploadType, filePath }]);
       toast.success('Document uploaded!');
     } catch (err: any) {
       console.error(err);
@@ -276,6 +276,24 @@ export default function OnboardingPage() {
       setUploading(false);
       setCustomDocName("");
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveDoc = async (indexToRemove: number) => {
+    const doc = uploadedDocs[indexToRemove];
+    const supabase = createClient();
+    try {
+      if (doc?.id) {
+        await supabase.from('documents').delete().eq('id', doc.id);
+      }
+      if (doc?.filePath) {
+        await supabase.storage.from('documents').remove([doc.filePath]);
+      }
+      setUploadedDocs(uploadedDocs.filter((_, idx) => idx !== indexToRemove));
+      toast.success('Document removed');
+    } catch (err: any) {
+      console.error("Failed to remove document:", err);
+      toast.error('Failed to remove document');
     }
   };
 
@@ -730,10 +748,18 @@ export default function OnboardingPage() {
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Uploaded to Vault</h4>
                     <ul className="space-y-2">
                       {uploadedDocs.map((doc, idx) => (
-                        <li key={idx} className="flex items-center text-sm font-medium text-slate-700 bg-slate-50 px-3 py-2 rounded-lg">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2" />
-                          <span className="truncate flex-1">{doc.name}</span>
-                          <span className="text-xs text-slate-400 uppercase">{doc.type.replace('_', ' ')}</span>
+                        <li key={idx} className="flex items-center text-sm font-medium text-slate-700 bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-100/80">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 mr-2.5 shrink-0" />
+                          <span className="truncate flex-1 font-semibold text-slate-800">{doc.name}</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase bg-slate-200/60 px-2 py-0.5 rounded-md mr-2">{doc.type.replace('_', ' ')}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDoc(idx)}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                            title="Remove Document"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </li>
                       ))}
                     </ul>

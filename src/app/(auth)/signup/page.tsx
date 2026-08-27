@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { signUp } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Mail, Lock, User, Phone, ArrowRight,
   Eye, EyeOff, CheckCircle2, GraduationCap, Users,
+  MessageSquare, ShieldCheck, X, ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +27,22 @@ export default function SignupPage() {
   const [aiAssistanceAgreed, setAiAssistanceAgreed] = useState(false);
   const [smsConsentAgreed, setSmsConsentAgreed] = useState(false);
   const [showSmsTermsModal, setShowSmsTermsModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (showSmsTermsModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [showSmsTermsModal]);
 
   const passwordStrength = (() => {
     if (password.length === 0) return 0;
@@ -230,11 +248,11 @@ export default function SignupPage() {
         </div>
 
         {/* Terms */}
-        <p className="text-xs text-slate-400 leading-relaxed">
+        <p className="text-xs text-slate-600 leading-relaxed">
           By creating an account, you agree to our{" "}
-          <Link href="#" className="text-primary hover:underline">Terms of Service</Link>{" "}
+          <Link href="/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}
           and{" "}
-          <Link href="#" className="text-primary hover:underline">Privacy Policy</Link>.
+          <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
         </p>
 
         <Button
@@ -253,60 +271,153 @@ export default function SignupPage() {
         </Button>
       </form>
 
-      {/* SMS Terms Modal */}
-      {showSmsTermsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200 text-left">
-            <div className="p-5 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
-              <h3 className="font-extrabold text-slate-900 text-base">Schoolari SMS Terms & Conditions</h3>
+      {/* SMS Terms Modal (Mounted directly to document.body to cover 100% of viewport) */}
+      {mounted && showSmsTermsModal && createPortal(
+        <div className="fixed inset-0 z-[9999] w-screen h-screen bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-200/90 overflow-hidden animate-in zoom-in-95 duration-200 text-left flex flex-col max-h-[90vh]">
+
+            {/* Header */}
+            <div className="p-5 sm:px-6 border-b border-slate-100 bg-gradient-to-r from-violet-50/80 via-purple-50/50 to-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-200 shrink-0">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base sm:text-lg tracking-tight">Schoolari SMS Terms</h3>
+                  <p className="text-xs text-slate-500 font-medium">A2P 10DLC Messaging Program & Guidelines</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowSmsTermsModal(false)}
-                className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 flex items-center justify-center transition-colors cursor-pointer text-sm font-bold"
+                className="w-8 h-8 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                title="Close"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-6 space-y-3 text-xs text-slate-600 max-h-[60vh] overflow-y-auto leading-relaxed">
-              <p>
-                <strong>Program Description:</strong> Schoolari SMS service provides real-time notifications, application deadline alerts, scholarship match reminders, and account security updates to enrolled students and parents.
-              </p>
-              <p>
-                <strong>Message Frequency:</strong> Message frequency varies based on your college application timelines, scholarship deadlines, and user activity.
-              </p>
-              <p>
-                <strong>Message & Data Rates:</strong> Standard message and data rates may apply depending on your mobile carrier and wireless plan.
-              </p>
-              <p>
-                <strong>Opt-Out:</strong> You can cancel the SMS service at any time. Simply text <strong>STOP</strong> in reply to any message. After you send the SMS message STOP to us, you will receive a confirmation message that you have been unsubscribed.
-              </p>
-              <p>
-                <strong>Help & Support:</strong> For assistance, text <strong>HELP</strong> to any message or contact our support team at support@schoolari.com.
-              </p>
-              <p>
-                <strong>Carriers:</strong> Mobile carriers are not liable for delayed or undelivered messages.
-              </p>
+
+            {/* Scrollable Terms Body */}
+            <div className="p-5 sm:p-6 space-y-3.5 text-xs text-slate-600 overflow-y-auto leading-relaxed">
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                  <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px]">1</span>
+                  Program Description
+                </div>
+                <p className="text-slate-600 pl-7">
+                  Schoolari SMS service provides real-time notifications, application deadline alerts, scholarship match reminders, and account security updates to enrolled students and parents.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                  <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px]">2</span>
+                  Message Frequency
+                </div>
+                <p className="text-slate-600 pl-7">
+                  Message frequency varies based on your college application timelines, scholarship deadlines, and user activity.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                  <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px]">3</span>
+                  Message & Data Rates
+                </div>
+                <p className="text-slate-600 pl-7">
+                  Standard message and data rates may apply depending on your mobile carrier and wireless plan.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-100 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-amber-900 text-xs">
+                  <span className="w-5 h-5 rounded-full bg-amber-200/80 text-amber-800 flex items-center justify-center text-[10px]">4</span>
+                  How to Opt-Out (Unsubscribe)
+                </div>
+                <p className="text-amber-800 pl-7">
+                  You can cancel the SMS service at any time. Simply text <strong className="font-bold text-slate-900 bg-white px-1.5 py-0.5 rounded border border-amber-200">STOP</strong> in reply to any message. You will receive an immediate confirmation of cancellation.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                  <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px]">5</span>
+                  Help & Support
+                </div>
+                <p className="text-slate-600 pl-7">
+                  For assistance, text <strong className="font-bold text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200">HELP</strong> to any message or contact our team at <a href="mailto:support@schoolari.com" className="text-violet-600 font-semibold underline">support@schoolari.com</a>.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                  <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px]">6</span>
+                  Carriers & Liability
+                </div>
+                <p className="text-slate-600 pl-7">
+                  Mobile carriers are not liable for delayed or undelivered messages.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-violet-50/70 border border-violet-100 space-y-1">
+                <div className="flex items-center gap-2 font-bold text-violet-900 text-xs">
+                  <ShieldCheck className="w-4 h-4 text-violet-600" />
+                  Privacy Protection
+                </div>
+                <p className="text-violet-800 pl-6">
+                  Mobile numbers are stored securely and never sold or shared with third parties for marketing purposes.
+                </p>
+              </div>
+
             </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+
+            {/* Footer */}
+            <div className="p-4 sm:px-6 border-t border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <Link
+                href="/sms-terms"
+                className="text-xs text-violet-600 font-semibold hover:text-violet-700 hover:underline flex items-center gap-1"
+              >
+                View Full SMS Terms Page <ExternalLink className="w-3 h-3" />
+              </Link>
               <Button
                 type="button"
                 onClick={() => setShowSmsTermsModal(false)}
-                className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold px-5"
+                className="w-full sm:w-auto bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white rounded-xl text-xs font-bold px-6 h-10 shadow-md shadow-violet-200 transition-all"
               >
-                Got It
+                Got It, Thanks
               </Button>
             </div>
+
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Login link */}
-      <p className="text-center text-sm text-slate-500">
-        Already have an account?{" "}
-        <Link href="/login" className="text-primary font-semibold hover:underline">
-          Sign in
-        </Link>
-      </p>
+      <div className="space-y-4">
+        <p className="text-center text-sm text-slate-500">
+          Already have an account?{" "}
+          <Link href="/login" className="text-primary font-semibold hover:underline">
+            Sign in
+          </Link>
+        </p>
+
+        {/* Legal links for compliance */}
+        <div className="pt-2 border-t border-slate-200 flex items-center justify-center gap-3 text-sm text-slate-600">
+          <Link href="/terms" className="hover:text-violet-600 hover:underline transition-colors">
+            Terms of Service
+          </Link>
+          <span>•</span>
+          <Link href="/privacy" className="hover:text-violet-600 hover:underline transition-colors">
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link href="/sms-terms" className="hover:text-violet-600 hover:underline transition-colors">
+            SMS Terms
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

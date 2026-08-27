@@ -70,8 +70,8 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       </div>
 
       {/* Right — Auth Form (Scrollable) */}
-      <div className="flex-1 h-full overflow-y-auto bg-slate-50 flex items-center justify-center p-6 sm:p-8 lg:p-12">
-        <div className="w-full max-w-md my-auto py-6">
+      <div className="flex-1 h-full overflow-y-auto bg-slate-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-md my-auto py-2">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10">
