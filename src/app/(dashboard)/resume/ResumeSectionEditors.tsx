@@ -67,23 +67,21 @@ export function ContactEditor({ resume, onChange, isLimitReached }: SectionEdito
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs">
-            <User className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-black text-slate-900 tracking-tight">
-              Contact & Header Info
-            </h3>
-            <p className="text-xs font-medium text-slate-500">
-              Personal details displayed at the top of your resume
-            </p>
-          </div>
+      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs shrink-0">
+          <User className="w-4 h-4 sm:w-5 sm:h-5" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight">
+            Contact & Header Info
+          </h3>
+          <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 leading-snug">
+            Personal details displayed at the top of your resume
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
         <div className="flex flex-col justify-end h-full">
           <label className={labelCls}>First Name</label>
           <Input
@@ -141,7 +139,7 @@ export function ContactEditor({ resume, onChange, isLimitReached }: SectionEdito
       </div>
 
       <div className="space-y-2 pt-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
             Professional Summary
           </label>
@@ -152,7 +150,7 @@ export function ContactEditor({ resume, onChange, isLimitReached }: SectionEdito
             variant="outline"
             size="sm"
             title="Automatically generate a professional summary based on your profile and resume content."
-            className="h-8 px-3 rounded-xl text-xs font-bold text-violet-700 border border-violet-200/80 bg-violet-50/70 hover:bg-violet-100/80 transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+            className="w-full sm:w-auto h-8 px-3 rounded-xl text-xs font-bold text-violet-700 border border-violet-200/80 bg-violet-50/70 hover:bg-violet-100/80 transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
           >
             <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" />
             {generatingSummary ? "Generating..." : "AI Write Summary"}
@@ -249,16 +247,16 @@ export function EducationEditor({ resume, onChange }: SectionEditorProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100/80 flex items-center justify-center text-blue-600 shadow-2xs">
-            <GraduationCap className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-blue-50 border border-blue-100/80 flex items-center justify-center text-blue-600 shadow-2xs shrink-0">
+            <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h3 className="text-base font-black text-slate-900 tracking-tight">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight">
               Education & US GPA
             </h3>
-            <p className="text-xs font-medium text-slate-500">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 leading-snug">
               High school, college, coursework & academic achievements
             </p>
           </div>
@@ -268,7 +266,7 @@ export function EducationEditor({ resume, onChange }: SectionEditorProps) {
           onClick={addEducation}
           variant="outline"
           size="sm"
-          className="rounded-xl text-xs font-bold text-blue-700 border-blue-200/80 bg-blue-50/80 hover:bg-blue-100/80 h-9 px-3.5 transition-all shadow-2xs"
+          className="w-full sm:w-auto rounded-xl text-xs font-bold text-blue-700 border-blue-200/80 bg-blue-50/80 hover:bg-blue-100/80 h-8.5 sm:h-9 px-3.5 transition-all shadow-2xs shrink-0"
         >
           <Plus className="w-3.5 h-3.5 mr-1" /> Add Education
         </Button>
@@ -278,7 +276,7 @@ export function EducationEditor({ resume, onChange }: SectionEditorProps) {
         {resume.education.map((edu, idx) => (
           <div
             key={edu.id}
-            className="p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
+            className="p-4 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
           >
             <button
               type="button"
@@ -452,16 +450,16 @@ export function ExperienceEditor({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100/80 flex items-center justify-center text-emerald-600 shadow-2xs">
-            <Briefcase className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-emerald-50 border border-emerald-100/80 flex items-center justify-center text-emerald-600 shadow-2xs shrink-0">
+            <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h3 className="text-base font-black text-slate-900 tracking-tight">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight">
               Work & Leadership Experience
             </h3>
-            <p className="text-xs font-medium text-slate-500">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 leading-snug">
               Jobs, internships, research, leadership & major projects
             </p>
           </div>
@@ -471,7 +469,7 @@ export function ExperienceEditor({
           onClick={addExperience}
           variant="outline"
           size="sm"
-          className="rounded-xl text-xs font-bold text-emerald-700 border-emerald-200/80 bg-emerald-50/80 hover:bg-emerald-100/80 h-9 px-3.5 transition-all shadow-2xs"
+          className="w-full sm:w-auto rounded-xl text-xs font-bold text-emerald-700 border-emerald-200/80 bg-emerald-50/80 hover:bg-emerald-100/80 h-8.5 sm:h-9 px-3.5 transition-all shadow-2xs shrink-0"
         >
           <Plus className="w-3.5 h-3.5 mr-1" /> Add Experience
         </Button>
@@ -481,7 +479,7 @@ export function ExperienceEditor({
         {resume.experience.map((exp) => (
           <div
             key={exp.id}
-            className="p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
+            className="p-4 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
           >
             <button
               type="button"
@@ -492,7 +490,7 @@ export function ExperienceEditor({
               <Trash2 className="w-4 h-4" />
             </button>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pr-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 pr-6">
               <div className="flex flex-col justify-end h-full">
                 <label className={labelCls}>Job Title / Leadership Role</label>
                 <Input
@@ -549,38 +547,50 @@ export function ExperienceEditor({
 
               <div className="space-y-2.5">
                 {exp.bullets.map((bullet, bIdx) => (
-                  <div key={bIdx} className="flex items-center gap-2">
-                    <Input
-                      value={bullet}
-                      onChange={(e) => updateBullet(exp.id, bIdx, e.target.value)}
-                      placeholder="Spearheaded project delivery leading to measurable results..."
-                      className="bg-white hover:bg-slate-50/50 focus:bg-white border-slate-200/80 focus:border-violet-500 rounded-xl text-xs flex-1 h-9.5 shadow-2xs transition-all"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() =>
-                        onOpenStarModal(
-                          bullet,
-                          exp.title || "Student Role",
-                          (newText) => updateBullet(exp.id, bIdx, newText)
-                        )
-                      }
-                      disabled={isLimitReached}
-                      variant="outline"
-                      size="sm"
-                      className="h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
-                      title="Use AI to rewrite this bullet point using the STAR (Situation, Task, Action, Result) method."
-                    >
-                      <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" /> AI STAR Polish
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => removeBullet(exp.id, bIdx)}
-                      className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
-                      title="Remove bullet"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  <div key={bIdx} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        value={bullet}
+                        onChange={(e) => updateBullet(exp.id, bIdx, e.target.value)}
+                        placeholder="Spearheaded project delivery leading to measurable results..."
+                        className="bg-white hover:bg-slate-50/50 focus:bg-white border-slate-200/80 focus:border-violet-500 rounded-xl text-xs flex-1 h-9.5 shadow-2xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeBullet(exp.id, bIdx)}
+                        className="sm:hidden text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors shrink-0"
+                        title="Remove bullet"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          onOpenStarModal(
+                            bullet,
+                            exp.title || "Student Role",
+                            (newText) => updateBullet(exp.id, bIdx, newText)
+                          )
+                        }
+                        disabled={isLimitReached}
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 sm:flex-none h-8.5 sm:h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                        title="Use AI to rewrite this bullet point using the STAR (Situation, Task, Action, Result) method."
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" /> AI STAR Polish
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => removeBullet(exp.id, bIdx)}
+                        className="hidden sm:block text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                        title="Remove bullet"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -673,16 +683,16 @@ export function ExtracurricularsEditor({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-100/80 flex items-center justify-center text-amber-600 shadow-2xs">
-            <BookOpen className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-amber-50 border border-amber-100/80 flex items-center justify-center text-amber-600 shadow-2xs shrink-0">
+            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h3 className="text-base font-black text-slate-900 tracking-tight">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight">
               Extracurriculars & Volunteer Work
             </h3>
-            <p className="text-xs font-medium text-slate-500">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 leading-snug">
               Clubs, athletics, community service, arts & student organizations
             </p>
           </div>
@@ -692,7 +702,7 @@ export function ExtracurricularsEditor({
           onClick={addExt}
           variant="outline"
           size="sm"
-          className="rounded-xl text-xs font-bold text-amber-700 border-amber-200/80 bg-amber-50/80 hover:bg-amber-100/80 h-9 px-3.5 transition-all shadow-2xs"
+          className="w-full sm:w-auto rounded-xl text-xs font-bold text-amber-700 border-amber-200/80 bg-amber-50/80 hover:bg-amber-100/80 h-8.5 sm:h-9 px-3.5 transition-all shadow-2xs shrink-0"
         >
           <Plus className="w-3.5 h-3.5 mr-1" /> Add Activity
         </Button>
@@ -702,7 +712,7 @@ export function ExtracurricularsEditor({
         {resume.extracurriculars.map((ext) => (
           <div
             key={ext.id}
-            className="p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
+            className="p-4 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
           >
             <button
               type="button"
@@ -713,7 +723,7 @@ export function ExtracurricularsEditor({
               <Trash2 className="w-4 h-4" />
             </button>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pr-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4 pr-6">
               <div className="flex flex-col justify-end h-full">
                 <label className={labelCls}>Activity / Organization Name</label>
                 <Input
@@ -761,37 +771,49 @@ export function ExtracurricularsEditor({
 
               <div className="space-y-2.5">
                 {ext.bullets.map((bullet, bIdx) => (
-                  <div key={bIdx} className="flex items-center gap-2">
-                    <Input
-                      value={bullet}
-                      onChange={(e) => updateBullet(ext.id, bIdx, e.target.value)}
-                      placeholder="Organized volunteer events serving 100+ community members..."
-                      className="bg-white hover:bg-slate-50/50 focus:bg-white border-slate-200/80 focus:border-violet-500 rounded-xl text-xs flex-1 h-9.5 shadow-2xs transition-all"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() =>
-                        onOpenStarModal(
-                          bullet,
-                          ext.role || "Activity Member",
-                          (newText) => updateBullet(ext.id, bIdx, newText)
-                        )
-                      }
-                      disabled={isLimitReached}
-                      variant="outline"
-                      size="sm"
-                      className="h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" /> AI STAR Polish
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={() => removeBullet(ext.id, bIdx)}
-                      className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
-                      title="Remove bullet"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  <div key={bIdx} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        value={bullet}
+                        onChange={(e) => updateBullet(ext.id, bIdx, e.target.value)}
+                        placeholder="Organized volunteer events serving 100+ community members..."
+                        className="bg-white hover:bg-slate-50/50 focus:bg-white border-slate-200/80 focus:border-violet-500 rounded-xl text-xs flex-1 h-9.5 shadow-2xs transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeBullet(ext.id, bIdx)}
+                        className="sm:hidden text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors shrink-0"
+                        title="Remove bullet"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          onOpenStarModal(
+                            bullet,
+                            ext.role || "Activity Member",
+                            (newText) => updateBullet(ext.id, bIdx, newText)
+                          )
+                        }
+                        disabled={isLimitReached}
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 sm:flex-none h-8.5 sm:h-9 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 text-violet-700 hover:from-violet-100 hover:to-indigo-100 shadow-2xs transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1 text-violet-600" /> AI STAR Polish
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => removeBullet(ext.id, bIdx)}
+                        className="hidden sm:block text-slate-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"
+                        title="Remove bullet"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -844,16 +866,16 @@ export function AwardsEditor({ resume, onChange }: SectionEditorProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-yellow-50 border border-yellow-100/80 flex items-center justify-center text-yellow-600 shadow-2xs">
-            <Trophy className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-yellow-50 border border-yellow-100/80 flex items-center justify-center text-yellow-600 shadow-2xs shrink-0">
+            <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h3 className="text-base font-black text-slate-900 tracking-tight">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight">
               Honors & Awards
             </h3>
-            <p className="text-xs font-medium text-slate-500">
+            <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 leading-snug">
               Academic honors, scholarship awards, competitions & distinctions
             </p>
           </div>
@@ -863,7 +885,7 @@ export function AwardsEditor({ resume, onChange }: SectionEditorProps) {
           onClick={addAward}
           variant="outline"
           size="sm"
-          className="rounded-xl text-xs font-bold text-yellow-700 border-yellow-200/80 bg-yellow-50/80 hover:bg-yellow-100/80 h-9 px-3.5 transition-all shadow-2xs"
+          className="w-full sm:w-auto rounded-xl text-xs font-bold text-yellow-700 border-yellow-200/80 bg-yellow-50/80 hover:bg-yellow-100/80 h-8.5 sm:h-9 px-3.5 transition-all shadow-2xs shrink-0"
         >
           <Plus className="w-3.5 h-3.5 mr-1" /> Add Award
         </Button>
@@ -873,7 +895,7 @@ export function AwardsEditor({ resume, onChange }: SectionEditorProps) {
         {resume.awards.map((awd) => (
           <div
             key={awd.id}
-            className="p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
+            className="p-4 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-md transition-all duration-200 relative group space-y-4"
           >
             <button
               type="button"
@@ -974,19 +996,17 @@ export function SkillsEditor({ resume, onChange }: SectionEditorProps) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs">
-            <Code className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-black text-slate-900 tracking-tight">
-              Skills, Languages & Certifications
-            </h3>
-            <p className="text-xs font-medium text-slate-500">
-              Technical tools, soft skills, spoken languages & certificates
-            </p>
-          </div>
+      <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs shrink-0">
+          <Code className="w-4 h-4 sm:w-5 sm:h-5" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight">
+            Skills, Languages & Certifications
+          </h3>
+          <p className="text-[11px] sm:text-xs font-medium text-slate-500 mt-0.5 leading-snug">
+            Technical tools, soft skills, spoken languages & certificates
+          </p>
         </div>
       </div>
 

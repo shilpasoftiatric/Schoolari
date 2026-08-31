@@ -23,15 +23,17 @@ export default async function TrialBanner() {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
   return (
-    <div className="bg-indigo-600 px-4 py-3 text-white">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-x-6">
-        <div className="flex items-center gap-x-3">
-          <AlertCircle className="h-5 w-5 flex-none text-indigo-200" aria-hidden="true" />
-          <p className="text-sm/6 font-medium">
-            You have {diffDays} {diffDays === 1 ? 'day' : 'days'} left in your free trial. Your {subscription.planInfo?.label || "Pro"} plan begins on {subscription.renewalDate}.
+    <div className="bg-indigo-600 px-3.5 py-2.5 sm:px-4 sm:py-3 text-white">
+      <div className="mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-x-6 max-w-7xl">
+        <div className="flex items-center gap-x-2.5 min-w-0">
+          <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-none text-indigo-200" aria-hidden="true" />
+          <p className="text-xs sm:text-sm font-medium leading-snug">
+            You have <strong className="font-bold">{diffDays} {diffDays === 1 ? 'day' : 'days'}</strong> left in your free trial. Your {subscription.planInfo?.label || "Pro"} plan begins on {subscription.renewalDate}.
           </p>
         </div>
-        <ManageTrialButton currentPlan={subscription.planInfo?.label || "Pro"} />
+        <div className="self-end sm:self-center shrink-0">
+          <ManageTrialButton currentPlan={subscription.planInfo?.label || "Pro"} />
+        </div>
       </div>
     </div>
   );

@@ -149,9 +149,9 @@ export function CategoriesTable({ initialCategories }: { initialCategories: Cate
     <>
       {/* ── Section Header ── */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
               <FolderOpen className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
@@ -163,7 +163,7 @@ export function CategoriesTable({ initialCategories }: { initialCategories: Cate
           </div>
           <Button
             onClick={openCreate}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 rounded-xl shadow-sm"
+            className="w-full sm:w-auto gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 sm:h-9 rounded-xl shadow-sm shrink-0"
           >
             <Plus className="w-4 h-4" /> Add Category
           </Button>
@@ -171,7 +171,7 @@ export function CategoriesTable({ initialCategories }: { initialCategories: Cate
 
         {/* ── Table ── */}
         {sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
             <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
               <FolderOpen className="w-7 h-7 text-slate-400" />
             </div>
@@ -182,78 +182,80 @@ export function CategoriesTable({ initialCategories }: { initialCategories: Cate
             </Button>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/60">
-                <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-6 py-3 w-10">#</th>
-                <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Name</th>
-                <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Description</th>
-                <th className="text-right text-xs font-bold text-slate-400 uppercase tracking-wide px-6 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {sorted.map((cat, idx) => (
-                <tr key={cat.id} className="group hover:bg-slate-50/50 transition-colors">
-                  {/* Order */}
-                  <td className="px-6 py-3 text-slate-400 font-bold text-sm w-10">{idx + 1}</td>
-
-                  {/* Name */}
-                  <td className="px-4 py-3">
-                    <span className="font-semibold text-slate-800">{cat.name}</span>
-                  </td>
-
-                  {/* Description */}
-                  <td className="px-4 py-3 hidden md:table-cell">
-                    <span className="text-slate-500 text-sm truncate max-w-xs block">
-                      {cat.description || <span className="italic text-slate-300">No description</span>}
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  <td className="px-6 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      {/* Reorder */}
-                      <button
-                        onClick={() => handleReorder(cat.id, "up")}
-                        disabled={idx === 0 || reorderingId === cat.id}
-                        title="Move up"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {reorderingId === cat.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronUp className="w-4 h-4" />}
-                      </button>
-                      <button
-                        onClick={() => handleReorder(cat.id, "down")}
-                        disabled={idx === sorted.length - 1 || reorderingId === cat.id}
-                        title="Move down"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronDown className="w-4 h-4" />
-                      </button>
-
-                      {/* Edit */}
-                      <button
-                        onClick={() => openEdit(cat)}
-                        title="Edit"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleDelete(cat)}
-                        disabled={deletingId === cat.id}
-                        title="Delete"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                      >
-                        {deletingId === cat.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-sm min-w-[420px]">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60">
+                  <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 sm:px-6 py-3 w-10">#</th>
+                  <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Name</th>
+                  <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Description</th>
+                  <th className="text-right text-xs font-bold text-slate-400 uppercase tracking-wide px-4 sm:px-6 py-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sorted.map((cat, idx) => (
+                  <tr key={cat.id} className="group hover:bg-slate-50/50 transition-colors">
+                    {/* Order */}
+                    <td className="px-4 sm:px-6 py-3 text-slate-400 font-bold text-sm w-10">{idx + 1}</td>
+
+                    {/* Name */}
+                    <td className="px-4 py-3">
+                      <span className="font-semibold text-slate-800">{cat.name}</span>
+                    </td>
+
+                    {/* Description */}
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <span className="text-slate-500 text-sm truncate max-w-xs block">
+                        {cat.description || <span className="italic text-slate-300">No description</span>}
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 sm:px-6 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Reorder */}
+                        <button
+                          onClick={() => handleReorder(cat.id, "up")}
+                          disabled={idx === 0 || reorderingId === cat.id}
+                          title="Move up"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {reorderingId === cat.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronUp className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => handleReorder(cat.id, "down")}
+                          disabled={idx === sorted.length - 1 || reorderingId === cat.id}
+                          title="Move down"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+
+                        {/* Edit */}
+                        <button
+                          onClick={() => openEdit(cat)}
+                          title="Edit"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+
+                        {/* Delete */}
+                        <button
+                          onClick={() => handleDelete(cat)}
+                          disabled={deletingId === cat.id}
+                          title="Delete"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === cat.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

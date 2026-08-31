@@ -37,15 +37,15 @@ export default function MobileNav({ plan, siteName }: { plan?: SubscriptionPlan;
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-[100] flex">
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity z-[100]" 
             onClick={() => setIsOpen(false)}
           />
 
           {/* Drawer */}
-          <div className="relative w-64 max-w-sm h-full bg-slate-50 shadow-2xl flex flex-col transform transition-transform duration-300">
+          <div className="relative w-64 max-w-sm h-full bg-slate-50 shadow-2xl flex flex-col transform transition-transform duration-300 z-[101]">
             <button 
               onClick={() => setIsOpen(false)}
               className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-900 bg-slate-100 rounded-full z-10"

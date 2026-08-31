@@ -157,54 +157,54 @@ export function JobDetailPanel({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl sm:max-w-6xl h-[90vh] flex flex-col p-0 overflow-hidden bg-slate-50 w-[100vw]">
+      <DialogContent className="w-[95vw] sm:w-full max-w-6xl h-[92dvh] sm:h-[90vh] max-h-[92dvh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden bg-slate-50 rounded-2xl sm:rounded-3xl border-slate-200">
         {/* Header */}
-        <div className="bg-white px-6 py-4 border-b border-slate-200 flex-shrink-0">
-          <div className="flex justify-between items-center">
-            <div className="flex gap-4">
+        <div className="bg-white p-4 sm:px-6 sm:py-4 border-b border-slate-200 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
               {job.employer_logo ? (
-                <div className="w-16 h-16 rounded-xl border border-slate-200 bg-white p-2 overflow-hidden flex-shrink-0">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-1.5 sm:p-2 overflow-hidden flex-shrink-0">
                   <img src={job.employer_logo} alt={job.employer_name} className="w-full h-full object-contain" />
                 </div>
               ) : (
-                <div className="w-16 h-16 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center flex-shrink-0">
-                  <Building className="w-8 h-8 text-slate-400" />
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-100 flex items-center justify-center flex-shrink-0">
+                  <Building className="w-6 h-6 sm:w-8 sm:h-8 text-slate-400" />
                 </div>
               )}
-              <div>
-                <DialogTitle className="text-2xl font-bold text-slate-900 leading-tight">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-lg sm:text-2xl font-bold text-slate-900 leading-tight truncate">
                   {job.job_title}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-sm text-slate-600 font-medium">
-                  <span className="flex items-center gap-1">
-                    <Building className="w-4 h-4 text-slate-400" />
-                    {job.employer_name}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1 sm:mt-1.5 text-xs sm:text-sm text-slate-600 font-medium">
+                  <span className="flex items-center gap-1 truncate">
+                    <Building className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
+                    <span className="truncate">{job.employer_name}</span>
                   </span>
                   <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4 text-slate-400" />
-                    {job.job_city} {job.job_state && `, ${job.job_state}`}
+                  <span className="flex items-center gap-1 truncate">
+                    <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
+                    <span className="truncate">{job.job_city} {job.job_state && `, ${job.job_state}`}</span>
                   </span>
                   <span>•</span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                    {isRemote ? <Globe className="w-3.5 h-3.5" /> : isHybrid ? <Laptop className="w-3.5 h-3.5" /> : <Building className="w-3.5 h-3.5" />}
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-slate-100 text-slate-700">
+                    {isRemote ? <Globe className="w-3 h-3" /> : isHybrid ? <Laptop className="w-3 h-3" /> : <Building className="w-3 h-3" />}
                     {job.workplace_type || "On-Site"}
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <GraduationCap className="w-3.5 h-3.5" />
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <GraduationCap className="w-3 h-3" />
                     {empType}
                   </span>
                 </div>
               </div>
             </div>
-            <Button onClick={handleApply} className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-6 shadow-md shadow-violet-500/20 mr-8">
-              Apply Now <ExternalLink className="w-4 h-4 ml-2" />
+            <Button onClick={handleApply} className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 text-white rounded-xl sm:rounded-full px-6 py-2.5 shadow-md shadow-violet-500/20 mr-0 sm:mr-8 text-xs sm:text-sm font-bold shrink-0">
+              Apply Now <ExternalLink className="w-4 h-4 ml-1.5" />
             </Button>
           </div>
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
+        <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-h-0">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
             {/* Left Column: Job Description & Limits */}

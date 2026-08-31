@@ -52,14 +52,14 @@ export default async function JobsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+      <div className="flex flex-col gap-1.5 sm:gap-2">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
           Jobs & Internships
           <div className="hidden sm:flex items-center justify-center w-8 h-8 rounded-full bg-violet-100 text-violet-600">
             <Sparkles className="w-4 h-4" />
           </div>
         </h1>
-        <p className="text-slate-500 text-lg max-w-xl">
+        <p className="text-slate-500 text-xs sm:text-lg max-w-xl">
           Personalized opportunities curated by AI based on your major, interests, and profile. Apply directly to add them to your tracker.
         </p>
       </div>

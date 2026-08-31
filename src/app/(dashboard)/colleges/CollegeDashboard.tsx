@@ -43,6 +43,7 @@ const STATUS_LABELS = {
 
 function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: (newCollege: any) => void }) {
   const [status, setStatus] = useState<string>(rec.status || "NEW");
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
   const [reminderDate, setReminderDate] = useState("");
@@ -249,20 +250,38 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: (newCollege: any) 
 
             <div className="relative group/dropdown">
               <Button
+                type="button"
                 variant="outline"
+                onClick={() => setStatusDropdownOpen((prev) => !prev)}
                 className={`w-full rounded-xl text-sm font-bold justify-between border-slate-200 ${isSaved && status !== "RESEARCHING" ? STATUS_COLORS[status.toLowerCase() as keyof typeof STATUS_COLORS] : "text-slate-600 hover:bg-slate-50"}`}
               >
                 {isSaved && status !== "RESEARCHING"
                   ? STATUS_LABELS[status.toLowerCase() as keyof typeof STATUS_LABELS] || "Set Status"
                   : "Set Status"}
-                <svg className="w-4 h-4 ml-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                <svg className={`w-4 h-4 ml-2 opacity-50 transition-transform duration-200 ${statusDropdownOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </Button>
 
-              <div className="absolute top-full mt-1.5 right-0 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl opacity-0 invisible group-hover/dropdown:opacity-100 group-hover/dropdown:visible transition-all z-50 p-1.5 flex flex-col gap-0.5">
+              {/* Backdrop for closing on mobile outside touch */}
+              {statusDropdownOpen && (
+                <div
+                  className="fixed inset-0 z-40 bg-transparent"
+                  onClick={() => setStatusDropdownOpen(false)}
+                />
+              )}
+
+              <div className={`absolute top-full mt-1.5 right-0 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl transition-all z-50 p-1.5 flex flex-col gap-0.5 ${
+                statusDropdownOpen
+                  ? "opacity-100 visible pointer-events-auto"
+                  : "opacity-0 invisible pointer-events-none md:group-hover/dropdown:opacity-100 md:group-hover/dropdown:visible md:group-hover/dropdown:pointer-events-auto"
+              }`}>
                 {Object.entries(STATUS_LABELS).map(([key, label]) => (
                   <button
                     key={key}
-                    onClick={() => handleSave(key)}
+                    type="button"
+                    onClick={() => {
+                      handleSave(key);
+                      setStatusDropdownOpen(false);
+                    }}
                     className="text-left px-3 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-violet-50 hover:text-violet-700 transition-colors flex items-center justify-between"
                   >
                     {label}
@@ -410,18 +429,18 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
     <div className="space-y-8 pb-8">
 
       {/* ── Header & Metrics ── */}
-      <div className="flex flex-col md:flex-row gap-6 justify-between items-end">
+      <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-between items-start sm:items-center">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            <GraduationCap className="w-8 h-8 text-violet-500" />
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5 sm:gap-3">
+            <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 text-violet-500 shrink-0" />
             College Planning
           </h1>
-          <p className="text-slate-500 mt-2 font-medium">
+          <p className="text-slate-500 mt-1 sm:mt-2 text-xs sm:text-base font-medium">
             Your personalized college list, powered by AI — tailored to your major, GPA, and goals.
           </p>
         </div>
-        <Button onClick={() => { setActiveTab("tracker"); setIsAddModalOpen(true); }} className="bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl py-6 px-6 shadow-sm shadow-violet-200 transition-all hover:-translate-y-0.5">
-          <Plus className="w-5 h-5 mr-2" /> Add College
+        <Button onClick={() => { setActiveTab("tracker"); setIsAddModalOpen(true); }} className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl py-3 sm:py-6 px-5 sm:px-6 shadow-sm shadow-violet-200 transition-all hover:-translate-y-0.5 text-xs sm:text-sm shrink-0">
+          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" /> Add College
         </Button>
       </div>
 

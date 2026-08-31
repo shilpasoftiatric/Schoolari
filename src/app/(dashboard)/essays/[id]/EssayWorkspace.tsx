@@ -267,72 +267,90 @@ export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | 
   const charCount = content.length;
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] gap-6">
+    <div className="flex flex-col lg:flex-row min-h-[calc(100dvh-8rem)] lg:h-[calc(100vh-8rem)] gap-4 sm:gap-6">
       
       {/* Editor Side (Left) */}
-      <div className="flex-1 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-w-0">
         
         {/* Top Toolbar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-4 flex-1">
-            <Link href="/essays" className="p-2 -ml-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            
-            <Input 
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Essay Title"
-              className="text-lg font-bold bg-transparent border-transparent hover:border-slate-200 focus-visible:ring-violet-500 h-10 px-2 max-w-sm"
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Auto-Save & Manual Save Status */}
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-              {saveStatus === "saving" && (
-                <><Loader2 className="w-3.5 h-3.5 animate-spin text-violet-600" /> Saving...</>
-              )}
-              {saveStatus === "saved" && (
-                <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> {lastAutoSaveTime ? `Auto-saved at ${lastAutoSaveTime}` : "Saved"}</>
-              )}
-              {saveStatus === "idle" && lastAutoSaveTime && (
-                <span className="text-slate-400 text-[11px]">Auto-saved {lastAutoSaveTime}</span>
-              )}
-              {saveStatus === "error" && (
-                <span className="text-red-500 font-bold">Failed to save</span>
-              )}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 px-3.5 sm:px-6 py-3 sm:py-4 border-b border-slate-100 bg-slate-50/50">
+          {/* Row 1 on Mobile: Back Arrow, Title Input, Delete Button */}
+          <div className="flex items-center justify-between gap-2 flex-1 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+              <Link href="/essays" className="p-1.5 sm:p-2 -ml-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors shrink-0" title="Back to Essays">
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </Link>
+              
+              <Input 
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Essay Title"
+                className="text-base sm:text-lg font-bold bg-transparent border-transparent hover:border-slate-200 focus-visible:ring-violet-500 h-9 sm:h-10 px-2 flex-1 max-w-sm"
+              />
             </div>
-            
-            <Button onClick={handleCopyText} variant="outline" size="sm" className="rounded-xl gap-1.5 text-xs border-slate-200">
-              <Copy className="w-3.5 h-3.5" />
-              {copied ? "Copied!" : "Copy Text"}
-            </Button>
-
-            <Button onClick={handleSave} disabled={saveStatus === "saving"} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-2 font-bold shadow-sm text-xs">
-              <Save className="w-4 h-4" /> Save
-            </Button>
 
             {initialEssay?.id && (
               <form action={async () => {
                 if(confirm("Are you sure you want to delete this essay?")) {
                   await deleteEssay(initialEssay.id);
                 }
-              }}>
-                <button type="submit" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="Delete Essay">
+              }} className="sm:hidden shrink-0">
+                <button type="submit" className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="Delete Essay">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </form>
             )}
           </div>
+
+          {/* Row 2 on Mobile / Right side on Desktop: Auto-save, Copy Text, Save, Desktop Delete */}
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 shrink-0">
+            {/* Auto-Save & Manual Save Status */}
+            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-slate-400">
+              {saveStatus === "saving" && (
+                <><Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin text-violet-600" /> Saving...</>
+              )}
+              {saveStatus === "saved" && (
+                <><CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500" /> {lastAutoSaveTime ? `Saved ${lastAutoSaveTime}` : "Saved"}</>
+              )}
+              {saveStatus === "idle" && lastAutoSaveTime && (
+                <span className="text-slate-400 text-[10px] sm:text-[11px]">Saved {lastAutoSaveTime}</span>
+              )}
+              {saveStatus === "error" && (
+                <span className="text-red-500 font-bold text-[11px]">Save failed</span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button onClick={handleCopyText} variant="outline" size="sm" className="rounded-xl gap-1 text-xs border-slate-200 h-8 sm:h-9 px-2.5 sm:px-3">
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copied ? "Copied!" : "Copy"}</span>
+              </Button>
+
+              <Button onClick={handleSave} disabled={saveStatus === "saving"} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-1.5 font-bold shadow-sm text-xs h-8 sm:h-9 px-3 sm:px-4">
+                <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Save
+              </Button>
+
+              {initialEssay?.id && (
+                <form action={async () => {
+                  if(confirm("Are you sure you want to delete this essay?")) {
+                    await deleteEssay(initialEssay.id);
+                  }
+                }} className="hidden sm:block">
+                  <button type="submit" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors" title="Delete Essay">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 3 Follow-Up Options Toolbar */}
-        <div className="flex flex-wrap items-center justify-between px-6 py-2.5 bg-violet-50/40 border-b border-violet-100 text-xs font-semibold">
-          <div className="flex items-center gap-2 text-violet-700 font-bold">
-            <Sparkles className="w-4 h-4" /> AI Actions:
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3.5 sm:px-6 py-2 sm:py-2.5 bg-violet-50/40 border-b border-violet-100 text-xs font-semibold">
+          <div className="flex items-center gap-1.5 text-violet-700 font-bold text-xs">
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-600" /> AI Actions:
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             <Button
               type="button"
               variant="outline"
@@ -340,9 +358,9 @@ export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | 
               onClick={() => setIsRefineModalOpen(true)}
               disabled={aiLoading || !content || isAiBlocked}
               title="Instruct the AI to rewrite your draft with a specific focus, tone, or style."
-              className="h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-xs gap-1.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+              className="h-7.5 sm:h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-[11px] sm:text-xs gap-1 sm:gap-1.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none px-2 sm:px-3"
             >
-              <Sliders className="w-3.5 h-3.5" /> Refine It
+              <Sliders className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Refine It
             </Button>
 
             <Button
@@ -352,9 +370,9 @@ export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | 
               onClick={handleImproveDraft}
               disabled={aiLoading || !content || isAiBlocked}
               title="Automatically polish your draft for grammar, clarity, flow, and sentence variety."
-              className="h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-xs gap-1.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none"
+              className="h-7.5 sm:h-8 rounded-lg bg-white border-violet-200 text-violet-700 hover:bg-violet-50 text-[11px] sm:text-xs gap-1 sm:gap-1.5 font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none px-2 sm:px-3"
             >
-              <Wand2 className="w-3.5 h-3.5" /> Improve It
+              <Wand2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Improve It
             </Button>
 
             <Button
@@ -362,9 +380,9 @@ export function EssayWorkspace({ initialEssay, aiUsage }: { initialEssay: any | 
               variant="ghost"
               size="sm"
               onClick={handleStartOver}
-              className="h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-xs gap-1.5 font-bold"
+              className="h-7.5 sm:h-8 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 text-[11px] sm:text-xs gap-1 sm:gap-1.5 font-bold px-2 sm:px-2.5"
             >
-              <RotateCcw className="w-3.5 h-3.5" /> Start Over
+              <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Start Over
             </Button>
           </div>
         </div>

@@ -78,7 +78,7 @@ export function SessionDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg max-h-[95vh] flex flex-col p-0 overflow-hidden rounded-3xl border-slate-100 shadow-2xl">
+      <DialogContent className="w-[92vw] sm:max-w-lg max-h-[90dvh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-slate-100 shadow-2xl">
         <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-5 sm:p-6 text-white shrink-0">
           <div className="flex items-center gap-2 mb-2">
             {session.session_type === "1:1" || session.session_type === "private" || session.session_type === "individual" ? (
@@ -337,7 +337,7 @@ export function MessageCoachModal({
       setMessages((prev) =>
         prev.map((m) => (idsToMark.has(m.id) ? { ...m, is_read: true } : m))
       );
-      markCoachMessagesAsRead(activeContact.id).catch(() => {});
+      markCoachMessagesAsRead(activeContact.id).catch(() => { });
     }
   }, [isOpen, selectedContactId, messages.length]);
 
@@ -457,9 +457,9 @@ export function MessageCoachModal({
     const lastMsg = contactMsgs.length > 0 ? contactMsgs[contactMsgs.length - 1] : null;
     const lastTime = lastMsg
       ? new Date(lastMsg.created_at || 0).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-        })
+        hour: "numeric",
+        minute: "2-digit",
+      })
       : "";
     const lastTimestamp = lastMsg ? new Date(lastMsg.created_at || 0).getTime() : 0;
     const rawSnippet = lastMsg
@@ -528,7 +528,7 @@ export function MessageCoachModal({
       );
       unreadCoachMessages.forEach((m) => {
         import("@/app/actions/coaching").then(({ markMessageAsRead }) => {
-          markMessageAsRead(m.id).catch(() => {});
+          markMessageAsRead(m.id).catch(() => { });
         });
       });
     }
@@ -672,7 +672,7 @@ export function MessageCoachModal({
         event: "typing",
         payload: { sender: "student", sender_session_id: sessionId, isTyping },
       });
-    } catch {}
+    } catch { }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -733,7 +733,7 @@ export function MessageCoachModal({
         event: "new_message",
         payload: optimisticMessage,
       });
-    } catch {}
+    } catch { }
 
     try {
       const res = await sendStudentMessage(
@@ -773,7 +773,7 @@ export function MessageCoachModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-full md:max-w-full lg:max-w-full max-h-[100vh] h-[100vh] flex flex-col md:flex-row p-0 gap-0 overflow-hidden border-0 rounded-none [&>button]:hidden bg-[#F0F2F5]"
+        className="!fixed !inset-0 !top-0 !left-0 !transform-none !translate-x-0 !translate-y-0 !w-screen !max-w-none !h-[100dvh] !max-h-[100dvh] !p-0 !m-0 !gap-0 !rounded-none !border-0 !flex !flex-col md:!flex-row bg-[#F0F2F5] z-[100] [&>button]:hidden"
       >
         {/* ─────────────────────────────────────────────────────────────
             LEFT COLUMN: INBOX CONTACTS LIST (WhatsApp Web Style)
@@ -783,18 +783,18 @@ export function MessageCoachModal({
             }`}
         >
           {/* Left Top Header */}
-          <div className="bg-[#111827] px-4 py-4 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xs flex items-center justify-center shadow-sm">
+          <div className="bg-[#111827] px-4 py-3.5 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-black text-xs flex items-center justify-center shadow-sm shrink-0">
                 ME
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-white leading-tight">Messages Inbox</h3>
-                <p className="text-[10px] text-slate-300">2-Way Admissions Lines</p>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-white leading-tight truncate">Messages Inbox</h3>
+                <p className="text-[10px] text-slate-300 truncate">2-Way Admissions Lines</p>
               </div>
             </div>
 
-            {/* <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
@@ -806,11 +806,11 @@ export function MessageCoachModal({
               <button
                 onClick={onClose}
                 title="Close chat"
-                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors md:hidden"
+                className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
-            </div> */}
+            </div>
           </div>
 
           {/* Search Box */}
@@ -831,8 +831,8 @@ export function MessageCoachModal({
               <button
                 onClick={() => setFilterTab("all")}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${filterTab === "all"
-                    ? "bg-[#111827] text-white shadow-2xs"
-                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                  ? "bg-[#111827] text-white shadow-2xs"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
                   }`}
               >
                 All Chats
@@ -840,8 +840,8 @@ export function MessageCoachModal({
               <button
                 onClick={() => setFilterTab("unread")}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 ${filterTab === "unread"
-                    ? "bg-rose-500 text-white shadow-2xs"
-                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                  ? "bg-rose-500 text-white shadow-2xs"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
                   }`}
               >
                 Unread
@@ -872,8 +872,8 @@ export function MessageCoachModal({
                       setShowMobileChat(true);
                     }}
                     className={`w-full p-3 sm:px-3.5 sm:py-3 flex items-start gap-3 text-left transition-all hover:bg-slate-50 ${isSelected
-                        ? "bg-slate-100/90 border-l-4 border-emerald-500 shadow-2xs"
-                        : "bg-white"
+                      ? "bg-slate-100/90 border-l-4 border-emerald-500 shadow-2xs"
+                      : "bg-white"
                       }`}
                   >
                     {/* Avatar with Online status */}
@@ -1043,8 +1043,8 @@ export function MessageCoachModal({
                   >
                     <div
                       className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 sm:px-4 sm:py-2.5 shadow-2xs relative ${isStudent
-                          ? "bg-[#00A884] text-white rounded-tr-xs"
-                          : "bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs"
+                        ? "bg-[#00A884] text-white rounded-tr-xs"
+                        : "bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs"
                         }`}
                     >
                       {!isStudent && (
@@ -1194,7 +1194,7 @@ export function CoachingCalendarModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-3xl max-h-[95vh] flex flex-col p-0 overflow-hidden rounded-3xl border-slate-100 shadow-2xl [&>button]:hidden">
+      <DialogContent showCloseButton={false} className="sm:max-w-3xl max-h-[95vh] flex flex-col p-0 pb-2 overflow-hidden rounded-3xl border-slate-100 shadow-2xl [&>button]:hidden">
         <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-4 sm:p-5 text-white flex items-center justify-between shrink-0">
           <div>
             <DialogTitle className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
@@ -1228,16 +1228,16 @@ export function CoachingCalendarModal({
 
         <div className="p-4 sm:p-5 flex-1 overflow-y-auto min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {/* Day of Week Headers */}
-          <div className="grid grid-cols-7 gap-1.5 mb-1.5 text-center">
+          <div className="grid grid-cols-7 gap-1 sm:gap-1.5 mb-1.5 text-center">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <span key={day} className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+              <span key={day} className="text-[10px] sm:text-xs font-extrabold text-slate-400 uppercase tracking-wider text-center">
                 {day}
               </span>
             ))}
           </div>
 
           {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
             {/* Blank offset days */}
             {Array.from({ length: firstDayIndex }).map((_, idx) => (
               <div key={`blank-${idx}`} className="h-12 sm:h-14 rounded-xl bg-slate-50/40 border border-transparent" />
@@ -1255,7 +1255,7 @@ export function CoachingCalendarModal({
               return (
                 <div
                   key={`day-${day}`}
-                  className={`h-12 sm:h-14 p-1 sm:p-1.5 rounded-xl border transition-all flex flex-col justify-between overflow-hidden ${isToday
+                  className={`h-12 sm:h-14 p-1 sm:p-1.5 rounded-xl border transition-all flex flex-col items-center justify-between overflow-hidden text-center ${isToday
                     ? "bg-violet-50/70 border-violet-300 ring-2 ring-violet-200"
                     : daySessions.length > 0
                       ? "bg-white border-violet-200 shadow-2xs"
@@ -1263,13 +1263,13 @@ export function CoachingCalendarModal({
                     }`}
                 >
                   <span
-                    className={`text-[10px] sm:text-xs font-bold leading-none ${isToday ? "text-violet-700 font-extrabold" : "text-slate-700"
+                    className={`text-[10px] sm:text-xs font-bold leading-none text-center w-full block ${isToday ? "text-violet-700 font-extrabold" : "text-slate-700"
                       }`}
                   >
                     {day}
                   </span>
 
-                  <div className="space-y-0.5 overflow-hidden">
+                  <div className="space-y-0.5 overflow-hidden w-full">
                     {daySessions.map((s) => (
                       <button
                         key={s.id}
@@ -1278,7 +1278,7 @@ export function CoachingCalendarModal({
                           onClose();
                         }}
                         title={s.title}
-                        className={`w-full text-left truncate text-[9px] px-1 py-0.2 rounded font-bold transition-transform hover:scale-105 block ${s.session_type === "1:1" || s.session_type === "private" || s.session_type === "individual"
+                        className={`w-full text-center truncate text-[9px] px-1 py-0.2 rounded font-bold transition-transform hover:scale-105 block ${s.session_type === "1:1" || s.session_type === "private" || s.session_type === "individual"
                           ? "bg-purple-100 text-purple-700"
                           : "bg-blue-100 text-blue-700"
                           }`}
@@ -1508,11 +1508,10 @@ export function SessionFeedbackModal({
                   className="p-1 transition-transform hover:scale-110 focus:outline-none cursor-pointer"
                 >
                   <Star
-                    className={`w-7 h-7 ${
-                      star <= rating
+                    className={`w-7 h-7 ${star <= rating
                         ? "text-amber-400 fill-amber-400 drop-shadow-xs"
                         : "text-slate-200"
-                    }`}
+                      }`}
                   />
                 </button>
               ))}
@@ -1520,12 +1519,12 @@ export function SessionFeedbackModal({
                 {rating === 5
                   ? "Outstanding"
                   : rating === 4
-                  ? "Very Helpful"
-                  : rating === 3
-                  ? "Good"
-                  : rating === 2
-                  ? "Fair"
-                  : "Needs Improvement"}
+                    ? "Very Helpful"
+                    : rating === 3
+                      ? "Good"
+                      : rating === 2
+                        ? "Fair"
+                        : "Needs Improvement"}
               </span>
             </div>
           </div>
@@ -1580,51 +1579,51 @@ export function CoachingResourcesModal({ isOpen, onClose, initialResources = [] 
     initialResources && initialResources.length > 0
       ? initialResources
       : [
-          {
-            id: "essays_statements",
-            title: "Common App & Coalition Essay Master Guide",
-            category: "Essays & Statements",
-            description: "Proven brainstorming frameworks, hook strategies, and Stanford/Harvard accepted essay breakdowns.",
-            iconName: "BookOpen",
-            color: "bg-purple-100 text-purple-600",
-            fileUrl: null,
-            fileName: null,
-            fileSize: null,
-          },
-          {
-            id: "scholarships",
-            title: "Full-Ride Scholarship Interview Cheat Sheet",
-            category: "Scholarships",
-            description: "Top 25 questions asked by committee interviewers and how to structure winning responses using the STAR method.",
-            iconName: "FileText",
-            color: "bg-blue-100 text-blue-600",
-            fileUrl: null,
-            fileName: null,
-            fileSize: null,
-          },
-          {
-            id: "financial_aid",
-            title: "US College Admissions & Financial Aid Roadmap",
-            category: "Financial Aid",
-            description: "FAFSA & CSS Profile step-by-step checklist, SAI minimization tips, and appeal letter templates.",
-            iconName: "Sparkles",
-            color: "bg-emerald-100 text-emerald-600",
-            fileUrl: null,
-            fileName: null,
-            fileSize: null,
-          },
-          {
-            id: "applications",
-            title: "College Recommendation Letter Request Kit",
-            category: "Applications",
-            description: "Brag sheet template and email scripts for teachers and high school counselors.",
-            iconName: "Download",
-            color: "bg-amber-100 text-amber-600",
-            fileUrl: null,
-            fileName: null,
-            fileSize: null,
-          },
-        ]
+        {
+          id: "essays_statements",
+          title: "Common App & Coalition Essay Master Guide",
+          category: "Essays & Statements",
+          description: "Proven brainstorming frameworks, hook strategies, and Stanford/Harvard accepted essay breakdowns.",
+          iconName: "BookOpen",
+          color: "bg-purple-100 text-purple-600",
+          fileUrl: null,
+          fileName: null,
+          fileSize: null,
+        },
+        {
+          id: "scholarships",
+          title: "Full-Ride Scholarship Interview Cheat Sheet",
+          category: "Scholarships",
+          description: "Top 25 questions asked by committee interviewers and how to structure winning responses using the STAR method.",
+          iconName: "FileText",
+          color: "bg-blue-100 text-blue-600",
+          fileUrl: null,
+          fileName: null,
+          fileSize: null,
+        },
+        {
+          id: "financial_aid",
+          title: "US College Admissions & Financial Aid Roadmap",
+          category: "Financial Aid",
+          description: "FAFSA & CSS Profile step-by-step checklist, SAI minimization tips, and appeal letter templates.",
+          iconName: "Sparkles",
+          color: "bg-emerald-100 text-emerald-600",
+          fileUrl: null,
+          fileName: null,
+          fileSize: null,
+        },
+        {
+          id: "applications",
+          title: "College Recommendation Letter Request Kit",
+          category: "Applications",
+          description: "Brag sheet template and email scripts for teachers and high school counselors.",
+          iconName: "Download",
+          color: "bg-amber-100 text-amber-600",
+          fileUrl: null,
+          fileName: null,
+          fileSize: null,
+        },
+      ]
   );
 
   React.useEffect(() => {
@@ -1738,11 +1737,10 @@ export function CoachingResourcesModal({ isOpen, onClose, initialResources = [] 
 
                 <button
                   onClick={() => handleDownload(item)}
-                  className={`p-2.5 rounded-xl border transition-all shrink-0 shadow-2xs flex items-center gap-1 text-xs font-bold ${
-                    hasFile
+                  className={`p-2.5 rounded-xl border transition-all shrink-0 shadow-2xs flex items-center gap-1 text-xs font-bold ${hasFile
                       ? "bg-violet-600 text-white border-violet-600 hover:bg-violet-700 hover:shadow-md hover:shadow-violet-200"
                       : "bg-white border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  }`}
+                    }`}
                   title={hasFile ? "Download Handout" : "Handout coming soon"}
                 >
                   <Download className="w-4 h-4" />
@@ -1781,10 +1779,10 @@ export function EliteWelcomeModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-[540px] max-h-[95vh] p-0 overflow-hidden border-0 rounded-3xl shadow-2xl bg-white"
+        className="w-[92vw] sm:max-w-[540px] max-h-[90dvh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden border-0 rounded-3xl shadow-2xl bg-white"
       >
         {/* Top Gradient Banner with Badge */}
-        <div className="bg-gradient-to-br from-[#635BFF] via-[#7C5CFC] to-[#4F46E5] p-6 sm:p-7 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-[#635BFF] via-[#7C5CFC] to-[#4F46E5] p-5 sm:p-7 text-white relative overflow-hidden shrink-0">
           {/* Subtle Background Rings */}
           <div className="absolute -top-12 -right-12 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-400/20 rounded-full blur-xl pointer-events-none" />
@@ -1798,12 +1796,12 @@ export function EliteWelcomeModal({
             <X className="w-4 h-4" />
           </button>
 
-          <div className="space-y-3 relative z-10">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-white text-xs font-bold border border-white/20">
+          <div className="space-y-2.5 sm:space-y-3 relative z-10 pr-6">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-white text-[11px] sm:text-xs font-bold border border-white/20">
               <span>Schoolari Elite Activated</span>
             </div>
 
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
+            <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">
               Hi! Welcome to Schoolari Elite! 🎓
             </h2>
 
@@ -1814,9 +1812,9 @@ export function EliteWelcomeModal({
         </div>
 
         {/* Message Body & Coach Notes */}
-        <div className="p-6 sm:p-7 space-y-5">
+        <div className="p-4 sm:p-7 space-y-4 sm:space-y-5 overflow-y-auto flex-1 overscroll-contain">
           {/* Quote Card */}
-          <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80 space-y-3.5 text-slate-700 text-xs sm:text-sm leading-relaxed">
+          <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80 space-y-3 text-slate-700 text-xs sm:text-sm leading-relaxed">
             <p>
               <strong className="text-slate-900 font-bold">As your personal Schoolari Coach</strong>, I’m here to help you stay on track, make a plan, and move forward with confidence. Tell me how I can assist you.
             </p>
@@ -1829,8 +1827,8 @@ export function EliteWelcomeModal({
           </div>
 
           {/* 3 Key Highlights */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-            <div className="p-3 rounded-xl bg-violet-50/70 border border-violet-100 flex items-center gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 pt-1">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-violet-50/70 border border-violet-100 flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
                 <MessageSquare className="w-4 h-4" />
               </div>
@@ -1840,7 +1838,7 @@ export function EliteWelcomeModal({
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center gap-2.5">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50/70 border border-blue-100 flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                 <Calendar className="w-4 h-4" />
               </div>
@@ -1850,7 +1848,7 @@ export function EliteWelcomeModal({
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-2.5">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
                 <GraduationCap className="w-4 h-4" />
               </div>

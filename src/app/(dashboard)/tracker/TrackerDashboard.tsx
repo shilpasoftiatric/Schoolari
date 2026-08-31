@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Calendar, CheckCircle2, XCircle, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Clock, Calendar, CheckCircle2, XCircle, Trash2, MoreHorizontal, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { canAccessFeature, type SubscriptionPlan } from "@/lib/subscription";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import Swal from "@/lib/swal";
+import { toast } from "sonner";
 import { JobDetailPanel } from "@/app/(dashboard)/jobs/JobDetailPanel";
 
 const getColumnsForCategory = (category: string) => {
@@ -59,6 +60,15 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
   const [isPending, startTransition] = useTransition();
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
 
+  // Auto-scroll and Drag Protection State
+  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const lastDragEndRef = useRef(0);
+  const boardScrollRef = useRef<HTMLDivElement>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const pointerXRef = useRef<number>(0);
+  const pointerYRef = useRef<number>(0);
+
   const activeColumns = getColumnsForCategory(activeCategory);
   
   const visibleCategories = CATEGORIES.filter((c) => {
@@ -101,6 +111,11 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
       prev.map((app) => (String(app.id) === String(appId) ? { ...app, status: newStatus } : app))
     );
 
+    const targetCol = activeColumns.find((c) => c.id === newStatus);
+    if (targetCol) {
+      toast.success(`Moved to ${targetCol.label}`);
+    }
+
     startTransition(async () => {
       try {
         const res = await fetch("/api/tracker/update", {
@@ -111,8 +126,7 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
         if (!res.ok) throw new Error("Failed to update status");
       } catch (e) {
         console.error("Failed to update status", e);
-        // Revert on failure (simplified)
-        setApplications(initialApplications);
+        toast.error("Failed to sync status with server.");
       }
     });
   };
@@ -167,43 +181,212 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
   }, {} as Record<string, any[]>);
 
   const [isMounted, setIsMounted] = useState(false);
+
+  // Auto-scroll loop when card is dragged near the left/right screen edges
+  const startAutoScrollLoop = () => {
+    if (autoScrollRafRef.current) return;
+
+    const scrollLoop = () => {
+      if (!isDraggingRef.current || !boardScrollRef.current) {
+        autoScrollRafRef.current = null;
+        return;
+      }
+
+      const container = boardScrollRef.current;
+      const rect = container.getBoundingClientRect();
+      const clientX = pointerXRef.current;
+
+      // 60px active edge threshold for natural thumb reach
+      const edgeThreshold = 60;
+
+      // Left edge auto-scroll (dragged towards left)
+      if (clientX > 0 && clientX < rect.left + edgeThreshold) {
+        const dist = Math.max(0, rect.left + edgeThreshold - clientX);
+        const speed = 10 + Math.round((dist / edgeThreshold) * 8); // 10px to 18px per frame
+        container.scrollLeft -= speed;
+      }
+      // Right edge auto-scroll (dragged towards right across to Won, Lost, etc.)
+      else if (clientX > 0 && clientX > rect.right - edgeThreshold) {
+        const dist = Math.max(0, clientX - (rect.right - edgeThreshold));
+        const speed = 10 + Math.round((dist / edgeThreshold) * 8); // 10px to 18px per frame
+        container.scrollLeft += speed;
+      }
+
+      autoScrollRafRef.current = requestAnimationFrame(scrollLoop);
+    };
+
+    autoScrollRafRef.current = requestAnimationFrame(scrollLoop);
+  };
+
+  const stopAutoScrollLoop = () => {
+    if (autoScrollRafRef.current) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = null;
+    }
+  };
+
   useEffect(() => {
     setIsMounted(true);
+
+    const handlePointerMove = (e: any) => {
+      let clientX = 0;
+      let clientY = 0;
+      if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else if (e.changedTouches && e.changedTouches.length > 0) {
+        clientX = e.changedTouches[0].clientX;
+        clientY = e.changedTouches[0].clientY;
+      } else if (typeof e.clientX === "number") {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
+      if (clientX > 0) {
+        pointerXRef.current = clientX;
+      }
+      if (clientY > 0) {
+        pointerYRef.current = clientY;
+      }
+    };
+
+    // Use capturing phase so touch positions are received even when child DnD elements intercept
+    window.addEventListener("pointermove", handlePointerMove, { capture: true, passive: true });
+    window.addEventListener("touchmove", handlePointerMove, { capture: true, passive: true });
+    window.addEventListener("mousemove", handlePointerMove, { capture: true, passive: true });
+    window.addEventListener("touchend", handlePointerMove, { capture: true, passive: true });
+    window.addEventListener("pointerup", handlePointerMove, { capture: true, passive: true });
+    window.addEventListener("mouseup", handlePointerMove, { capture: true, passive: true });
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove, { capture: true } as any);
+      window.removeEventListener("touchmove", handlePointerMove, { capture: true } as any);
+      window.removeEventListener("mousemove", handlePointerMove, { capture: true } as any);
+      window.removeEventListener("touchend", handlePointerMove, { capture: true } as any);
+      window.removeEventListener("pointerup", handlePointerMove, { capture: true } as any);
+      window.removeEventListener("mouseup", handlePointerMove, { capture: true } as any);
+      stopAutoScrollLoop();
+    };
   }, []);
 
+  const onDragStart = (start: any) => {
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    startAutoScrollLoop();
+  };
+
   const onDragEnd = (result: DropResult) => {
+    isDraggingRef.current = false;
+    lastDragEndRef.current = Date.now();
+    setIsDragging(false);
+    stopAutoScrollLoop();
+
     const { destination, source, draggableId } = result;
 
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    let targetDroppableId = destination?.droppableId;
 
-    handleStatusChange(draggableId, destination.droppableId);
+    // Fallback: If horizontal scrolling during drag offset @hello-pangea/dnd's internal rects,
+    // look up the exact column DOM element under the touch release coordinates,
+    // skipping the clone of the item currently being dragged!
+    if (!targetDroppableId && pointerXRef.current > 0 && pointerYRef.current > 0) {
+      if (typeof document !== "undefined") {
+        const elements = document.elementsFromPoint(pointerXRef.current, pointerYRef.current);
+        for (const el of elements) {
+          // Skip the draggable element clone that is under the finger
+          if (el.closest(`[data-rbd-draggable-id="${draggableId}"]`)) {
+            continue;
+          }
+          const droppableEl = el.closest("[data-droppable-id]") || el.closest("[data-rbd-droppable-id]");
+          if (droppableEl) {
+            const id = droppableEl.getAttribute("data-droppable-id") || droppableEl.getAttribute("data-rbd-droppable-id");
+            if (id && activeColumns.some((c) => c.id === id)) {
+              targetDroppableId = id;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (!targetDroppableId) return;
+    if (targetDroppableId === source.droppableId && destination?.index === source.index) return;
+
+    handleStatusChange(draggableId, targetDroppableId);
   };
 
   if (!isMounted) return null;
 
   return (
     <div className="space-y-4">
-      {/* Category Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
-        {visibleCategories.map((cat) => (
+      {/* Category Filter Tabs & Mobile Column Quick Navigation */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-2 overflow-x-auto min-w-0 flex-1 no-scrollbar">
+          {visibleCategories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeCategory.toLowerCase() === cat.id.toLowerCase()
+                ? "bg-violet-600 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile Quick Column Slide Buttons */}
+        <div className="flex sm:hidden items-center gap-1 shrink-0">
           <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeCategory.toLowerCase() === cat.id.toLowerCase()
-              ? "bg-violet-600 text-white shadow-sm"
-              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+            type="button"
+            onClick={() => boardScrollRef.current?.scrollBy({ left: -290, behavior: "smooth" })}
+            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shadow-2xs"
+            title="Previous column"
           >
-            {cat.label}
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => boardScrollRef.current?.scrollBy({ left: 290, behavior: "smooth" })}
+            className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shadow-2xs"
+            title="Next column"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Column Quick Pill Selectors */}
+      <div className="flex sm:hidden items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+        {activeColumns.map((col, idx) => (
+          <button
+            key={col.id}
+            type="button"
+            onClick={() => {
+              if (boardScrollRef.current) {
+                const targetScroll = idx * (window.innerWidth * 0.82 + 16);
+                boardScrollRef.current.scrollTo({ left: targetScroll, behavior: "smooth" });
+              }
+            }}
+            className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-bold text-slate-700 shadow-2xs shrink-0 flex items-center gap-1.5 active:bg-violet-50"
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${col.color.split(' ')[0]}`} />
+            {col.label} ({appsByStatus[col.id]?.length || 0})
           </button>
         ))}
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-6 overflow-x-auto pb-8 snap-x snap-mandatory h-[calc(100vh-250px)] min-h-[550px]">
+      <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <div
+          ref={boardScrollRef}
+          className={`flex gap-4 sm:gap-6 overflow-x-auto pb-8 ${isDragging ? "snap-none" : "snap-x snap-proximity"} h-[calc(100vh-250px)] min-h-[550px]`}
+        >
           {activeColumns.map((col) => (
-            <div key={col.id} className="flex-shrink-0 w-80 flex flex-col bg-slate-100/50 rounded-3xl border border-slate-200 snap-center">
+            <div
+              key={col.id}
+              data-droppable-id={col.id}
+              className="flex-shrink-0 w-[82vw] sm:w-80 flex flex-col bg-slate-100/50 rounded-3xl border border-slate-200 snap-center"
+            >
               {/* Column Header */}
               <div className="flex items-center justify-between p-4 border-b border-slate-200/60">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -220,8 +403,9 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
                 {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
+                    data-droppable-id={col.id}
                     {...provided.droppableProps}
-                    className={`flex-1 overflow-y-auto p-4 space-y-4 ${snapshot.isDraggingOver ? 'bg-slate-200/30 rounded-2xl' : ''}`}
+                    className={`flex-1 overflow-y-auto p-4 space-y-4 transition-colors duration-150 ${snapshot.isDraggingOver ? 'bg-violet-100/60 ring-2 ring-violet-500/80 rounded-2xl' : ''}`}
                   >
                     {appsByStatus[col.id]?.map((app, index) => (
                       <Draggable key={String(app.id)} draggableId={String(app.id)} index={index}>
@@ -237,6 +421,10 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
                           >
                             <Card 
                               onClick={() => {
+                                // Block accidental navigation right after dragging
+                                if (isDraggingRef.current || Date.now() - lastDragEndRef.current < 450) {
+                                  return;
+                                }
                                 if (app.reference_type === 'job') {
                                   let notes: any = {};
                                   try { notes = JSON.parse(app.notes || '{}'); } catch(e) {}
@@ -332,7 +520,7 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
                                   </Badge>
                                 </div>
                               </CardHeader>
-                              <CardContent className="p-3.5 pt-0">
+                              <CardContent className="p-3.5 pt-0 space-y-2">
                                 <div className="flex flex-col gap-2 mt-1.5">
                                   {app.due_date && (
                                     <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 bg-slate-50 p-1.5 rounded-lg w-fit">
@@ -340,6 +528,30 @@ export function TrackerDashboard({ initialApplications, plan = 'starter' }: { in
                                       {new Date(app.due_date).toLocaleDateString()}
                                     </div>
                                   )}
+                                </div>
+
+                                {/* Mobile Instant Status Switcher for 1-Tap Moves */}
+                                <div className="flex sm:hidden items-center justify-between gap-2 pt-2 border-t border-slate-100/80">
+                                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                                    Move:
+                                  </span>
+                                  <select
+                                    value={app.status}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleStatusChange(app.id, e.target.value);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onTouchStart={(e) => e.stopPropagation()}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                    className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg px-2 py-1 border-0 focus:ring-2 focus:ring-violet-500 cursor-pointer"
+                                  >
+                                    {activeColumns.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.label}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                               </CardContent>
                               {app.reference_type === "scholarship" && app.reference_id && (

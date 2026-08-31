@@ -60,13 +60,13 @@ function UserActions({
   roleOption?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
       {handleRoleChange && roleOption && (
         <select
           value={user.role}
           onChange={(e) => handleRoleChange(user.id, e.target.value as any)}
           disabled={isPending}
-          className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-violet-500 focus:border-violet-500 block p-2 max-w-[140px] truncate"
+          className="bg-white border border-slate-200 text-slate-700 text-xs sm:text-sm rounded-lg focus:ring-violet-500 focus:border-violet-500 block py-1.5 px-2 max-w-[125px] sm:max-w-[140px] truncate"
         >
           <option value="user">Member (Student/Parent)</option>
           <optgroup label="── Staff Roles ──">
@@ -81,7 +81,7 @@ function UserActions({
           role="button"
           tabIndex={0}
           onClick={(e) => { e.stopPropagation(); onManage(); }}
-          className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+          className="p-1.5 sm:p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer shrink-0"
           title="Manage User"
         >
           <Pencil className="w-4 h-4" />
@@ -91,25 +91,44 @@ function UserActions({
         role="button"
         tabIndex={0}
         onClick={(e) => { e.stopPropagation(); onSendSms(); }}
-        className="p-2 text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors cursor-pointer"
+        className="p-1.5 sm:p-2 text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors cursor-pointer shrink-0"
         title="Send SMS"
       >
         <MessageSquare className="w-4 h-4" />
-      </div>    </div>
+      </div>
+    </div>
   );
 }
 
 function StudentSection({ user, actions }: { user: any, actions: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 items-center w-full text-left pr-4">
-      <div>
-        <p className="font-bold text-slate-900">{user.student_first_name ? `${user.student_first_name} ${user.student_last_name}` : (user.first_name || "—")}</p>
-        <p className="text-slate-500 text-xs">{user.student_email || user.email}</p>
+    <div className="flex flex-col gap-3 md:grid md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] md:gap-4 md:items-center w-full text-left pr-2 md:pr-4">
+      {/* Top row on mobile / Col 1 on desktop: Student name & email */}
+      <div className="flex items-center justify-between gap-2 md:block">
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-slate-900 truncate">{user.student_first_name ? `${user.student_first_name} ${user.student_last_name}` : (user.first_name || "—")}</p>
+          <p className="text-slate-500 text-xs truncate">{user.student_email || user.email}</p>
+        </div>
+        {/* Mobile role badge */}
+        <div className="md:hidden shrink-0">
+          <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${user.role === 'admin'
+            ? 'bg-amber-50 text-amber-700 border-amber-200'
+            : user.role !== 'user'
+              ? 'bg-violet-50 text-violet-700 border-violet-200'
+              : 'bg-slate-100 text-slate-600 border-slate-200'
+            }`}>
+            {user.role === 'admin' ? 'Admin' : user.role !== 'user' ? ROLE_LABELS[user.role as StaffRole] || user.role : 'Member'}
+          </span>
+        </div>
       </div>
+
+      {/* Col 2: Phone */}
       <div className="hidden md:block">
-        <p className="text-slate-700 text-sm font-medium">{formatPhoneUS(user.student_phone) || "—"}</p>
+        <p className="text-slate-700 text-sm font-medium truncate">{formatPhoneUS(user.student_phone) || "—"}</p>
       </div>
-      <div>
+
+      {/* Col 3: Role (Desktop) */}
+      <div className="hidden md:block">
         <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${user.role === 'admin'
           ? 'bg-amber-50 text-amber-700 border-amber-200'
           : user.role !== 'user'
@@ -119,6 +138,8 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
           {user.role === 'admin' ? 'Admin' : user.role !== 'user' ? ROLE_LABELS[user.role as StaffRole] || user.role : 'Member'}
         </span>
       </div>
+
+      {/* Col 4: Date */}
       <div className="hidden md:block">
         <p className="text-slate-500 text-sm font-medium">
           {new Date(user.created_at).toLocaleDateString("en-US", {
@@ -126,9 +147,15 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
           })}
         </p>
       </div>
-      <div className="flex justify-end pr-2 md:pr-0">
-        {actions}
-      </div>    </div>
+
+      {/* Col 5: Actions */}
+      <div className="flex items-center justify-between md:justify-end gap-2 pt-2 md:pt-0 border-t border-slate-100/80 md:border-0 w-full md:w-auto">
+        <div className="text-[11px] text-slate-400 font-medium md:hidden">
+          {new Date(user.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+        </div>
+        <div className="flex justify-end">{actions}</div>
+      </div>
+    </div>
   );
 }
 
@@ -137,7 +164,7 @@ function ParentSection({ user, actions, isPrimary = false }: { user: any, action
 
   if (!hasParent) {
     return (
-      <div className={`p-6 bg-slate-50 text-center text-slate-500 text-sm ${!isPrimary ? "border-t border-slate-100" : ""}`}>
+      <div className={`p-4 sm:p-6 bg-slate-50 text-center text-slate-500 text-sm ${!isPrimary ? "border-t border-slate-100" : ""}`}>
         No linked parent found.
       </div>
     );
@@ -146,19 +173,34 @@ function ParentSection({ user, actions, isPrimary = false }: { user: any, action
   return (
     <div className={!isPrimary ? "p-4 sm:p-6 bg-slate-50/80 border-t border-slate-100" : ""}>
       {!isPrimary && <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Linked Parent</h4>}
-      <div className={`grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 items-center w-full text-left ${isPrimary ? "pr-4" : ""}`}>
-        <div>
-          <p className="font-semibold text-slate-800">{user.parent_first_name ? `${user.parent_first_name} ${user.parent_last_name}` : "—"}</p>
-          <p className="text-slate-500 text-xs">{user.parent_email || "—"}</p>
+      <div className={`flex flex-col gap-3 md:grid md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] md:gap-4 md:items-center w-full text-left ${isPrimary ? "pr-2 md:pr-4" : ""}`}>
+        {/* Top row on mobile / Col 1 on desktop: Parent name & email */}
+        <div className="flex items-center justify-between gap-2 md:block">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-slate-800 truncate">{user.parent_first_name ? `${user.parent_first_name} ${user.parent_last_name}` : "—"}</p>
+            <p className="text-slate-500 text-xs truncate">{user.parent_email || "—"}</p>
+          </div>
+          {/* Mobile role badge */}
+          <div className="md:hidden shrink-0">
+            <span className="px-2.5 py-1 text-xs font-bold rounded-md border bg-slate-100 text-slate-600 border-slate-200">
+              Parent
+            </span>
+          </div>
         </div>
+
+        {/* Col 2: Phone */}
         <div className="hidden md:block">
-          <p className="text-slate-700 text-sm font-medium">{formatPhoneUS(user.parent_phone) || "—"}</p>
+          <p className="text-slate-700 text-sm font-medium truncate">{formatPhoneUS(user.parent_phone) || "—"}</p>
         </div>
-        <div>
+
+        {/* Col 3: Role (Desktop) */}
+        <div className="hidden md:block">
           <span className="px-2.5 py-1 text-xs font-bold rounded-md border bg-slate-100 text-slate-600 border-slate-200">
             Parent
           </span>
         </div>
+
+        {/* Col 4: Date */}
         <div className="hidden md:block">
           <p className="text-slate-500 text-sm font-medium">
             {new Date(user.created_at).toLocaleDateString("en-US", {
@@ -166,10 +208,16 @@ function ParentSection({ user, actions, isPrimary = false }: { user: any, action
             })}
           </p>
         </div>
-        <div className="flex justify-end pr-2 md:pr-4">
-          {actions}
+
+        {/* Col 5: Actions */}
+        <div className="flex items-center justify-between md:justify-end gap-2 pt-2 md:pt-0 border-t border-slate-100/80 md:border-0 w-full md:w-auto">
+          <div className="text-[11px] text-slate-400 font-medium md:hidden">
+            {new Date(user.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+          </div>
+          <div className="flex justify-end">{actions}</div>
         </div>
-      </div>    </div>
+      </div>
+    </div>
   );
 }
 

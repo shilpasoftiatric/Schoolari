@@ -44,11 +44,11 @@ export default async function TrackerPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 mb-8">
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+      <div className="flex flex-col gap-1.5 sm:gap-2 mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
           Tracker
         </h1>
-        <p className="text-slate-500 text-lg max-w-2xl">
+        <p className="text-slate-500 text-xs sm:text-lg max-w-2xl">
           Manage your tasks, scholarships, colleges, and essays. Move them across the board as you progress.
         </p>
       </div>

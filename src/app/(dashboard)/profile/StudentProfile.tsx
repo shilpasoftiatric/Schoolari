@@ -4,8 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   User, Phone, MapPin, GraduationCap, Award, BookOpen, Target, Sparkles,
-  Edit2, Save, X, Mail, Building, Briefcase, Share2, Info, Users
+  Edit2, Save, X, Mail, Building, Briefcase, Share2, Info, Users, Loader2, Check
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -29,6 +35,7 @@ export function StudentProfile({
   aiUsage?: any;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isMobileEditOpen, setIsMobileEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({ ...profile });
 
@@ -61,6 +68,7 @@ export function StudentProfile({
       }
       const data = await res.json();
       setIsEditing(false);
+      setIsMobileEditOpen(false);
       Object.assign(profile, formData);
 
       // Phase 4: Confirmation Message
@@ -169,26 +177,40 @@ export function StudentProfile({
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
-          <p className="text-sm text-slate-500">View and manage student information</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Profile</h1>
+          <p className="text-xs sm:text-sm text-slate-500">View and manage student information</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           {/* <Button variant="outline" className="rounded-xl border-slate-200 text-slate-700 bg-white shadow-sm font-semibold h-10 px-5">
             <Share2 className="w-4 h-4 mr-2" /> Share Profile
           </Button> */}
           {isEditing ? (
             <>
-              <Button onClick={() => setIsEditing(false)} variant="outline" className="rounded-xl border-slate-200 bg-white font-semibold h-10">
+              <Button onClick={() => setIsEditing(false)} variant="outline" className="rounded-xl border-slate-200 bg-white font-semibold h-9 sm:h-10 px-4 text-xs sm:text-sm">
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={isSaving} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold h-10 px-6 shadow-md shadow-violet-200">
+              <Button onClick={handleSave} disabled={isSaving} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold h-9 sm:h-10 px-5 sm:px-6 shadow-md shadow-violet-200 text-xs sm:text-sm">
                 {isSaving ? "Saving..." : "Save Profile"}
               </Button>
             </>
           ) : (
-            <Button onClick={() => setIsEditing(true)} className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold h-10 px-6 shadow-md shadow-violet-200">
-              <Edit2 className="w-4 h-4 mr-2" /> Edit Profile
-            </Button>
+            <>
+              {/* Mobile Button: triggers mobile-specific popup */}
+              <Button
+                onClick={() => setIsMobileEditOpen(true)}
+                className="md:hidden rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold h-9 px-4 shadow-md shadow-violet-200 text-xs flex items-center gap-1.5"
+              >
+                <Edit2 className="w-3.5 h-3.5" /> Edit Profile
+              </Button>
+
+              {/* Desktop Button: triggers inline edit */}
+              <Button
+                onClick={() => setIsEditing(true)}
+                className="hidden md:flex rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold h-10 px-6 shadow-md shadow-violet-200 items-center"
+              >
+                <Edit2 className="w-4 h-4 mr-2" /> Edit Profile
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -468,6 +490,380 @@ export function StudentProfile({
           </Link>
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          Mobile-Only Edit Profile Popup Dialog
+          ───────────────────────────────────────────────────────────── */}
+      <Dialog open={isMobileEditOpen} onOpenChange={setIsMobileEditOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="w-[94vw] sm:max-w-xl max-h-[90dvh] flex flex-col p-0 overflow-hidden rounded-3xl bg-white shadow-2xl border-slate-100"
+        >
+          {/* Header */}
+          <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-4 sm:p-5 text-white flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <Edit2 className="w-4 h-4 text-white" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-base sm:text-lg font-extrabold text-white leading-tight truncate">
+                  Edit Student Profile
+                </DialogTitle>
+                <DialogDescription className="text-violet-100 text-[11px] sm:text-xs mt-0.5 truncate">
+                  Update your personal, academic, and goal details
+                </DialogDescription>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsMobileEditOpen(false)}
+              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors shrink-0"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Scrollable Form Body */}
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6 overscroll-contain">
+
+            {/* 1. Personal Information */}
+            <div className="space-y-3.5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                <User className="w-4 h-4 text-violet-600" />
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                  Personal Information
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">First Name</label>
+                  <Input
+                    name="student_first_name"
+                    value={formData.student_first_name || ""}
+                    onChange={handleChange}
+                    placeholder="e.g. Maya"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Last Name</label>
+                  <Input
+                    name="student_last_name"
+                    value={formData.student_last_name || ""}
+                    onChange={handleChange}
+                    placeholder="e.g. Lin"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">USA Phone Number</label>
+                  <Input
+                    name="student_phone"
+                    type="tel"
+                    value={formData.student_phone || ""}
+                    onChange={handleChange}
+                    placeholder="+1 (555) 000-0000"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">State</label>
+                  <Input
+                    name="state"
+                    value={formData.state || ""}
+                    onChange={handleChange}
+                    placeholder="e.g. TX or Texas"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Gender</label>
+                  <Input
+                    name="gender"
+                    value={formData.gender || ""}
+                    onChange={handleChange}
+                    placeholder="e.g. Female / Male / Non-binary"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Ethnicity (Comma separated)</label>
+                  <Input
+                    placeholder="e.g. Asian, Hispanic"
+                    defaultValue={(formData.ethnicity || []).join(", ")}
+                    onChange={(e) => handleArrayChange("ethnicity", e.target.value)}
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Educational Information */}
+            <div className="space-y-3.5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                <GraduationCap className="w-4 h-4 text-violet-600" />
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                  Educational Information
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">High School / Institution</label>
+                  <Input
+                    name="high_school_name"
+                    value={formData.high_school_name || ""}
+                    onChange={handleChange}
+                    placeholder="e.g. Oakridge High School"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Grade Level / Class</label>
+                  <Input
+                    name="grade_level"
+                    value={formData.grade_level || ""}
+                    onChange={handleChange}
+                    placeholder="e.g. 11th Grade (Junior)"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Graduation Year</label>
+                  <Input
+                    name="expected_graduation_year"
+                    value={formData.expected_graduation_year || ""}
+                    onChange={handleChange}
+                    placeholder="2026"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Unweighted GPA (4.0 Scale)</label>
+                  <Input
+                    name="unweighted_gpa"
+                    value={formData.unweighted_gpa || ""}
+                    onChange={handleChange}
+                    placeholder="3.9"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Weighted GPA (5.0+ Scale)</label>
+                  <Input
+                    name="weighted_gpa"
+                    value={formData.weighted_gpa || ""}
+                    onChange={handleChange}
+                    placeholder="4.4"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Applied to College</label>
+                  <Input
+                    name="applied_to_college"
+                    value={formData.applied_to_college || ""}
+                    onChange={handleChange}
+                    placeholder="Yes / No / In Progress"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Enrolled in College</label>
+                  <Input
+                    name="enrolled_in_college"
+                    value={formData.enrolled_in_college || ""}
+                    onChange={handleChange}
+                    placeholder="Yes / No"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Parent / Guardian Information */}
+            <div className="space-y-3.5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                <Users className="w-4 h-4 text-violet-600" />
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                  Parent / Guardian Information
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Parent First Name</label>
+                  <Input
+                    name="parent_first_name"
+                    value={formData.parent_first_name || ""}
+                    onChange={handleChange}
+                    placeholder="Parent first name"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Parent Last Name</label>
+                  <Input
+                    name="parent_last_name"
+                    value={formData.parent_last_name || ""}
+                    onChange={handleChange}
+                    placeholder="Parent last name"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Parent Email</label>
+                  <Input
+                    name="parent_email"
+                    type="email"
+                    value={formData.parent_email || ""}
+                    onChange={handleChange}
+                    placeholder="parent@email.com"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Parent Phone</label>
+                  <Input
+                    name="parent_phone"
+                    type="tel"
+                    value={formData.parent_phone || ""}
+                    onChange={handleChange}
+                    placeholder="+1 (555) 000-0000"
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Goals, Majors & Target Colleges */}
+            <div className="space-y-3.5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                <Target className="w-4 h-4 text-violet-600" />
+                <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                  Majors, Goals & Colleges
+                </h3>
+              </div>
+
+              <div className="space-y-3.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Intended Majors (Comma separated)</label>
+                  <Input
+                    placeholder="e.g. Computer Science, Bioengineering"
+                    defaultValue={(formData.intended_major || []).join(", ")}
+                    onChange={(e) => handleArrayChange("intended_major", e.target.value)}
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Career Interests (Comma separated)</label>
+                  <Input
+                    placeholder="e.g. Software Engineering, AI Research"
+                    defaultValue={(formData.career_interest || []).join(", ")}
+                    onChange={(e) => handleArrayChange("career_interest", e.target.value)}
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Preferred College Types (Comma separated)</label>
+                  <Input
+                    placeholder="e.g. 4-Year University, Private, Research"
+                    defaultValue={(formData.preferred_college_type || []).join(", ")}
+                    onChange={(e) => handleArrayChange("preferred_college_type", e.target.value)}
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Extracurricular Activities (Comma separated)</label>
+                  <Input
+                    placeholder="e.g. Robotics Club, Track & Field, Math Club"
+                    defaultValue={(formData.extracurricular_activities || []).join(", ")}
+                    onChange={(e) => handleArrayChange("extracurricular_activities", e.target.value)}
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600">Platform Goals & Priorities (Comma separated)</label>
+                  <Input
+                    placeholder="e.g. Scholarships, College List, Essay Review"
+                    defaultValue={(formData.schoolari_goals || []).join(", ")}
+                    onChange={(e) => handleArrayChange("schoolari_goals", e.target.value)}
+                    className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-semibold text-slate-600">Top 3 Target Colleges</label>
+                  <div className="space-y-2">
+                    {[0, 1, 2].map((i) => (
+                      <Input
+                        key={i}
+                        placeholder={`Target School ${i + 1} (e.g. MIT, Stanford)`}
+                        value={formData.top_3_schools?.[i] || ""}
+                        onChange={(e) => {
+                          const newSchools = [...(formData.top_3_schools || ["", "", ""])];
+                          newSchools[i] = e.target.value;
+                          setFormData({ ...formData, top_3_schools: newSchools });
+                        }}
+                        className="h-9.5 rounded-xl border-slate-200 text-sm focus-visible:ring-violet-500"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Footer Actions */}
+          <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
+            <Button
+              type="button"
+              onClick={() => setIsMobileEditOpen(false)}
+              variant="outline"
+              className="rounded-xl border-slate-200 bg-white font-semibold text-xs h-9 px-4"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs h-9 px-5 shadow-md shadow-violet-200 flex items-center gap-1.5"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5" /> Save Changes
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

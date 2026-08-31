@@ -204,13 +204,13 @@ export function CoachingDashboard({
           1. Clean Page Header with Reference Coach Illustration
           ───────────────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 pb-1">
-        <div className="space-y-1.5 max-w-xl">
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+        <div className="space-y-1 sm:space-y-1.5 max-w-xl">
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             College Coach
           </h1>
-          <p className="text-slate-500 text-sm sm:text-base font-normal leading-relaxed">
+          <p className="text-slate-500 text-xs sm:text-base font-normal leading-relaxed">
             Your personal guide for colleges and scholarships.
-            <br />
+            <br className="hidden sm:inline" />
             We&apos;re here to help you every step of the way!
           </p>
         </div>

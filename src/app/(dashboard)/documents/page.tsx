@@ -80,14 +80,14 @@ export default async function DocumentsPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+      <div className="flex flex-col gap-1.5 sm:gap-2">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 sm:gap-3">
           Documents Vault
           <div className="hidden sm:flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600">
             <FolderOpen className="w-4 h-4" />
           </div>
         </h1>
-        <p className="text-slate-500 text-lg max-w-2xl">
+        <p className="text-slate-500 text-xs sm:text-lg max-w-2xl">
           A secure, organized repository for all your educational files. Stop hunting through Google Drive—upload your transcripts, report cards, and resumes here.
         </p>
       </div>

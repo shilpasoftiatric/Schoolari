@@ -323,21 +323,21 @@ export function VideosTable({
     <>
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         {/* Controls */}
-        <div className="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div className="flex gap-3 flex-1 w-full md:max-w-lg">
-            <div className="relative flex-1">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row gap-2.5 flex-1 w-full max-w-xl">
+            <div className="relative flex-1 w-full">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
                 placeholder="Search videos..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="pl-9 h-9"
+                className="pl-9 h-10 sm:h-9 w-full"
               />
             </div>
             <select
               value={filterCategory}
               onChange={e => setFilterCategory(e.target.value)}
-              className="h-9 border border-slate-200 text-sm rounded-lg px-3 focus:ring-violet-500 bg-white min-w-[150px]"
+              className="h-10 sm:h-9 border border-slate-200 text-xs sm:text-sm rounded-lg px-3 focus:ring-violet-500 bg-white w-full sm:min-w-[150px] sm:w-auto"
             >
               <option value="all">All Categories</option>
               {categories.map(c => (
@@ -349,7 +349,7 @@ export function VideosTable({
             onClick={openCreate}
             disabled={categories.length === 0}
             title={categories.length === 0 ? "Create a category first" : undefined}
-            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold h-9 rounded-xl shadow-sm shrink-0"
+            className="w-full sm:w-auto gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold h-10 sm:h-9 rounded-xl shadow-sm shrink-0"
           >
             <Plus className="w-4 h-4" /> Add Video
           </Button>
@@ -377,18 +377,19 @@ export function VideosTable({
         )}
 
         {filtered.length > 0 && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/60">
-                <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 w-14">Thumb</th>
-                <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Title</th>
-                <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Category</th>
-                <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Difficulty</th>
-                <th className="text-center text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Actions</th>
-                <th className="text-center text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Published</th>
-                <th className="text-right text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Controls</th>
-              </tr>
-            </thead>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-sm min-w-[620px]">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60">
+                  <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 w-14">Thumb</th>
+                  <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Title</th>
+                  <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden lg:table-cell">Category</th>
+                  <th className="text-left text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Difficulty</th>
+                  <th className="text-center text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3 hidden md:table-cell">Actions</th>
+                  <th className="text-center text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Published</th>
+                  <th className="text-right text-xs font-bold text-slate-400 uppercase tracking-wide px-4 py-3">Controls</th>
+                </tr>
+              </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((v, idx) => {
                 const thumb = v.video_type === "youtube"
@@ -501,8 +502,9 @@ export function VideosTable({
               })}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
 
       {/* ── Create / Edit Modal ── */}
       {modal.open && (

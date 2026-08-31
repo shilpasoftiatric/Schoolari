@@ -182,9 +182,9 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
-        <div className="flex w-full md:w-auto items-center gap-3 flex-1 max-w-lg">
-          <div className="relative w-full">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-2xl w-full">
+          <div className="relative flex-1 w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               placeholder="Search scholarships..."
@@ -193,31 +193,33 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
               className="pl-9 h-10 w-full"
             />
           </div>
-          <select
-            value={filterSource}
-            onChange={(e) => setFilterSource(e.target.value)}
-            className="h-10 border border-slate-200 text-sm rounded-lg px-3 focus:ring-violet-500 bg-white min-w-[150px]"
-          >
-            <option value="all">All Sources</option>
-            <option value="schoolari">Schoolari Created</option>
-            <option value="ai">AI Fetched</option>
-          </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="h-10 border border-slate-200 text-sm rounded-lg px-3 focus:ring-violet-500 bg-white min-w-[140px]"
-          >
-            <option value="name">Name (A-Z)</option>
-            <option value="deadline">Deadline</option>
-            <option value="category">Category</option>
-            <option value="award">Award amount</option>
-          </select>
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value)}
+              className="h-10 border border-slate-200 text-xs sm:text-sm rounded-lg px-2.5 sm:px-3 focus:ring-violet-500 bg-white w-full sm:min-w-[140px]"
+            >
+              <option value="all">All Sources</option>
+              <option value="schoolari">Schoolari Created</option>
+              <option value="ai">AI Fetched</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="h-10 border border-slate-200 text-xs sm:text-sm rounded-lg px-2.5 sm:px-3 focus:ring-violet-500 bg-white w-full sm:min-w-[130px]"
+            >
+              <option value="name">Name (A-Z)</option>
+              <option value="deadline">Deadline</option>
+              <option value="category">Category</option>
+              <option value="award">Award amount</option>
+            </select>
+          </div>
         </div>
-        <div className="flex w-full md:w-auto items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
           <Button
             onClick={handleScrape}
             disabled={isScraping}
-            className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 rounded-xl gap-2 shadow-sm"
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 rounded-xl gap-2 shadow-sm shrink-0"
           >
             <RefreshCcw className={`w-4 h-4 ${isScraping ? "animate-spin" : ""}`} />
             {isScraping ? "Starting..." : "Auto-Fetch Scholarships"}
@@ -228,7 +230,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
             setSelectedMajors(["Any Major"]);
             setIsMajorDropdownOpen(false);
             setSaveError("");
-          }} className="w-full md:w-auto bg-slate-900 text-white font-bold h-10 rounded-xl gap-2 shadow-sm">
+          }} className="w-full sm:w-auto bg-slate-900 text-white font-bold h-10 rounded-xl gap-2 shadow-sm shrink-0">
             <Plus className="w-4 h-4" /> Add Scholarship
           </Button>
         </div>
@@ -236,8 +238,8 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
 
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left text-sm min-w-[700px]">
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 text-xs uppercase tracking-wider">
               <tr>
                 <th className="px-5 py-4">Scholarship Name</th>

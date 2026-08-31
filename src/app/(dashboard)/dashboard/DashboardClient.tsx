@@ -507,12 +507,12 @@ export function DashboardClient({
 
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 flex items-center gap-2">
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">{firstName}&apos;s</span> Dashboard
           </h1>
-          <p className="text-slate-500 mt-1 text-sm italic">"Every scholarship application is a step closer to your dream."</p>
+          <p className="text-slate-500 mt-1 text-xs sm:text-sm italic">"Every scholarship application is a step closer to your dream."</p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-amber-200 bg-amber-50 text-amber-600 font-semibold text-sm shrink-0">
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-amber-200 bg-amber-50 text-amber-600 font-semibold text-xs sm:text-sm shrink-0 self-start sm:self-auto">
           <Flame className="w-4 h-4" />
           Day {streak} Streak
         </div>
