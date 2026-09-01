@@ -689,10 +689,10 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${resume.resume_type === 'academic'
-                            ? 'bg-violet-50 text-violet-600 border border-violet-100'
-                            : resume.resume_type === 'professional'
-                              ? 'bg-blue-50 text-blue-600 border border-blue-100'
-                              : 'bg-amber-50 text-amber-600 border border-amber-100'
+                          ? 'bg-violet-50 text-violet-600 border border-violet-100'
+                          : resume.resume_type === 'professional'
+                            ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                            : 'bg-amber-50 text-amber-600 border border-amber-100'
                           }`}>
                           {resume.resume_type || 'both'}
                         </span>
@@ -721,7 +721,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
         // EDITOR VIEW
         <>
           {/* Top Action Bar (Hidden when printing) */}
-          <div className="print:hidden bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs relative z-20">
+          <div className="print:hidden bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs relative z-40">
             {/* Main Header Row */}
             <div className="px-3 sm:px-6 py-2.5 sm:py-3.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100/80 relative z-30">
               {/* Row 1 on Mobile: Back Button, Selector, Create New, and Save */}
@@ -736,9 +736,6 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
                     <ArrowLeft className="w-4 h-4" />
                     <span className="hidden sm:inline">Back</span>
                   </button>
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white shadow-md shadow-violet-500/20">
-                    <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </div>
                   <div className="relative flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 sm:flex-none">
                     {/* Custom Theme Dropdown Button */}
                     <button
@@ -938,7 +935,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
           ) : null}
 
           {/* Mobile Switcher (Edit vs Preview) */}
-          <div className="print:hidden sm:hidden flex border-b border-slate-200 bg-white z-20">
+          <div className="print:hidden sm:hidden flex border-b border-slate-200 bg-white relative z-10">
             <button
               onClick={() => setMobileTab("edit")}
               className={`flex-1 py-3 text-xs font-bold text-center border-b-2 flex items-center justify-center gap-1.5 ${mobileTab === "edit"
@@ -960,7 +957,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
           </div>
 
           {/* Main Responsive 2-Column Layout */}
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 p-3 sm:p-6 lg:p-8 max-w-[1600px] mx-auto w-full relative z-20">
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 p-3 sm:p-6 lg:p-8 max-w-[1600px] mx-auto w-full relative z-10">
             {/* LEFT COLUMN: Section Nav & Editors (Colspan 6) */}
             <div
               className={`print:hidden lg:col-span-6 flex flex-col gap-4 sm:gap-5 ${mobileTab === "preview" ? "hidden sm:flex" : "flex"

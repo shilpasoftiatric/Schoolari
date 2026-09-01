@@ -834,21 +834,21 @@ export function DashboardClient({
                 </p>
               )}
             </CardContent>
-            <CardFooter className="flex items-center justify-between pt-4 pb-4 px-6 border-t border-slate-100 bg-slate-50/50">
-              <span className="text-xs font-semibold text-slate-500">
+            <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 pb-3 px-3 sm:px-6 border-t border-slate-100 bg-slate-50/50">
+              <span className="text-xs font-semibold text-slate-500 text-center sm:text-left">
                 Showing {filteredTrackerItems.length > 0 ? (trackerCurrentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-{Math.min(trackerCurrentPage * ITEMS_PER_PAGE, filteredTrackerItems.length)} of {filteredTrackerItems.length} items
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-1.5 sm:gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={isPrevDisabled}
                   onClick={() => setTrackerCurrentPage(prev => Math.max(1, prev - 1))}
-                  className="h-8 px-3 text-xs rounded-xl gap-1 font-semibold disabled:opacity-40"
+                  className="h-8 px-2.5 sm:px-3 pl-1 text-xs rounded-xl gap-1 font-semibold disabled:opacity-40 shrink-0"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  <ChevronLeft className="w-3.5 h-3.5" /> Prev
                 </Button>
-                <span className="text-xs font-extrabold text-slate-700 px-1">
+                <span className="text-xs font-extrabold text-slate-700 px-1.5 sm:px-2 whitespace-nowrap shrink-0">
                   {trackerCurrentPage} / {totalPages}
                 </span>
                 <Button
@@ -856,7 +856,7 @@ export function DashboardClient({
                   size="sm"
                   disabled={isNextDisabled}
                   onClick={() => setTrackerCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  className="h-8 px-3 text-xs rounded-xl gap-1 font-semibold disabled:opacity-40"
+                  className="h-8 px-2.5 sm:px-3 pr-1 text-xs rounded-xl gap-1 font-semibold disabled:opacity-40 shrink-0"
                 >
                   Next <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
