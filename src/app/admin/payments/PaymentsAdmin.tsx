@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   CreditCard, TrendingUp, XCircle, Users, RefreshCw,
   ChevronDown, RotateCcw, Tag, Plus, Trash2, ReceiptText,
-  AlertTriangle, CheckCircle2, Clock
+  AlertTriangle, CheckCircle2, Clock, UserPlus, GraduationCap,
+  Sparkles, X, Lock, Mail, User, Phone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +17,8 @@ import {
   changeSubscriptionPlan,
   createCoupon,
   deleteCoupon,
+  createAndActivateMember,
+  manualActivateSubscriber,
 } from "@/app/actions/admin-payments";
 import { toast } from "sonner";
 
@@ -55,6 +59,18 @@ export function PaymentsAdmin({
   availablePlans: { priceId: string; name: string }[];
   stripeConfigured: boolean;
 }) {
+  const router = useRouter();
+  const [couponList, setCouponList] = useState(coupons);
+  const [subscriberList, setSubscriberList] = useState(subscribers);
+
+  useEffect(() => {
+    setCouponList(coupons);
+  }, [coupons]);
+
+  useEffect(() => {
+    setSubscriberList(subscribers);
+  }, [subscribers]);
+
   const [activeTab, setActiveTab] = useState<"subscriptions" | "history" | "coupons">("subscriptions");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -75,7 +91,7 @@ export function PaymentsAdmin({
   const [changePlanTarget, setChangePlanTarget] = useState<any | null>(null);
   const [selectedNewPlan, setSelectedNewPlan] = useState("");
 
-  const filteredSubs = subscribers.filter(
+  const filteredSubs = subscriberList.filter(
     (s) =>
       s.display_name.toLowerCase().includes(search.toLowerCase()) ||
       s.display_email.toLowerCase().includes(search.toLowerCase())
@@ -87,6 +103,7 @@ export function PaymentsAdmin({
       try {
         await cancelSubscription(sub.stripe_subscription_id, sub.id);
         toast.success(`Subscription canceled for ${sub.display_name}`);
+        router.refresh();
       } catch (e: any) {
         toast.error(e.message);
       }
@@ -102,6 +119,7 @@ export function PaymentsAdmin({
         toast.success("Refund issued successfully!");
         setRefundTarget(null);
         setRefundAmount("");
+        router.refresh();
       } catch (e: any) {
         toast.error(`Refund failed: ${e.message}`);
       }
@@ -116,8 +134,64 @@ export function PaymentsAdmin({
         toast.success("Plan updated successfully!");
         setChangePlanTarget(null);
         setSelectedNewPlan("");
+        router.refresh();
       } catch (e: any) {
         toast.error(`Plan change failed: ${e.message}`);
+      }
+    });
+  };
+
+  // Add Member Modal state
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [newMemberForm, setNewMemberForm] = useState({
+    accountType: "student" as "student" | "parent",
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    phone: "",
+    planPriceId: availablePlans[1]?.priceId || availablePlans[0]?.priceId || "",
+    linkedParentName: "",
+    linkedParentEmail: "",
+    linkedParentPhone: "",
+    linkedStudentName: "",
+    linkedStudentEmail: "",
+    linkedStudentPhone: "",
+  });
+
+  const handleCreateMember = () => {
+    if (!newMemberForm.email || !newMemberForm.password || !newMemberForm.firstName || !newMemberForm.lastName || !newMemberForm.planPriceId) {
+      toast.error("Please fill in all required fields (First Name, Last Name, Email, Password, Plan).");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await createAndActivateMember(newMemberForm);
+        if (res?.error) {
+          toast.error(res.error);
+        } else {
+          toast.success(`Account created & ${newMemberForm.accountType === "student" ? "Student" : "Parent"} plan activated!`);
+          setShowAddMemberModal(false);
+          setNewMemberForm({
+            accountType: "student",
+            firstName: "",
+            lastName: "",
+            email: "",
+            password: "",
+            phone: "",
+            planPriceId: availablePlans[1]?.priceId || availablePlans[0]?.priceId || "",
+            linkedParentName: "",
+            linkedParentEmail: "",
+            linkedParentPhone: "",
+            linkedStudentName: "",
+            linkedStudentEmail: "",
+            linkedStudentPhone: "",
+          });
+          router.refresh();
+        }
+      } catch (e: any) {
+        toast.error(`Creation failed: ${e.message}`);
       }
     });
   };
@@ -125,7 +199,7 @@ export function PaymentsAdmin({
   const handleCreateCoupon = () => {
     startTransition(async () => {
       try {
-        await createCoupon({
+        const res = await createCoupon({
           name: couponForm.name,
           percentOff: couponForm.percentOff ? parseFloat(couponForm.percentOff) : undefined,
           amountOff: couponForm.amountOff ? parseFloat(couponForm.amountOff) : undefined,
@@ -133,9 +207,24 @@ export function PaymentsAdmin({
           durationInMonths: couponForm.durationInMonths ? parseInt(couponForm.durationInMonths) : undefined,
           maxRedemptions: couponForm.maxRedemptions ? parseInt(couponForm.maxRedemptions) : undefined,
         });
-        toast.success("Coupon created in Stripe!");
-        setShowCouponForm(false);
-        setCouponForm({ name: "", percentOff: "", amountOff: "", duration: "once", durationInMonths: "", maxRedemptions: "" });
+
+        if (res?.success) {
+          toast.success("Coupon created in Stripe!");
+          const newCouponObj = {
+            id: res.couponId || couponForm.name.toUpperCase().trim(),
+            name: couponForm.name,
+            percent_off: couponForm.percentOff ? parseFloat(couponForm.percentOff) : null,
+            amount_off: couponForm.amountOff ? Math.round(parseFloat(couponForm.amountOff) * 100) : null,
+            duration: couponForm.duration,
+            duration_in_months: couponForm.durationInMonths ? parseInt(couponForm.durationInMonths) : null,
+            max_redemptions: couponForm.maxRedemptions ? parseInt(couponForm.maxRedemptions) : null,
+            times_redeemed: 0,
+          };
+          setCouponList((prev) => [newCouponObj, ...prev]);
+          setShowCouponForm(false);
+          setCouponForm({ name: "", percentOff: "", amountOff: "", duration: "once", durationInMonths: "", maxRedemptions: "" });
+          router.refresh();
+        }
       } catch (e: any) {
         toast.error(`Failed to create coupon: ${e.message}`);
       }
@@ -144,12 +233,17 @@ export function PaymentsAdmin({
 
   const handleDeleteCoupon = (id: string) => {
     if (!confirm("Delete this coupon from Stripe?")) return;
+    setCouponList((prev) => prev.filter((c) => c.id !== id));
     startTransition(async () => {
       try {
-        await deleteCoupon(id);
-        toast.success("Coupon deleted.");
+        const res = await deleteCoupon(id);
+        if (res?.success) {
+          toast.success("Coupon deleted.");
+          router.refresh();
+        }
       } catch (e: any) {
         toast.error(e.message);
+        router.refresh();
       }
     });
   };
@@ -189,13 +283,25 @@ export function PaymentsAdmin({
       {/* Subscriptions Tab */}
       {activeTab === "subscriptions" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name or email..."
               className="max-w-sm"
             />
+            <Button
+              onClick={() => {
+                setNewMemberForm((f) => ({
+                  ...f,
+                  planPriceId: f.planPriceId || availablePlans[0]?.priceId || "",
+                }));
+                setShowAddMemberModal(true);
+              }}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs shrink-0 cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" /> Add &amp; Activate Member
+            </Button>
           </div>
           <div className="divide-y divide-slate-100">
             {filteredSubs.length === 0 ? (
@@ -328,7 +434,7 @@ export function PaymentsAdmin({
       {activeTab === "coupons" && (
         <div className="space-y-5">
           <div className="flex justify-between items-center">
-            <p className="text-sm text-slate-500 font-medium">{coupons.length} active coupon{coupons.length !== 1 ? "s" : ""} in Stripe</p>
+            <p className="text-sm text-slate-500 font-medium">{couponList.length} active coupon{couponList.length !== 1 ? "s" : ""} in Stripe</p>
             <Button onClick={() => setShowCouponForm(!showCouponForm)} className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
               <Plus className="w-4 h-4" /> Create Coupon
             </Button>
@@ -384,13 +490,13 @@ export function PaymentsAdmin({
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="divide-y divide-slate-100">
-              {coupons.length === 0 ? (
+              {couponList.length === 0 ? (
                 <div className="p-12 text-center text-slate-400">
                   <Tag className="w-10 h-10 mx-auto mb-3 text-slate-200" />
                   <p>No coupons yet. Create one to offer discounts.</p>
                 </div>
               ) : (
-                coupons.map((coupon) => (
+                couponList.map((coupon) => (
                   <div key={coupon.id} className="px-5 py-4 flex items-center gap-4">
                     <div className="w-9 h-9 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
                       <Tag className="w-4 h-4" />
@@ -439,11 +545,35 @@ export function PaymentsAdmin({
                 </div>
               </div>
               <p className="text-xs text-slate-400">Prorated charges will be applied automatically by Stripe.</p>
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="outline" onClick={() => setChangePlanTarget(null)}>Cancel</Button>
-                <Button disabled={!selectedNewPlan || isPending} onClick={handleChangePlan} className="bg-slate-900 text-white hover:bg-slate-800">
-                  {isPending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Confirm Change"}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!selectedNewPlan || isPending}
+                  onClick={() => {
+                    if (changePlanTarget && selectedNewPlan) {
+                      startTransition(async () => {
+                        try {
+                          await manualActivateSubscriber(changePlanTarget.id, selectedNewPlan);
+                          toast.success("Plan updated in database!");
+                          setChangePlanTarget(null);
+                          setSelectedNewPlan("");
+                        } catch (e: any) {
+                          toast.error(`Direct DB update failed: ${e.message}`);
+                        }
+                      });
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  Force DB Plan Fix
                 </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setChangePlanTarget(null)}>Cancel</Button>
+                  <Button size="sm" disabled={!selectedNewPlan || isPending} onClick={handleChangePlan} className="bg-slate-900 text-white hover:bg-slate-800">
+                    {isPending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Confirm via Stripe"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -474,6 +604,258 @@ export function PaymentsAdmin({
                   {isPending ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Issue Refund"}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member & Activate Plan Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden my-8">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-emerald-600" />
+                  Add &amp; Activate Member
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Create an account and immediately grant live subscription access without entering a card.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddMemberModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {/* Account Type Selector (Matches Signup Flow) */}
+              <div>
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 block">
+                  Account Type
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewMemberForm((f) => ({ ...f, accountType: "student" }))}
+                    className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left cursor-pointer ${newMemberForm.accountType === "student"
+                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-950 font-bold"
+                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                      }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${newMemberForm.accountType === "student" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                      }`}>
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">Student Account</p>
+                      <p className="text-[11px] text-slate-400 font-normal">Primary scholarship applicant</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewMemberForm((f) => ({ ...f, accountType: "parent" }))}
+                    className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left cursor-pointer ${newMemberForm.accountType === "parent"
+                        ? "border-emerald-600 bg-emerald-50/50 text-emerald-950 font-bold"
+                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                      }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${newMemberForm.accountType === "parent" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                      }`}>
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold">Parent Account</p>
+                      <p className="text-[11px] text-slate-400 font-normal">Parent / Guardian supervisor</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Primary User Information */}
+              <div className="space-y-3">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                  {newMemberForm.accountType === "student" ? "Student Information" : "Parent Information"}
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">First Name *</Label>
+                    <Input
+                      placeholder="e.g. Alex"
+                      value={newMemberForm.firstName}
+                      onChange={(e) => setNewMemberForm((f) => ({ ...f, firstName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Last Name *</Label>
+                    <Input
+                      placeholder="e.g. Smith"
+                      value={newMemberForm.lastName}
+                      onChange={(e) => setNewMemberForm((f) => ({ ...f, lastName: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Email Address *</Label>
+                  <Input
+                    type="email"
+                    placeholder="e.g. member@schoolari.com"
+                    value={newMemberForm.email}
+                    onChange={(e) => setNewMemberForm((f) => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Password *</Label>
+                    <Input
+                      type="text"
+                      placeholder="Password123!"
+                      value={newMemberForm.password}
+                      onChange={(e) => setNewMemberForm((f) => ({ ...f, password: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Phone Number (Optional)</Label>
+                    <Input
+                      type="tel"
+                      placeholder="+1 (555) 000-0000"
+                      value={newMemberForm.phone}
+                      onChange={(e) => setNewMemberForm((f) => ({ ...f, phone: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan Selection */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                  Subscription Plan to Grant
+                </Label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {availablePlans.map((plan) => {
+                    const isSelected = newMemberForm.planPriceId === plan.priceId;
+                    return (
+                      <button
+                        key={plan.priceId}
+                        type="button"
+                        onClick={() => setNewMemberForm((f) => ({ ...f, planPriceId: plan.priceId }))}
+                        className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${isSelected
+                            ? "border-emerald-600 bg-emerald-50 text-emerald-950 font-bold"
+                            : "border-slate-200 text-slate-700 hover:border-slate-300"
+                          }`}
+                      >
+                        <p className="text-xs font-bold">{plan.name}</p>
+                        <p className="text-[10px] text-slate-500 font-normal">Active Live Access</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Optional Linked Account Details (Matching Signup Flow) */}
+              <div className="border-t border-slate-100 pt-4 space-y-3">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                  {newMemberForm.accountType === "student"
+                    ? "Linked Parent Information (Optional)"
+                    : "Linked Student Information (Optional)"}
+                </Label>
+
+                {newMemberForm.accountType === "student" ? (
+                  <div className="space-y-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-600">Parent Full Name</Label>
+                        <Input
+                          placeholder="e.g. John Smith"
+                          className="bg-white h-8 text-xs"
+                          value={newMemberForm.linkedParentName}
+                          onChange={(e) => setNewMemberForm((f) => ({ ...f, linkedParentName: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-600">Parent Email</Label>
+                        <Input
+                          type="email"
+                          placeholder="parent@example.com"
+                          className="bg-white h-8 text-xs"
+                          value={newMemberForm.linkedParentEmail}
+                          onChange={(e) => setNewMemberForm((f) => ({ ...f, linkedParentEmail: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-600">Parent Phone</Label>
+                      <Input
+                        type="tel"
+                        placeholder="+1 (555) 000-0000"
+                        className="bg-white h-8 text-xs"
+                        value={newMemberForm.linkedParentPhone}
+                        onChange={(e) => setNewMemberForm((f) => ({ ...f, linkedParentPhone: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-600">Student Full Name</Label>
+                        <Input
+                          placeholder="e.g. Alex Smith"
+                          className="bg-white h-8 text-xs"
+                          value={newMemberForm.linkedStudentName}
+                          onChange={(e) => setNewMemberForm((f) => ({ ...f, linkedStudentName: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-600">Student Email</Label>
+                        <Input
+                          type="email"
+                          placeholder="student@example.com"
+                          className="bg-white h-8 text-xs"
+                          value={newMemberForm.linkedStudentEmail}
+                          onChange={(e) => setNewMemberForm((f) => ({ ...f, linkedStudentEmail: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-600">Student Phone</Label>
+                      <Input
+                        type="tel"
+                        placeholder="+1 (555) 000-0000"
+                        className="bg-white h-8 text-xs"
+                        value={newMemberForm.linkedStudentPhone}
+                        onChange={(e) => setNewMemberForm((f) => ({ ...f, linkedStudentPhone: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowAddMemberModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={isPending}
+                onClick={handleCreateMember}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 cursor-pointer"
+              >
+                {isPending ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Create Account &amp; Activate Plan
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>

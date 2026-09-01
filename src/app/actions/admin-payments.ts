@@ -142,5 +142,135 @@ export async function deleteCoupon(couponId: string) {
   await requirePermission("manage_payments");
   const stripe = getStripe();
   await stripe.coupons.del(couponId);
+  revalidatePath("/admin/payments");
+  return { success: true };
+}
+
+/**
+ * Create and Activate a Member (Student or Parent) directly from the Admin Panel
+ */
+export async function createAndActivateMember(data: {
+  accountType: "student" | "parent";
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  planPriceId: string;
+  linkedParentEmail?: string;
+  linkedParentName?: string;
+  linkedParentPhone?: string;
+  linkedStudentEmail?: string;
+  linkedStudentName?: string;
+  linkedStudentPhone?: string;
+}) {
+  await requirePermission("manage_payments");
+  const adminClient = await createAdminClient();
+
+  const isStudent = data.accountType === "student";
+
+  // 1. Create Auth User
+  const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+    email: data.email.trim(),
+    password: data.password,
+    email_confirm: true,
+    user_metadata: {
+      phone: data.phone?.trim() || "",
+      account_type: data.accountType,
+      first_name: data.firstName.trim(),
+      last_name: data.lastName.trim(),
+    },
+  });
+
+  if (authError || !authData.user) {
+    return { error: authError?.message || "Failed to create user account" };
+  }
+
+  const userId = authData.user.id;
+  const mockCustId = `cus_admin_${userId.slice(0, 8)}`;
+  const mockSubId = `sub_admin_${userId.slice(0, 8)}`;
+
+  // 2. Build Profile Data
+  const profileData: Record<string, any> = {
+    id: userId,
+    account_type: data.accountType,
+    phone: data.phone?.trim() || "",
+    subscription_status: "active",
+    stripe_price_id: data.planPriceId,
+    stripe_customer_id: mockCustId,
+    stripe_subscription_id: mockSubId,
+    is_active: true,
+    onboarding_complete: false,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (isStudent) {
+    profileData.student_first_name = data.firstName.trim();
+    profileData.student_last_name = data.lastName.trim();
+    profileData.student_email = data.email.trim();
+    profileData.student_phone = data.phone?.trim() || "";
+
+    if (data.linkedParentEmail) {
+      profileData.parent_email = data.linkedParentEmail.trim();
+      const nameParts = (data.linkedParentName || "").trim().split(" ");
+      profileData.parent_first_name = nameParts[0] || "";
+      profileData.parent_last_name = nameParts.slice(1).join(" ") || "";
+      profileData.parent_phone = data.linkedParentPhone?.trim() || "";
+    }
+  } else {
+    // Parent
+    profileData.parent_first_name = data.firstName.trim();
+    profileData.parent_last_name = data.lastName.trim();
+    profileData.parent_email = data.email.trim();
+    profileData.parent_phone = data.phone?.trim() || "";
+
+    if (data.linkedStudentEmail) {
+      profileData.student_email = data.linkedStudentEmail.trim();
+      const nameParts = (data.linkedStudentName || "").trim().split(" ");
+      profileData.student_first_name = nameParts[0] || "";
+      profileData.student_last_name = nameParts.slice(1).join(" ") || "";
+      profileData.student_phone = data.linkedStudentPhone?.trim() || "";
+    }
+  }
+
+  // 3. Upsert Profile
+  const { error: profileError } = await adminClient
+    .from("profiles")
+    .upsert(profileData);
+
+  if (profileError) {
+    return { error: profileError.message };
+  }
+
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/users");
+
+  return { success: true, userId };
+}
+
+/**
+ * Manually activate or change an existing user's plan in DB (bypassing Stripe)
+ */
+export async function manualActivateSubscriber(userId: string, priceId: string) {
+  await requirePermission("manage_payments");
+  const adminClient = await createAdminClient();
+
+  const mockSubId = `sub_admin_${userId.slice(0, 8)}`;
+  const mockCustId = `cus_admin_${userId.slice(0, 8)}`;
+
+  await adminClient
+    .from("profiles")
+    .update({
+      subscription_status: "active",
+      stripe_price_id: priceId,
+      stripe_customer_id: mockCustId,
+      stripe_subscription_id: mockSubId,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/users");
   return { success: true };
 }
