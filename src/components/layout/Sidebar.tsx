@@ -84,6 +84,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ];
 
+import Image from "next/image";
+
 interface SidebarProps {
   siteName?: string;
   progressData?: {
@@ -140,13 +142,19 @@ export default function Sidebar({ siteName = "Schoolari", progressData, plan }: 
             }}
             className={cn("flex items-center gap-2.5", isSidebarCollapsed && "hover:opacity-80 transition-opacity")}
           >
-            <div className="flex items-center justify-center w-9 h-9 shrink-0 rounded-xl bg-violet-100">
-              <GraduationCap className="w-5 h-5 text-violet-600" />
-            </div>
-            {!isSidebarCollapsed && (
-              <span className="text-xl font-extrabold tracking-tight text-slate-900 truncate">
-                School<span className="text-violet-600">ari</span>
-              </span>
+            {!isSidebarCollapsed ? (
+              <Image
+                src="/images/Schoolari_logo.png"
+                alt="Schoolari"
+                width={150}
+                height={40}
+                className="h-10 w-auto object-contain"
+                priority
+              />
+            ) : (
+              <div className="flex items-center justify-center w-9 h-9 shrink-0 rounded-xl bg-violet-100">
+                <GraduationCap className="w-5 h-5 text-violet-600" />
+              </div>
             )}
           </Link>
           {!isSidebarCollapsed && (

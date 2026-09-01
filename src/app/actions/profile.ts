@@ -186,12 +186,15 @@ export async function saveOnboardingStep(step: number, data: any) {
       const parentPhone = updatedProfile.parent_phone;
       const parentFirstName = updatedProfile.parent_first_name;
 
-      if (studentPhone) {
-        await sendWelcomeSMS(studentPhone, 'student', isCurrentUserStudent).catch(console.error);
+      const formattedStudentPhone = studentPhone ? formatPhoneE164(studentPhone) : null;
+      const formattedParentPhone = parentPhone ? formatPhoneE164(parentPhone) : null;
+
+      if (formattedStudentPhone) {
+        await sendWelcomeSMS(formattedStudentPhone, 'student', isCurrentUserStudent).catch(console.error);
       }
 
-      if (parentPhone) {
-        await sendWelcomeSMS(parentPhone, 'parent', !isCurrentUserStudent).catch(console.error);
+      if (formattedParentPhone && formattedParentPhone !== formattedStudentPhone) {
+        await sendWelcomeSMS(formattedParentPhone, 'parent', !isCurrentUserStudent).catch(console.error);
       }
 
       // Check if subscriber is on a trial

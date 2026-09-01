@@ -102,32 +102,60 @@ function DashboardSection({
   const [trackerDueDate, setTrackerDueDate] = useState<string>("");
 
   const handleComplete = async (taskId: string, taskTitle: string) => {
-    // Optimistic UI state update
-    setCompletedTaskIds((prev) => ({ ...prev, [taskId]: true }));
+    const isMobileOrTablet = typeof window !== "undefined" ? window.innerWidth < 1024 : false;
 
-    const result = await Swal.fire({
-      title: "Confirm Completion",
-      text: `Did you complete: "${taskTitle}"?`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Yes, complete it",
-      cancelButtonText: "No, undo selection",
-      confirmButtonColor: "#10b981", // emerald-500
-      cancelButtonColor: "#94a3b8"
-    });
-
-    if (result.isConfirmed) {
-      startTransition(async () => {
-        await completeTask(taskId, taskTitle);
-        if (onRefresh) onRefresh();
+    if (isMobileOrTablet) {
+      const result = await Swal.fire({
+        title: "Task Options",
+        text: `"${taskTitle}"`,
+        icon: "question",
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: "✓ Complete Task",
+        denyButtonText: "📅 Move to Tracker",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#10b981", // emerald-500
+        denyButtonColor: "#7c3aed", // violet-600
+        cancelButtonColor: "#94a3b8"
       });
+
+      if (result.isConfirmed) {
+        setCompletedTaskIds((prev) => ({ ...prev, [taskId]: true }));
+        startTransition(async () => {
+          await completeTask(taskId, taskTitle);
+          if (onRefresh) onRefresh();
+        });
+      } else if (result.isDenied) {
+        setTrackerTaskModal({ id: taskId, title: taskTitle });
+        setTrackerDueDate(new Date().toISOString().split("T")[0]);
+      }
     } else {
-      // Revert optimistic update
-      setCompletedTaskIds((prev) => {
-        const next = { ...prev };
-        delete next[taskId];
-        return next;
+      // Desktop / Laptop: Confirm completion only (Move to Tracker is available via hover)
+      setCompletedTaskIds((prev) => ({ ...prev, [taskId]: true }));
+
+      const result = await Swal.fire({
+        title: "Confirm Completion",
+        text: `Did you complete: "${taskTitle}"?`,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Yes, complete it",
+        cancelButtonText: "No, undo selection",
+        confirmButtonColor: "#10b981", // emerald-500
+        cancelButtonColor: "#94a3b8"
       });
+
+      if (result.isConfirmed) {
+        startTransition(async () => {
+          await completeTask(taskId, taskTitle);
+          if (onRefresh) onRefresh();
+        });
+      } else {
+        setCompletedTaskIds((prev) => {
+          const next = { ...prev };
+          delete next[taskId];
+          return next;
+        });
+      }
     }
   };
 

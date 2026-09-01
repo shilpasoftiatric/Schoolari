@@ -125,10 +125,12 @@ export const getStudentDashboardData = cache(async (userId: string) => {
   const { data: globalTasks } = await supabaseAdmin.from("tasks").select("*").eq("user_id", masterId).order("created_at", { ascending: false });
 
   // Basic Match Count (Strict Filtering)
+  const todayStr = new Date().toISOString().split('T')[0];
   const { data: allScholarships } = await supabaseAdmin
     .from("scholarships")
     .select("*")
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .or(`deadline.is.null,deadline.gte.${todayStr}`);
     
   const { isScholarshipEligible } = await import("@/lib/scholarship-matching");
   const matchedScholarshipsCount = (allScholarships || []).filter(s => isScholarshipEligible(s, masterProfile)).length;

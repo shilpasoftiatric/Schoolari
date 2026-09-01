@@ -67,18 +67,18 @@ export function StarBulletModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl max-w-[95vw] w-full rounded-3xl p-0 bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[98vh]">
-        <div className="px-6 pt-6 pb-2 shrink-0">
+      <DialogContent className="sm:max-w-2xl max-w-[92vw] w-full rounded-3xl p-0 bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90dvh]">
+        <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 shrink-0">
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs shrink-0">
                 <Sparkles className="w-5 h-5" />
               </div>
-              <div>
-                <DialogTitle className="text-lg font-black text-slate-900">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-base sm:text-lg font-black text-slate-900 truncate">
                   AI STAR Bullet Optimizer
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
+                <DialogDescription className="text-xs text-slate-500 line-clamp-2">
                   Harvard ATS-optimized variations using Situation, Task, Action, and Result methodology.
                 </DialogDescription>
               </div>
@@ -86,22 +86,22 @@ export function StarBulletModal({
           </DialogHeader>
         </div>
 
-        <div className="px-6 py-2 overflow-y-auto custom-scrollbar flex-1">
-          <div className="space-y-4">
+        <div className="px-4 sm:px-6 py-2 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+          <div className="space-y-3 sm:space-y-4">
             <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl">
               <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
                 Original Bullet
               </span>
-              <p className="text-sm text-slate-700 italic">"{originalBullet}"</p>
+              <p className="text-xs sm:text-sm text-slate-700 italic">"{originalBullet}"</p>
             </div>
 
             {loading && (
-              <div className="py-12 flex flex-col items-center justify-center text-center">
+              <div className="py-10 flex flex-col items-center justify-center text-center">
                 <Loader2 className="w-8 h-8 animate-spin text-violet-600 mb-2" />
-                <p className="text-sm font-bold text-slate-700">
+                <p className="text-xs sm:text-sm font-bold text-slate-700">
                   Crafting Harvard STAR variations with Claude Sonnet 4.6...
                 </p>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-[11px] text-slate-400 mt-0.5">
                   Injecting action verbs and quantifiable impact frameworks
                 </p>
               </div>
@@ -126,14 +126,14 @@ export function StarBulletModal({
                 {/* Option 1: Action Focused */}
                 <div
                   onClick={() => setSelectedOption("actionFocused")}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedOption === "actionFocused"
+                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedOption === "actionFocused"
                     ? "border-violet-600 bg-violet-50/40 shadow-sm"
                     : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">
-                      <Zap className="w-3.5 h-3.5" /> Action-Oriented
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">
+                      <Zap className="w-3.5 h-3.5 shrink-0" /> Action-Oriented
                     </span>
                     <Button
                       size="sm"
@@ -146,7 +146,7 @@ export function StarBulletModal({
                       <Check className="w-3.5 h-3.5 mr-1" /> Apply
                     </Button>
                   </div>
-                  <p className="text-sm text-slate-700 leading-relaxed pr-2">
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed pr-1">
                     {variations.actionFocused}
                   </p>
                 </div>
@@ -154,14 +154,14 @@ export function StarBulletModal({
                 {/* Option 2: Metric Focused */}
                 <div
                   onClick={() => setSelectedOption("metricFocused")}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedOption === "metricFocused"
+                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedOption === "metricFocused"
                     ? "border-violet-600 bg-violet-50/40 shadow-sm"
                     : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
-                      <Target className="w-3.5 h-3.5" /> Metric & Impact Focused
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                      <Target className="w-3.5 h-3.5 shrink-0" /> Metric & Impact Focused
                     </span>
                     <Button
                       size="sm"
@@ -174,10 +174,10 @@ export function StarBulletModal({
                       <Check className="w-3.5 h-3.5 mr-1" /> Apply
                     </Button>
                   </div>
-                  <p className="text-sm text-slate-700 leading-relaxed pr-2">
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed pr-1">
                     {variations.metricFocused}
                   </p>
-                  <div className="mt-2 text-[11px] font-medium text-amber-600 bg-amber-50/50 p-2 rounded-lg border border-amber-100 flex items-start gap-1.5">
+                  <div className="mt-2 text-[10px] sm:text-[11px] font-medium text-amber-600 bg-amber-50/50 p-2 rounded-lg border border-amber-100 flex items-start gap-1.5">
                     <Lightbulb className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                     <span className="italic">
                       Tip: Replace bracket placeholders like [X]% with your estimated actual numbers!
@@ -188,14 +188,14 @@ export function StarBulletModal({
                 {/* Option 3: Leadership Focused */}
                 <div
                   onClick={() => setSelectedOption("leadershipFocused")}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedOption === "leadershipFocused"
+                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedOption === "leadershipFocused"
                     ? "border-violet-600 bg-violet-50/40 shadow-sm"
                     : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full">
-                      <Trophy className="w-3.5 h-3.5" /> Leadership & Collaboration
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full">
+                      <Trophy className="w-3.5 h-3.5 shrink-0" /> Leadership & Collaboration
                     </span>
                     <Button
                       size="sm"
@@ -208,7 +208,7 @@ export function StarBulletModal({
                       <Check className="w-3.5 h-3.5 mr-1" /> Apply
                     </Button>
                   </div>
-                  <p className="text-sm text-slate-700 leading-relaxed pr-2">
+                  <p className="text-xs sm:text-sm text-slate-700 leading-relaxed pr-1">
                     {variations.leadershipFocused}
                   </p>
                 </div>
@@ -217,30 +217,39 @@ export function StarBulletModal({
           </div>
         </div>
 
-        <div className="px-6 pb-6 pt-4 shrink-0 flex items-center justify-between border-t border-slate-100 mt-2">
-          <Button
-            type="button"
-            onClick={generateVariations}
-            disabled={loading}
-            variant="ghost"
-            className="text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
-            Regenerate
-          </Button>
-
-          <div className="flex items-center gap-2">
+        <div className="px-4 sm:px-6 pb-4 sm:pb-5 pt-3 shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 border-t border-slate-100 bg-white">
+          <div className="flex items-center justify-between sm:justify-start gap-2 order-2 sm:order-1">
+            <Button
+              type="button"
+              onClick={generateVariations}
+              disabled={loading}
+              variant="ghost"
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl h-9 px-3"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? "animate-spin" : ""}`} />
+              Regenerate
+            </Button>
             <Button
               onClick={onClose}
               variant="ghost"
-              className="text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl"
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl h-9 px-3 sm:hidden"
+            >
+              Cancel
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2 order-1 sm:order-2">
+            <Button
+              onClick={onClose}
+              variant="ghost"
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 rounded-xl h-9 px-3 hidden sm:inline-flex"
             >
               Cancel
             </Button>
             <Button
               onClick={() => handleApply(selectedOption)}
               disabled={loading || !variations}
-              className="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold"
+              className="w-full sm:w-auto h-9 sm:h-10 px-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold shadow-sm shrink-0"
             >
               Apply Selected Bullet
             </Button>

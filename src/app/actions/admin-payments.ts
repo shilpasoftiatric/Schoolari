@@ -106,10 +106,13 @@ export async function createCoupon(data: {
   await requirePermission("manage_payments");
   const stripe = getStripe();
 
+  const codeId = data.name.toUpperCase().trim().replace(/[^A-Z0-9_-]/g, "");
+
   const coupon = await stripe.coupons.create({
+    id: codeId || undefined,
     name: data.name,
     ...(data.percentOff ? { percent_off: data.percentOff } : {}),
-    ...(data.amountOff ? { amount_off: data.amountOff * 100, currency: "usd" } : {}),
+    ...(data.amountOff ? { amount_off: Math.round(data.amountOff * 100), currency: "usd" } : {}),
     duration: data.duration,
     ...(data.duration === "repeating" && data.durationInMonths
       ? { duration_in_months: data.durationInMonths }
@@ -117,6 +120,18 @@ export async function createCoupon(data: {
     ...(data.maxRedemptions ? { max_redemptions: data.maxRedemptions } : {}),
   });
 
+  // Also create a customer-facing promotion code so it works in checkout
+  try {
+    await stripe.promotionCodes.create({
+      coupon: coupon.id,
+      code: codeId || data.name.trim(),
+      ...(data.maxRedemptions ? { max_redemptions: data.maxRedemptions } : {}),
+    } as any);
+  } catch (promoErr) {
+    console.warn("Could not create promotion code alias:", promoErr);
+  }
+
+  revalidatePath("/admin/payments");
   return { success: true, couponId: coupon.id };
 }
 

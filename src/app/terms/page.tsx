@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { GraduationCap, ArrowLeft, FileText, Mail } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, FileText, Mail } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -13,11 +14,15 @@ export default function TermsPage() {
       {/* Top Header / Navigation */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/login" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center text-white shadow-sm shadow-violet-200">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <span className="text-xl font-extrabold text-slate-900 tracking-tight">Schoolari</span>
+          <Link href="/login" className="flex items-center">
+            <Image
+              src="/images/Schoolari_logo.png"
+              alt="Schoolari"
+              width={140}
+              height={38}
+              className="h-8 w-auto object-contain"
+              priority
+            />
           </Link>
           <div className="flex items-center gap-4 text-xs font-semibold">
             <Link href="/privacy" className="text-slate-600 hover:text-violet-600 transition-colors">

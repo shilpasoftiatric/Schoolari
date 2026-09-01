@@ -123,7 +123,7 @@ export default async function DashboardLayout({
           </Suspense>
         </div>
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden print:overflow-visible print:h-auto">
-          <div className="relative z-30 print:hidden">
+          <div className="relative z-50 print:hidden">
             <Suspense fallback={null}>
               <TrialBanner />
             </Suspense>

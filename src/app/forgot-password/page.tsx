@@ -1,11 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, ArrowLeft, Send, CheckCircle2, GraduationCap } from "lucide-react";
+import { Mail, ArrowLeft, Send, CheckCircle2 } from "lucide-react";
 import { sendPasswordResetLink } from "@/app/actions/auth";
 
 export default function ForgotPasswordPage() {
@@ -36,11 +37,15 @@ export default function ForgotPasswordPage() {
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-100/50 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
 
       {/* Logo */}
-      <div className="flex items-center gap-2.5 mb-8 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-violet-600 shadow-md shadow-violet-200">
-          <GraduationCap className="w-7 h-7 text-white" />
-        </div>
-        <span className="text-2xl font-extrabold text-slate-900 tracking-tight">Schoolari</span>
+      <div className="flex items-center justify-center mb-8 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <Image
+          src="/images/Schoolari_logo.png"
+          alt="Schoolari"
+          width={180}
+          height={48}
+          className="h-12 w-auto object-contain"
+          priority
+        />
       </div>
 
       <div className="w-full max-w-md bg-white/80 backdrop-blur-xl p-8 sm:p-10 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-200/60 relative z-10 animate-in fade-in zoom-in-95 duration-700">

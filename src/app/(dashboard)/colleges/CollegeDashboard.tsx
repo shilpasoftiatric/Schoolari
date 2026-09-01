@@ -23,18 +23,18 @@ import { toast } from "sonner";
 
 const STATUS_COLORS = {
   researching: "bg-blue-50 text-blue-700 border-blue-200",
-  applied:     "bg-amber-50 text-amber-700 border-amber-200",
-  waitlisted:  "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
-  accepted:    "bg-emerald-50 text-emerald-700 border-emerald-200",
-  rejected:    "bg-slate-100 text-slate-500 border-slate-200",
+  applied: "bg-amber-50 text-amber-700 border-amber-200",
+  waitlisted: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200",
+  accepted: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  rejected: "bg-slate-100 text-slate-500 border-slate-200",
 };
 
 const STATUS_LABELS = {
   researching: "Interested",
-  applied:     "Applied",
-  accepted:    "Accepted",
-  waitlisted:  "Waitlisted",
-  rejected:    "Declined",
+  applied: "Applied",
+  accepted: "Accepted",
+  waitlisted: "Waitlisted",
+  rejected: "Declined",
 };
 
 /* ──────────────────────────────────────────────────────────────────────────── */
@@ -50,8 +50,8 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: (newCollege: any) 
   const [reminderTime, setReminderTime] = useState("09:00");
   const [settingReminder, setSettingReminder] = useState(false);
 
-  const isSaved    = status !== "NEW" && status !== "DISMISSED";
-  const isApplied  = status === "APPLIED" || status === "applied";
+  const isSaved = status !== "NEW" && status !== "DISMISSED";
+  const isApplied = status === "APPLIED" || status === "applied";
   const isDismissed = status === "DISMISSED";
 
   const handleSave = async (newStatus: string) => {
@@ -269,11 +269,10 @@ function AICollegeCard({ rec, onSaved }: { rec: any; onSaved: (newCollege: any) 
                 />
               )}
 
-              <div className={`absolute top-full mt-1.5 right-0 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl transition-all z-50 p-1.5 flex flex-col gap-0.5 ${
-                statusDropdownOpen
-                  ? "opacity-100 visible pointer-events-auto"
-                  : "opacity-0 invisible pointer-events-none md:group-hover/dropdown:opacity-100 md:group-hover/dropdown:visible md:group-hover/dropdown:pointer-events-auto"
-              }`}>
+              <div className={`absolute top-full mt-1.5 right-0 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl transition-all z-50 p-1.5 flex flex-col gap-0.5 ${statusDropdownOpen
+                ? "opacity-100 visible pointer-events-auto"
+                : "opacity-0 invisible pointer-events-none md:group-hover/dropdown:opacity-100 md:group-hover/dropdown:visible md:group-hover/dropdown:pointer-events-auto"
+                }`}>
                 {Object.entries(STATUS_LABELS).map(([key, label]) => (
                   <button
                     key={key}
@@ -345,16 +344,16 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
   const [isSaving, setIsSaving] = useState(false);
 
   /* Metrics */
-  const totalColleges  = colleges.length;
-  const appliedCount   = colleges.filter(c => c.status === "applied").length;
-  const acceptedCount  = colleges.filter(c => c.status === "accepted").length;
+  const totalColleges = colleges.length;
+  const appliedCount = colleges.filter(c => c.status === "applied").length;
+  const acceptedCount = colleges.filter(c => c.status === "accepted").length;
 
   /* ── Load recommendations when AI tab first shown ── */
   useEffect(() => {
     if (activeTab === "ai" && !recsFetched) {
       loadRecs();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const loadRecs = async (force = false) => {
@@ -472,11 +471,10 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
           <button
             key={key}
             onClick={() => setActiveTab(key as "ai" | "tracker")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
-              activeTab === key
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === key
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+              }`}
           >
             <Icon className="w-4 h-4" />
             {label}
@@ -583,11 +581,11 @@ export function CollegeDashboard({ initialColleges }: { initialColleges: any[] }
                         <div
                           key={college.id}
                           onClick={() => openEditModal(college)}
-                          className="group bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer flex flex-col relative"
+                          className="group bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer flex flex-col relative overflow-hidden"
                         >
                           {/* Colored border indicator on left edge based on status */}
-                          <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-3xl ${STATUS_COLORS[college.status?.toLowerCase() as keyof typeof STATUS_COLORS]?.split(' ')[0] || "bg-slate-200"}`} />
-                          
+                          <div className={`absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl ${STATUS_COLORS[college.status?.toLowerCase() as keyof typeof STATUS_COLORS]?.split(' ')[0] || "bg-slate-200"}`} />
+
                           <div className="flex justify-between items-start mb-4 pl-3">
                             <h3 className="text-xl font-extrabold text-slate-900 leading-tight pr-4">
                               {college.college_name}

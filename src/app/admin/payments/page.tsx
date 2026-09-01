@@ -17,6 +17,11 @@ const PLAN_NAMES: Record<string, string> = {
   [process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE || ""]: "Elite ($99/mo)",
 };
 
+// Project Launch Cutoff Date
+// Only transactions created on or after this timestamp belong to the live Schoolari platform.
+const STRIPE_LAUNCH_DATE_STR = process.env.STRIPE_LAUNCH_DATE || "2026-09-01T00:00:00Z";
+const STRIPE_LAUNCH_TIMESTAMP = Math.floor(new Date(STRIPE_LAUNCH_DATE_STR).getTime() / 1000);
+
 export default async function AdminPaymentsPage() {
   const adminClient = await createAdminClient();
   const stripe = getStripe();
@@ -30,6 +35,13 @@ export default async function AdminPaymentsPage() {
     .not("stripe_subscription_id", "is", null)
     .order("created_at", { ascending: false });
 
+  // Set of customer IDs registered in Schoolari
+  const schoolariCustomerIds = new Set(
+    (subscribers || [])
+      .map((s) => s.stripe_customer_id)
+      .filter(Boolean)
+  );
+
   // Fetch recent charges from Stripe (for payment history)
   let recentCharges: any[] = [];
   let coupons: any[] = [];
@@ -37,10 +49,24 @@ export default async function AdminPaymentsPage() {
   if (stripe) {
     try {
       const [chargesRes, couponsRes] = await Promise.all([
-        stripe.charges.list({ limit: 50 }),
+        stripe.charges.list({
+          limit: 100,
+          created: { gte: STRIPE_LAUNCH_TIMESTAMP },
+        }),
         stripe.coupons.list({ limit: 50 }),
       ]);
-      recentCharges = chargesRes.data;
+
+      // Filter charges: ensure created on or after launch date AND belong to a Schoolari customer (if customer is attached)
+      recentCharges = (chargesRes.data || []).filter((charge) => {
+        const isAfterLaunch = charge.created >= STRIPE_LAUNCH_TIMESTAMP;
+        if (!isAfterLaunch) return false;
+
+        if (charge.customer && typeof charge.customer === "string" && schoolariCustomerIds.size > 0) {
+          return schoolariCustomerIds.has(charge.customer);
+        }
+        return true;
+      });
+
       coupons = couponsRes.data;
     } catch (e) {
       console.error("Stripe data fetch error:", e);

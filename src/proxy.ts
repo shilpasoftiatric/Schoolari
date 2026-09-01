@@ -5,25 +5,53 @@ import { canAccessAdmin } from "@/lib/rbac";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
-  const isLocalhost = hostname.includes("localhost") || hostname.includes("127.0.0.1") || hostname.includes("192.168.");
+  const isLocalSubdomain = hostname.startsWith("admin.localhost") || hostname.startsWith("members.localhost");
+  const isLocalhost = (hostname.includes("localhost") || hostname.includes("127.0.0.1") || hostname.includes("192.168.")) && !isLocalSubdomain;
 
   if (!isLocalhost) {
-    const isAdminDomain = hostname === "admin.schoolari.com" || hostname === "admin.schoolari.vercel.app";
-    const isMemberDomain = hostname === "members.schoolari.com" || hostname === "members.schoolari.vercel.app";
+    const isAdminDomain =
+      hostname.startsWith("admin.schoolari.com") ||
+      hostname.startsWith("admin.schoolari.vercel.app") ||
+      hostname.startsWith("admin.localhost");
 
-    if (isAdminDomain && !pathname.startsWith("/admin")) {
-      const url = request.nextUrl.clone();
-      url.hostname = "members.schoolari.com";
-      url.port = "";
-      url.protocol = "https:";
-      return NextResponse.redirect(url);
+    const isMemberDomain =
+      hostname.startsWith("members.schoolari.com") ||
+      hostname.startsWith("members.schoolari.vercel.app") ||
+      hostname.startsWith("members.localhost");
+
+    if (isAdminDomain) {
+      // Root of admin domain should open admin login
+      if (pathname === "/" || pathname === "/admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/admin/login";
+        return NextResponse.redirect(url);
+      }
+
+      // If user accesses student/member routes on admin domain, redirect to members portal
+      if (!pathname.startsWith("/admin")) {
+        const url = request.nextUrl.clone();
+        url.hostname = isLocalSubdomain ? "members.localhost" : "members.schoolari.com";
+        if (isLocalSubdomain) {
+          url.port = request.nextUrl.port || "3000";
+          url.protocol = request.nextUrl.protocol || "http:";
+        } else {
+          url.port = "";
+          url.protocol = "https:";
+        }
+        return NextResponse.redirect(url);
+      }
     }
 
     if (isMemberDomain && pathname.startsWith("/admin")) {
       const url = request.nextUrl.clone();
-      url.hostname = "admin.schoolari.com";
-      url.port = "";
-      url.protocol = "https:";
+      url.hostname = isLocalSubdomain ? "admin.localhost" : "admin.schoolari.com";
+      if (isLocalSubdomain) {
+        url.port = request.nextUrl.port || "3000";
+        url.protocol = request.nextUrl.protocol || "http:";
+      } else {
+        url.port = "";
+        url.protocol = "https:";
+      }
       if (pathname === "/admin") {
         url.pathname = "/admin/login";
       }
@@ -76,11 +104,11 @@ export async function proxy(request: NextRequest) {
     // If last_sign_in_at is not today, the session is invalid for the new day.
     const lastSignIn = user.last_sign_in_at ? new Date(user.last_sign_in_at) : null;
     const today = new Date();
-    
+
     if (lastSignIn) {
       const lastSignInStr = lastSignIn.toISOString().split("T")[0];
       const todayStr = today.toISOString().split("T")[0];
-      
+
       if (lastSignInStr !== todayStr) {
         // Session has crossed into a new calendar day. Force re-authentication.
         await supabase.auth.signOut();
@@ -110,7 +138,7 @@ export async function proxy(request: NextRequest) {
         {
           cookies: {
             getAll() { return []; },
-            setAll() {},
+            setAll() { },
           },
           global: {
             fetch: (url, options) => {
@@ -143,6 +171,11 @@ export async function proxy(request: NextRequest) {
         if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
           if (!canAccessAdmin(profile.role)) {
             const url = request.nextUrl.clone();
+            if (!isLocalhost) {
+              url.hostname = "members.schoolari.com";
+              url.port = "";
+              url.protocol = "https:";
+            }
             url.pathname = "/dashboard";
             return NextResponse.redirect(url);
           }
@@ -152,6 +185,11 @@ export async function proxy(request: NextRequest) {
         if (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding") || pathname.startsWith("/pricing")) {
           if (canAccessAdmin(profile.role)) {
             const url = request.nextUrl.clone();
+            if (!isLocalhost) {
+              url.hostname = "admin.schoolari.com";
+              url.port = "";
+              url.protocol = "https:";
+            }
             url.pathname = "/admin/dashboard";
             return NextResponse.redirect(url);
           }
@@ -178,7 +216,7 @@ export async function proxy(request: NextRequest) {
                 .select("subscription_status")
                 .eq("linked_student_id", user.id)
                 .maybeSingle();
-                
+
               // 2. Fallback: Find parent by student_email
               if (!parentProfile) {
                 const { data: fallbackParent } = await supabaseAdmin
@@ -188,15 +226,15 @@ export async function proxy(request: NextRequest) {
                   .maybeSingle();
                 parentProfile = fallbackParent;
               }
-                
+
               if (parentProfile && (parentProfile.subscription_status === 'active' || parentProfile.subscription_status === 'trialing')) {
                 familySubscriptionStatus = parentProfile.subscription_status;
               }
-            } 
+            }
             // If the user is a parent, the master onboarding state is on the student's profile
             else if (profile.account_type === 'parent') {
               let studentProfile = null;
-              
+
               if (profile.linked_student_id) {
                 const { data } = await supabaseAdmin
                   .from("profiles")
@@ -205,7 +243,7 @@ export async function proxy(request: NextRequest) {
                   .maybeSingle();
                 studentProfile = data;
               }
-              
+
               // Fallback: Find student by parent_email
               if (!studentProfile) {
                 const { data } = await supabaseAdmin
@@ -268,9 +306,9 @@ export async function proxy(request: NextRequest) {
         }, { onConflict: 'id' });
 
         if (
-          pathname.startsWith("/dashboard") || 
+          pathname.startsWith("/dashboard") ||
           pathname.startsWith("/onboarding") ||
-          pathname === "/login" || 
+          pathname === "/login" ||
           pathname === "/signup"
         ) {
           const url = request.nextUrl.clone();

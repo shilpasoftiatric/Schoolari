@@ -113,10 +113,11 @@ export async function getScholarshipRecommendations(forceRefresh = false) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  // Fetch profile, active scholarships, and user's existing applications in parallel
+  // Fetch profile, active scholarships (with open/future deadlines), and user's existing applications in parallel
+  const todayStr = new Date().toISOString().split('T')[0];
   const [profileRes, scholarshipsRes, appsRes] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
-    supabase.from("scholarships").select("*").eq("is_active", true),
+    supabase.from("scholarships").select("*").eq("is_active", true).or(`deadline.is.null,deadline.gte.${todayStr}`),
     supabase.from("applications").select("scholarship_id").eq("user_id", user.id)
   ]);
 

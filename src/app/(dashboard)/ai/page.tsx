@@ -20,6 +20,9 @@ import {
   Copy,
   Check,
   Loader2,
+  Menu,
+  X,
+  PanelLeft,
 } from "lucide-react";
 import {
   askSchoolariAI,
@@ -31,6 +34,9 @@ import {
   type ChatMessage,
   type AIChatSession,
 } from "@/app/actions/ask-ai";
+import { UpgradeFlowModal } from "@/components/ui/UpgradeFlowModal";
+import type { SubscriptionPlan } from "@/lib/subscription";
+import { getSubscriptionInfo } from "@/app/actions/subscription";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -340,13 +346,31 @@ export default function AIPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSessionsLoaded, setIsSessionsLoaded] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [aiLimitState, setAiLimitState] = useState<{ isOverBudget: boolean; limitReached: boolean; resetDate: string } | null>(null);
+  const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<SubscriptionPlan>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isWelcomeOnly = messages.length === 1 && messages[0].id === "welcome";
+
+  // Load current user subscription plan
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPlan() {
+      try {
+        const sub = await getSubscriptionInfo();
+        if (isMounted && sub?.plan) {
+          setCurrentPlan(sub.plan);
+        }
+      } catch (_) { }
+    }
+    loadPlan();
+    return () => { isMounted = false; };
+  }, []);
 
   // Load sessions and check limits on mount
   useEffect(() => {
@@ -431,13 +455,15 @@ export default function AIPage() {
     }
   }, [sessions]);
 
-  // Adjust textarea height dynamically
+  // Adjust textarea height dynamically without showing default browser scrollbar
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+      const newHeight = Math.min(textarea.scrollHeight, 120);
+      textarea.style.height = `${newHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > 120 ? "auto" : "hidden";
     }
   };
 
@@ -446,13 +472,16 @@ export default function AIPage() {
     currentSessionIdRef.current = null;
     setMessages([WELCOME_MESSAGE]);
     setInput("");
+    setIsMobileSidebarOpen(false);
     window.history.replaceState({}, '', '/ai');
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
+      textareaRef.current.style.overflowY = "hidden";
     }
   };
 
   const handleSelectSession = async (sessionId: string) => {
+    setIsMobileSidebarOpen(false);
     if (sessionId === activeSessionId) return;
     setActiveSessionId(sessionId);
     currentSessionIdRef.current = sessionId;
@@ -729,10 +758,132 @@ export default function AIPage() {
 
   return (
     <div className="relative flex h-full w-full bg-slate-50 overflow-hidden select-none">
-      {/* ── Collapsible Left Sidebar ─────────────────────────────────────── */}
+      {/* ── Mobile Sidebar Drawer (ChatGPT mobile style) ────────────────── */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+
+          {/* Drawer container */}
+          <div className="relative w-62 max-w-[65vw] h-full bg-white flex flex-col shadow-2xl z-50 animate-in slide-in-from-left duration-250">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-bold text-slate-900 leading-none">Schoolari AI</h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Admissions &amp; Scholarships</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+                aria-label="Close sidebar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* New Chat Button */}
+            <div className="p-3">
+              <button
+                onClick={handleNewChat}
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <SquarePen className="w-4 h-4" />
+                <span>New chat</span>
+              </button>
+            </div>
+
+            {/* Recent Chats list */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1">
+              <div className="px-2 pb-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Recent Chats
+                </span>
+              </div>
+
+              {!isSessionsLoaded ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-2 text-violet-500">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-[10px] font-bold tracking-wider animate-pulse">Loading history...</span>
+                </div>
+              ) : sessions.length === 0 ? (
+                <div className="px-3 py-8 text-center text-xs text-slate-400">
+                  <MessageSquare className="w-6 h-6 mx-auto mb-2 text-slate-300 opacity-60" />
+                  <p>No chat history yet.</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Start a conversation to save it here.</p>
+                </div>
+              ) : (
+                sessions.map((sess) => {
+                  const isActive = activeSessionId === sess.id;
+                  return (
+                    <div
+                      key={sess.id}
+                      onClick={() => handleSelectSession(sess.id)}
+                      className={cn(
+                        "group relative flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-all duration-150",
+                        isActive
+                          ? "bg-violet-50 text-violet-900 font-semibold shadow-xs"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      )}
+                      title={sess.title}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <MessageSquare
+                          className={cn(
+                            "w-3.5 h-3.5 shrink-0",
+                            isActive ? "text-violet-600" : "text-slate-400 group-hover:text-slate-600"
+                          )}
+                        />
+                        <span className="truncate block flex-1 text-left">
+                          {sess.title}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={(e) => handleDeleteSession(e, sess.id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-all shrink-0 cursor-pointer"
+                        title="Delete chat"
+                        aria-label="Delete chat"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Upgrade Button in Mobile Sidebar Drawer (ChatGPT style) */}
+            <div className="p-3 border-t border-slate-100 mt-auto bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileSidebarOpen(false);
+                  setIsUpgradeOpen(true);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                title="Upgrade Plan"
+              >
+                <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" />
+                <span className="text-sm font-semibold text-blue-600">Upgrade</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Collapsible Left Sidebar (Desktop Only) ─────────────────────── */}
       <aside
         className={cn(
-          "shrink-0 h-full bg-white border-r border-slate-200/90 flex flex-col transition-all duration-300 ease-in-out z-20 shadow-xs",
+          "hidden lg:flex shrink-0 h-full bg-white border-r border-slate-200/90 flex-col transition-all duration-300 ease-in-out z-20 shadow-xs",
           isSidebarOpen ? "w-52 sm:w-56" : "w-14"
         )}
       >
@@ -874,12 +1025,71 @@ export default function AIPage() {
             })}
           </div>
         )}
+
+        {/* Upgrade Button in Desktop Sidebar */}
+        {isSidebarOpen ? (
+          <div className="p-2.5 border-t border-slate-100 mt-auto bg-slate-50/40">
+            <button
+              type="button"
+              onClick={() => setIsUpgradeOpen(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+              title="Upgrade Plan"
+            >
+              <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" />
+              <span className="text-sm font-semibold text-blue-600">Upgrade</span>
+            </button>
+          </div>
+        ) : (
+          <div className="p-2 border-t border-slate-100 mt-auto flex justify-center">
+            <button
+              type="button"
+              onClick={() => setIsUpgradeOpen(true)}
+              className="p-2 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+              title="Upgrade Plan"
+              aria-label="Upgrade Plan"
+            >
+              <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500" />
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* ── Main Chat Area ───────────────────────────────────────────────── */}
-      <main className="relative flex-1 flex flex-col h-full min-w-0 bg-slate-50/70 overflow-hidden">
+      <main className="relative flex-1 flex flex-col h-full min-w-0 bg-transparent overflow-hidden">
+        {/* Mobile Top Navbar Header (ChatGPT style - Floating Transparent Overlay) */}
+        <div className="lg:hidden absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-2.5 bg-transparent pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1 -ml-2 text-slate-700 hover:text-violet-600 hover:bg-slate-200/50 rounded-xl transition-colors cursor-pointer pointer-events-auto bg-white"
+            title="Chat History"
+            aria-label="Open chat history sidebar"
+          >
+            <PanelLeft className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-1.5 pointer-events-auto bg-white p-1 rounded-sm">
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-xs">
+              <Sparkles className="w-3 h-3 text-white" />
+            </div>
+            <span className="font-extrabold text-sm text-slate-900 tracking-tight">
+              Schoolari AI
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleNewChat}
+            className="p-1 -mr-2 text-slate-700 hover:text-violet-600 hover:bg-slate-200/50 bg-white rounded-xl transition-colors cursor-pointer pointer-events-auto"
+            title="Start new chat"
+            aria-label="Start new chat"
+          >
+            <SquarePen className="w-5 h-5" />
+          </button>
+        </div>
+
         {/* ── Messages Stream ────────────────────────────────────────────── */}
-        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/50 pb-32">
+        <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50/50 pt-12 sm:pt-14 pb-32">
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
             {isHistoryLoading ? (
               <div className="flex flex-col items-center justify-center min-h-[300px] text-violet-500 gap-3 py-12">
@@ -965,22 +1175,22 @@ export default function AIPage() {
                 </p>
               </div>
             ) : (
-              <div className="flex items-end gap-2 bg-white hover:bg-white focus-within:bg-white border border-slate-200 focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-100 rounded-2xl px-4 py-2.5 transition-all shadow-lg">
+              <div className="flex items-center gap-2 bg-white hover:bg-white focus-within:bg-white border border-slate-200/90 focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-100 rounded-2xl sm:rounded-3xl px-3.5 sm:px-4 py-1.5 sm:py-2 transition-all shadow-lg">
                 <textarea
                   ref={textareaRef}
                   value={input}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask anything about college, scholarships, or essays…"
+                  placeholder="Ask anything about college, scholarships..."
                   rows={1}
                   disabled={isLoading}
-                  className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-slate-800 placeholder:text-slate-400 leading-relaxed disabled:opacity-60 py-1"
+                  className="flex-1 bg-transparent border-none outline-none resize-none text-sm text-slate-800 placeholder:text-slate-400 placeholder:truncate leading-normal disabled:opacity-60 py-1.5 overflow-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   style={{ minHeight: "24px", maxHeight: "120px" }}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="shrink-0 w-8 h-8 flex items-center justify-center bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-lg shadow-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md active:scale-95 cursor-pointer"
+                  className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl shadow-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md active:scale-95 cursor-pointer"
                   aria-label="Send message"
                 >
                   <Send className="w-3.5 h-3.5" />
@@ -990,6 +1200,15 @@ export default function AIPage() {
           </form>
         </div>
       </main>
+
+      {/* Upgrade Plan Flow Modal */}
+      <UpgradeFlowModal
+        isOpen={isUpgradeOpen}
+        onClose={() => setIsUpgradeOpen(false)}
+        targetPlan={currentPlan === "scholar" ? "elite" : "scholar"}
+        currentPlan={currentPlan}
+        featureName="Ask Schoolari AI"
+      />
     </div>
   );
 }

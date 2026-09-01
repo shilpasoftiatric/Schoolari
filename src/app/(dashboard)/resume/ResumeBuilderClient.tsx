@@ -1076,52 +1076,54 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
 
       {/* ATS Job Tailoring Dialog */}
       <Dialog open={atsModalOpen} onOpenChange={setAtsModalOpen}>
-        <DialogContent className="sm:max-w-xl max-w-[95vw] w-full rounded-3xl p-6 bg-white border border-slate-200 shadow-2xl overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-xl max-w-[92vw] w-full rounded-3xl p-4 sm:p-6 bg-white border border-slate-200 shadow-2xl max-h-[90dvh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0 pb-1">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
                 <Target className="w-5 h-5" />
               </div>
-              <div>
-                <DialogTitle className="text-lg font-black text-slate-900">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-base sm:text-lg font-black text-slate-900">
                   ATS Match & Tailor
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
+                <DialogDescription className="text-xs text-slate-500 line-clamp-2">
                   Paste a target internship, scholarship, or job description to analyze your ATS score.
                 </DialogDescription>
               </div>
             </div>
           </DialogHeader>
 
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-              <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-indigo-600" /> ATS Check</h4>
-              <p className="text-[10px] text-slate-500 leading-tight">Makes sure your resume can be read by company software that filters applicants before a human sees it</p>
+          <div className="flex-1 overflow-y-auto min-h-0 pr-1 -mr-1 my-2 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-indigo-600 shrink-0" /> ATS Check</h4>
+                <p className="text-[10px] text-slate-500 leading-tight">Makes sure your resume can be read by company software that filters applicants before a human sees it</p>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Match</h4>
+                <p className="text-[10px] text-slate-500 leading-tight">See how well your resume matches a specific job or internship you want to apply for</p>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 text-violet-600 shrink-0" /> Tailor</h4>
+                <p className="text-[10px] text-slate-500 leading-tight">Let AI rewrite parts of your resume to better fit a specific job posting</p>
+              </div>
             </div>
-            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-              <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Match</h4>
-              <p className="text-[10px] text-slate-500 leading-tight">See how well your resume matches a specific job or internship you want to apply for</p>
-            </div>
-            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-              <h4 className="text-xs font-black text-slate-900 mb-1 flex items-center gap-1.5"><Eye className="w-3.5 h-3.5 text-violet-600" /> Tailor</h4>
-              <p className="text-[10px] text-slate-500 leading-tight">Let AI rewrite parts of your resume to better fit a specific job posting</p>
+
+            <div className="space-y-2">
+              <label className="text-xs font-extrabold text-slate-700 block">
+                Job / Internship / Scholarship Description
+              </label>
+              <textarea
+                value={atsJobText}
+                onChange={(e) => setAtsJobText(e.target.value)}
+                placeholder="Paste the full position overview, required skills, and qualifications here..."
+                rows={5}
+                className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-700"
+              />
             </div>
           </div>
 
-          <div className="mb-4 space-y-3">
-            <label className="text-xs font-extrabold text-slate-700 block">
-              Job / Internship / Scholarship Description
-            </label>
-            <textarea
-              value={atsJobText}
-              onChange={(e) => setAtsJobText(e.target.value)}
-              placeholder="Paste the full position overview, required skills, and qualifications here..."
-              rows={6}
-              className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 text-slate-700"
-            />
-          </div>
-
-          <DialogFooter className="flex items-center justify-between border-t border-slate-100 pt-4">
+          <DialogFooter className="flex items-center justify-between border-t border-slate-100 pt-3 shrink-0 mt-auto">
             <Button
               type="button"
               variant="ghost"
@@ -1156,17 +1158,17 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
         setTypeModalOpen(open);
         if (!open) setTimeout(() => setStartStep("options"), 200);
       }}>
-        <DialogContent className="sm:max-w-xl max-w-[95vw] w-full rounded-3xl p-6 bg-white border border-slate-200 shadow-2xl overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-xl max-w-[92vw] w-full rounded-3xl p-4 sm:p-6 bg-white border border-slate-200 shadow-2xl max-h-[90dvh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0 pb-1">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs">
+              <div className="w-10 h-10 rounded-2xl bg-violet-50 border border-violet-100/80 flex items-center justify-center text-violet-600 shadow-2xs shrink-0">
                 <FileText className="w-5 h-5" />
               </div>
-              <div>
-                <DialogTitle className="text-lg font-black text-slate-900">
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-base sm:text-lg font-black text-slate-900 truncate">
                   {startStep === "options" ? "Get Started" : "Choose Resume Type"}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500">
+                <DialogDescription className="text-xs text-slate-500 line-clamp-2">
                   {startStep === "options"
                     ? "Choose how you want to build your Student Resume."
                     : "Select how you want Claude AI to tailor your Student Resume."}
@@ -1176,25 +1178,25 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
           </DialogHeader>
 
           {startStep === "options" ? (
-            <div className="my-4 space-y-4">
+            <div className="my-2 space-y-3 flex-1 overflow-y-auto min-h-0 pr-1 -mr-1">
               <div
                 onClick={() => setStartStep("type")}
-                className="p-5 rounded-2xl border border-slate-200 hover:border-violet-600 hover:bg-violet-50/40 transition-all cursor-pointer group"
+                className="p-4 sm:p-5 rounded-2xl border border-slate-200 hover:border-violet-600 hover:bg-violet-50/40 transition-all cursor-pointer group"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-violet-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Sparkles className="w-6 h-6 text-violet-600" />
+                <div className="flex items-start sm:items-center gap-3.5 sm:gap-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-violet-100 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-violet-600" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-slate-900">Build a new resume with AI</h3>
-                    <p className="text-sm text-slate-500 mt-1">Generate a structured resume from your Schoolari profile using AI.</p>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900">Build a new resume with AI</h3>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">Generate a structured resume from your Schoolari profile using AI.</p>
                   </div>
                 </div>
               </div>
 
               <div
                 onClick={() => { if (!isImporting) fileInputRef.current?.click() }}
-                className="p-5 rounded-2xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50/40 transition-all cursor-pointer group relative overflow-hidden"
+                className="p-4 sm:p-5 rounded-2xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50/40 transition-all cursor-pointer group relative overflow-hidden"
               >
                 <input
                   type="file"
@@ -1204,96 +1206,96 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
                   onChange={handleFileUpload}
                   disabled={isImporting}
                 />
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Upload className="w-6 h-6 text-emerald-600" />
+                <div className="flex items-start sm:items-center gap-3.5 sm:gap-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-emerald-100 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                    <Upload className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-slate-900">Upload my existing resume and improve it with AI</h3>
-                    <p className="text-sm text-slate-500 mt-1">AI will analyze, rewrite weak sections, and import it into the builder.</p>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900">Upload my existing resume and improve it with AI</h3>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5 sm:mt-1">AI will analyze, rewrite weak sections, and import it into the builder.</p>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
             <>
-              <div className="my-4 space-y-3">
+              <div className="my-2 space-y-2.5 sm:space-y-3 flex-1 overflow-y-auto min-h-0 pr-1 -mr-1">
                 <div
                   onClick={() => setSelectedNewType("academic")}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "academic"
+                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "academic"
                     ? "border-violet-600 bg-violet-50/40 shadow-sm"
                     : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-1 sm:mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-base">🎓</span>
-                      <span className="text-sm font-black text-slate-900">
+                      <span className="text-xs sm:text-sm font-black text-slate-900">
                         Academic Resume
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                       College & Scholarships
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 font-medium">
+                  <p className="text-[11px] sm:text-xs text-slate-600 font-medium leading-relaxed">
                     Optimized for college admissions and scholarship applications. Focuses on honors, GPA, research projects, and academic goals.
                   </p>
                 </div>
 
                 <div
                   onClick={() => setSelectedNewType("professional")}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "professional"
+                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "professional"
                     ? "border-violet-600 bg-violet-50/40 shadow-sm"
                     : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-1 sm:mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-base">💼</span>
-                      <span className="text-sm font-black text-slate-900">
+                      <span className="text-xs sm:text-sm font-black text-slate-900">
                         Professional Resume
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                       Jobs & Internships
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 font-medium">
+                  <p className="text-[11px] sm:text-xs text-slate-600 font-medium leading-relaxed">
                     Optimized for job and internship applications. Highlights quantifiable impact STAR bullets, leadership roles, and technical skills.
                   </p>
                 </div>
 
                 <div
                   onClick={() => setSelectedNewType("both")}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "both"
+                  className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative ${selectedNewType === "both"
                     ? "border-violet-600 bg-violet-50/40 shadow-sm"
                     : "border-slate-200 hover:border-slate-300 bg-white"
                     }`}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 mb-1 sm:mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-base">✨</span>
-                      <span className="text-sm font-black text-slate-900">
+                      <span className="text-xs sm:text-sm font-black text-slate-900">
                         Both (Combined Resume)
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                       All-In-One
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 font-medium">
+                  <p className="text-[11px] sm:text-xs text-slate-600 font-medium leading-relaxed">
                     Build both using the same information. A comprehensive 1-page resume synthesizing academic honors and professional leadership.
                   </p>
                 </div>
               </div>
 
-              <DialogFooter className="flex flex-col sm:flex-row items-center justify-end gap-2 border-t border-slate-100 pt-4">
+              <DialogFooter className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 border-t border-slate-100 pt-3 shrink-0 mt-auto">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => setStartStep("options")}
-                  className="w-full sm:w-auto h-10 px-4 rounded-xl text-xs font-bold text-slate-700"
+                  className="w-full sm:w-auto h-9 sm:h-10 px-4 rounded-xl text-xs font-bold text-slate-700 order-3 sm:order-1"
                 >
                   Back
                 </Button>
@@ -1302,7 +1304,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
                   variant="outline"
                   disabled={isSaving || isPrefilling || isLimitReached}
                   onClick={() => handleCreateNewResume(selectedNewType)}
-                  className="w-full sm:w-auto h-10 px-4 rounded-xl text-xs font-bold text-slate-700 border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto h-9 sm:h-10 px-4 rounded-xl text-xs font-bold text-slate-700 border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed order-2"
                 >
                   {isSaving ? (
                     <>
@@ -1318,7 +1320,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
                   onClick={() => handlePrefillFromProfile(selectedNewType, true)}
                   disabled={isSaving || isPrefilling || isLimitReached}
                   title="Automatically construct a tailored resume using the data saved in your Schoolari profile."
-                  className="w-full sm:w-auto h-10 px-5 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto h-9 sm:h-10 px-4 sm:px-5 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed order-1 sm:order-3"
                 >
                   {isPrefilling ? (
                     <>

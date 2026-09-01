@@ -1,5 +1,5 @@
+import Image from "next/image";
 import { getSiteSettings } from "@/lib/settings";
-import { GraduationCap } from "lucide-react";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -19,11 +19,17 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4 pointer-events-none" />
 
         {/* Logo */}
-        <div className="flex items-center gap-2.5 relative z-10">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/20">
-            <GraduationCap className="w-6 h-6 text-white" />
+        <div className="flex items-start relative z-10">
+          <div className="bg-transparent py-2 inline-flex items-start mb-4">
+            <Image
+              src="/images/Schoolari_logo.png"
+              alt={settings.site_name || "Schoolari"}
+              width={160}
+              height={45}
+              className="h-10 xl:h-12 w-auto object-contain"
+              priority
+            />
           </div>
-          <span className="text-2xl font-extrabold text-white tracking-tight">{settings.site_name}</span>
         </div>
 
         {/* Hero copy */}
@@ -74,12 +80,14 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
         <div className="w-full max-w-md my-auto py-2">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10">
-              <GraduationCap className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-xl font-extrabold text-slate-900">
-              {settings.site_name}
-            </span>
+            <Image
+              src="/images/Schoolari_logo.png"
+              alt={settings.site_name || "Schoolari"}
+              width={150}
+              height={40}
+              className="h-8 w-auto object-contain"
+              priority
+            />
           </div>
           {children}
         </div>

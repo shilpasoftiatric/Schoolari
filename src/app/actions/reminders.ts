@@ -18,17 +18,63 @@ export async function addReminder(
   const { data: profile } = await supabase.from("profiles").select("linked_student_id").eq("id", userId).single();
   const masterId = profile?.linked_student_id || userId;
 
+  const dueDateTime = new Date(dueDate).getTime();
+  const isPast = !isNaN(dueDateTime) && dueDateTime < Date.now();
+
+  // Check if an unreminded reminder already exists for this entity to prevent duplicates
+  let existingQuery = supabase
+    .from("reminders")
+    .select("id, due_date")
+    .eq("user_id", masterId)
+    .eq("entity_type", entityType)
+    .is("reminded_at", null);
+
+  if (entityId) {
+    existingQuery = existingQuery.eq("entity_id", entityId);
+  } else {
+    existingQuery = existingQuery.eq("title", title);
+  }
+
+  const { data: existingReminders } = await existingQuery;
+  const existingReminder = existingReminders && existingReminders.length > 0 ? existingReminders[0] : null;
+
+  if (existingReminder) {
+    // If it already exists, update the due date/title instead of creating a duplicate row
+    await supabase
+      .from("reminders")
+      .update({
+        title,
+        due_date: new Date(dueDate).toISOString(),
+        reminded_at: isPast ? new Date().toISOString() : null
+      })
+      .eq("id", existingReminder.id);
+
+    // Clean up any extra duplicates if multiple existed
+    if (existingReminders && existingReminders.length > 1) {
+      const extraIds = existingReminders.slice(1).map((r) => r.id);
+      await supabase.from("reminders").delete().in("id", extraIds);
+    }
+
+    return { success: true };
+  }
+
   const { error } = await supabase.from("reminders").insert({
     user_id: masterId,
     title,
     due_date: new Date(dueDate).toISOString(),
     entity_type: entityType,
-    entity_id: entityId || null
+    entity_id: entityId || null,
+    reminded_at: isPast ? new Date().toISOString() : null
   });
 
   if (error) {
     console.error("addReminder error:", error);
     return { success: false, error: error.message };
+  }
+
+  // If deadline has already passed, skip sending reminder alerts
+  if (isPast) {
+    return { success: true };
   }
 
   // Fetch the master profile to get emails and phones for instant alert
@@ -40,13 +86,19 @@ export async function addReminder(
     const smsText = `Schoolari Alert: You committed to "${title}". Deadline: ${deadlineStr}. We'll remind you when it's close! \n\nReply STOP to unsubscribe.`;
 
     const details = profileDetails as any;
-    const emails = [details.student_email, details.parent_email, details.email].filter(Boolean);
-    const phones = [details.student_phone, details.parent_phone, details.phone].filter(Boolean);
+    const rawEmails = [details.student_email, details.parent_email, details.email].filter(Boolean) as string[];
+    const uniqueEmails = Array.from(new Set(rawEmails.map(e => e.trim().toLowerCase())));
+
+    const rawPhones = [details.student_phone, details.parent_phone, details.phone].filter(Boolean) as string[];
+    const uniquePhones = Array.from(new Set(rawPhones.map(p => formatPhoneE164(p)).filter(Boolean) as string[]));
 
     // Send emails (unique)
-    const uniqueEmails = Array.from(new Set(emails));
     for (const email of uniqueEmails) {
-      await sendAlertEmail(email as string, "Schoolari: Deadline Tracked", msgHtml);
+      try {
+        await sendAlertEmail(email, "Schoolari: Deadline Tracked", msgHtml);
+      } catch (err) {
+        console.error("Error sending tracked alert email:", err);
+      }
     }
 
     // Send SMS via Twilio
@@ -55,14 +107,10 @@ export async function addReminder(
     const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
     if (accountSid && authToken && twilioPhone) {
       const client = twilio(accountSid, authToken);
-      const uniquePhones = Array.from(new Set(phones));
       for (const phone of uniquePhones) {
-        const e164 = formatPhoneE164(phone as string);
-        if (e164) {
-          try {
-            await client.messages.create({ body: smsText, from: twilioPhone, to: e164 });
-          } catch(e) { console.error("Twilio err on addReminder", e); }
-        }
+        try {
+          await client.messages.create({ body: smsText, from: twilioPhone, to: phone });
+        } catch(e) { console.error("Twilio err on addReminder", e); }
       }
     }
   }

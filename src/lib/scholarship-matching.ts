@@ -71,6 +71,15 @@ function parseGpa(gpaStr: string | number | undefined | null): number {
 }
 
 export function isScholarshipEligible(scholarship: any, profile: any): boolean {
+  // 0. Deadline check: If deadline has passed, it is no longer eligible/open for applications
+  if (scholarship.deadline) {
+    const deadlineDate = new Date(scholarship.deadline);
+    deadlineDate.setHours(23, 59, 59, 999);
+    if (!isNaN(deadlineDate.getTime()) && deadlineDate.getTime() < Date.now()) {
+      return false;
+    }
+  }
+
   if (!profile) return true; // If no profile, allow open browsing
 
   // 1. Gender check

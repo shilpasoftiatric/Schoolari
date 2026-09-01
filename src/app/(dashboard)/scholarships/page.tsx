@@ -21,7 +21,8 @@ export default async function StudentScholarshipsPage(props: {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Build query dynamically
+  // Build query dynamically - Only show active scholarships whose deadlines have not passed
+  const todayStr = new Date().toISOString().split('T')[0];
   let query = supabase.from("scholarships").select("*").eq("is_active", true);
 
   if (category) {
@@ -38,10 +39,12 @@ export default async function StudentScholarshipsPage(props: {
     if (!isNaN(days)) {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + days);
-      const todayStr = new Date().toISOString().split('T')[0];
       const futureStr = futureDate.toISOString().split('T')[0];
       query = query.gte("deadline", todayStr).lte("deadline", futureStr);
     }
+  } else {
+    // Hide scholarships whose deadlines have already passed (keep rolling/null or future dates)
+    query = query.or(`deadline.is.null,deadline.gte.${todayStr}`);
   }
 
   if (award && award !== "all") {

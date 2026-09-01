@@ -75,8 +75,10 @@ export async function POST(req: Request) {
         `Log in at members.schoolari.com to track their scholarship journey. ` +
         `Reply STOP to unsubscribe from text messages.`;
 
+      const studentPhoneE164 = formatPhoneE164(student_phone);
+      const parentPhoneE164 = formatPhoneE164(parent_phone);
+
       try {
-        const studentPhoneE164 = formatPhoneE164(student_phone);
         if (studentPhoneE164) await sendTwilioSMS(studentPhoneE164, studentMsg);
         results.student_sms = "sent";
       } catch (err: any) {
@@ -84,9 +86,12 @@ export async function POST(req: Request) {
       }
 
       try {
-        const parentPhoneE164 = formatPhoneE164(parent_phone);
-        if (parentPhoneE164) await sendTwilioSMS(parentPhoneE164, parentMsg);
-        results.parent_sms = "sent";
+        if (parentPhoneE164 && parentPhoneE164 !== studentPhoneE164) {
+          await sendTwilioSMS(parentPhoneE164, parentMsg);
+          results.parent_sms = "sent";
+        } else {
+          results.parent_sms = "skipped - duplicate phone";
+        }
       } catch (err: any) {
         results.parent_sms = `failed: ${err.message}`;
       }
