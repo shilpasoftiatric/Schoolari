@@ -957,7 +957,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
           </div>
 
           {/* Main Responsive 2-Column Layout */}
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 p-3 sm:p-6 lg:p-8 max-w-[1600px] mx-auto w-full relative z-10">
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 items-start gap-0 lg:gap-8 p-3 sm:p-6 lg:p-8 max-w-[1600px] mx-auto w-full relative z-10">
             {/* LEFT COLUMN: Section Nav & Editors (Colspan 6) */}
             <div
               className={`print:hidden lg:col-span-6 flex flex-col gap-4 sm:gap-5 ${mobileTab === "preview" ? "hidden sm:flex" : "flex"
@@ -988,7 +988,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
               </div>
 
               {/* Section Editor Box */}
-              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-3.5 sm:p-6 shadow-sm flex-1">
+              <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 p-3.5 sm:p-6 shadow-sm">
                 {selectedSection === "contact" && (
                   <ContactEditor
                     resume={activeResume}

@@ -611,66 +611,66 @@ export function PaymentsAdmin({
 
       {/* Add Member & Activate Plan Modal */}
       {showAddMemberModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden my-8">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-emerald-600 shrink-0" />
                   Add &amp; Activate Member
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
                   Create an account and immediately grant live subscription access without entering a card.
                 </p>
               </div>
               <button
                 onClick={() => setShowAddMemberModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1">
               {/* Account Type Selector (Matches Signup Flow) */}
               <div>
                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 block">
                   Account Type
                 </Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setNewMemberForm((f) => ({ ...f, accountType: "student" }))}
-                    className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left cursor-pointer ${newMemberForm.accountType === "student"
+                    className={`flex items-center gap-3 p-3 sm:p-3.5 rounded-xl border-2 transition-all text-left cursor-pointer ${newMemberForm.accountType === "student"
                         ? "border-emerald-600 bg-emerald-50/50 text-emerald-950 font-bold"
                         : "border-slate-200 text-slate-600 hover:border-slate-300"
                       }`}
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${newMemberForm.accountType === "student" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${newMemberForm.accountType === "student" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
                       }`}>
                       <GraduationCap className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold">Student Account</p>
-                      <p className="text-[11px] text-slate-400 font-normal">Primary scholarship applicant</p>
+                      <p className="text-xs sm:text-sm font-bold">Student Account</p>
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 font-normal">Primary scholarship applicant</p>
                     </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setNewMemberForm((f) => ({ ...f, accountType: "parent" }))}
-                    className={`flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-left cursor-pointer ${newMemberForm.accountType === "parent"
+                    className={`flex items-center gap-3 p-3 sm:p-3.5 rounded-xl border-2 transition-all text-left cursor-pointer ${newMemberForm.accountType === "parent"
                         ? "border-emerald-600 bg-emerald-50/50 text-emerald-950 font-bold"
                         : "border-slate-200 text-slate-600 hover:border-slate-300"
                       }`}
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${newMemberForm.accountType === "parent" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${newMemberForm.accountType === "parent" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
                       }`}>
                       <Users className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold">Parent Account</p>
-                      <p className="text-[11px] text-slate-400 font-normal">Parent / Guardian supervisor</p>
+                      <p className="text-xs sm:text-sm font-bold">Parent Account</p>
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 font-normal">Parent / Guardian supervisor</p>
                     </div>
                   </button>
                 </div>
@@ -681,7 +681,7 @@ export function PaymentsAdmin({
                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
                   {newMemberForm.accountType === "student" ? "Student Information" : "Parent Information"}
                 </Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">First Name *</Label>
                     <Input
@@ -710,7 +710,7 @@ export function PaymentsAdmin({
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Password *</Label>
                     <Input
@@ -767,8 +767,8 @@ export function PaymentsAdmin({
                 </Label>
 
                 {newMemberForm.accountType === "student" ? (
-                  <div className="space-y-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-3 bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-2">
                       <div className="space-y-1">
                         <Label className="text-[11px] text-slate-600">Parent Full Name</Label>
                         <Input
@@ -801,8 +801,8 @@ export function PaymentsAdmin({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-3 bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-2">
                       <div className="space-y-1">
                         <Label className="text-[11px] text-slate-600">Student Full Name</Label>
                         <Input
@@ -838,14 +838,14 @@ export function PaymentsAdmin({
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowAddMemberModal(false)}>
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-100 bg-slate-50/80 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 shrink-0">
+              <Button variant="outline" onClick={() => setShowAddMemberModal(false)} className="w-full sm:w-auto">
                 Cancel
               </Button>
               <Button
                 disabled={isPending}
                 onClick={handleCreateMember}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 cursor-pointer"
+                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 cursor-pointer"
               >
                 {isPending ? (
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

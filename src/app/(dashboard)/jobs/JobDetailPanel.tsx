@@ -157,9 +157,9 @@ export function JobDetailPanel({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[95vw] sm:w-full max-w-6xl h-[92dvh] sm:h-[90vh] max-h-[92dvh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden bg-slate-50 rounded-2xl sm:rounded-3xl border-slate-200">
+      <DialogContent className="w-[95vw] sm:w-[94vw] md:w-[92vw] lg:w-[88vw] xl:w-[84vw] max-w-6xl sm:max-w-6xl md:max-w-6xl lg:max-w-6xl xl:max-w-6xl h-auto max-h-[92dvh] sm:max-h-[88vh] flex flex-col p-0 overflow-hidden bg-slate-50 rounded-2xl sm:rounded-3xl border-slate-200 shadow-2xl">
         {/* Header */}
-        <div className="bg-white p-4 sm:px-6 sm:py-4 border-b border-slate-200 flex-shrink-0">
+        <div className="bg-white p-4 sm:px-6 sm:py-5 border-b border-slate-200 flex-shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
               {job.employer_logo ? (
@@ -172,18 +172,18 @@ export function JobDetailPanel({
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <DialogTitle className="text-lg sm:text-2xl font-bold text-slate-900 leading-tight truncate">
+                <DialogTitle className="text-lg sm:text-2xl font-bold text-slate-900 leading-tight">
                   {job.job_title}
                 </DialogTitle>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1 sm:mt-1.5 text-xs sm:text-sm text-slate-600 font-medium">
-                  <span className="flex items-center gap-1 truncate">
+                  <span className="flex items-center gap-1">
                     <Building className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
-                    <span className="truncate">{job.employer_name}</span>
+                    <span>{job.employer_name}</span>
                   </span>
                   <span>•</span>
-                  <span className="flex items-center gap-1 truncate">
+                  <span className="flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
-                    <span className="truncate">{job.job_city} {job.job_state && `, ${job.job_state}`}</span>
+                    <span>{job.job_city} {job.job_state && `, ${job.job_state}`}</span>
                   </span>
                   <span>•</span>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold bg-slate-100 text-slate-700">
@@ -204,11 +204,11 @@ export function JobDetailPanel({
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto min-h-0">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
 
             {/* Left Column: Job Description & Limits */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="md:col-span-7 lg:col-span-8 space-y-4">
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-bl-full -z-0 opacity-50"></div>
                 <h3 className="text-lg font-bold text-slate-800 mb-4 relative z-10">About the Role</h3>
@@ -241,7 +241,7 @@ export function JobDetailPanel({
             </div>
 
             {/* Right Column: AI & Application Tools */}
-            <div className="space-y-6">
+            <div className="md:col-span-5 lg:col-span-4 space-y-6">
 
               {/* AI Resume Match */}
               <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm overflow-hidden relative">

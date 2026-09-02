@@ -45,37 +45,14 @@ function formatCycleMonth(rawCycle?: string) {
 }
 
 function UserActions({
-  user,
-  handleRoleChange,
-  isPending,
   onSendSms,
   onManage,
-  roleOption
 }: {
-  user: any;
-  handleRoleChange?: (id: string, role: "admin" | "user") => void;
-  isPending?: boolean;
   onSendSms: () => void;
   onManage?: () => void;
-  roleOption?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-      {handleRoleChange && roleOption && (
-        <select
-          value={user.role}
-          onChange={(e) => handleRoleChange(user.id, e.target.value as any)}
-          disabled={isPending}
-          className="bg-white border border-slate-200 text-slate-700 text-xs sm:text-sm rounded-lg focus:ring-violet-500 focus:border-violet-500 block py-1.5 px-2 max-w-[125px] sm:max-w-[140px] truncate"
-        >
-          <option value="user">Member (Student/Parent)</option>
-          <optgroup label="── Staff Roles ──">
-            {STAFF_ROLES.map((r) => (
-              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-            ))}
-          </optgroup>
-        </select>
-      )}
+    <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
       {onManage && (
         <div
           role="button"
@@ -84,7 +61,7 @@ function UserActions({
           className="p-1.5 sm:p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer shrink-0"
           title="Manage User"
         >
-          <Pencil className="w-4 h-4" />
+          <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </div>
       )}
       <div
@@ -94,24 +71,83 @@ function UserActions({
         className="p-1.5 sm:p-2 text-violet-600 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors cursor-pointer shrink-0"
         title="Send SMS"
       >
-        <MessageSquare className="w-4 h-4" />
+        <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
       </div>
     </div>
   );
 }
 
-function StudentSection({ user, actions }: { user: any, actions: React.ReactNode }) {
+function StudentSection({
+  user,
+  actions,
+  handleRoleChange,
+  isPending
+}: {
+  user: any;
+  actions: React.ReactNode;
+  handleRoleChange?: (id: string, role: any) => void;
+  isPending?: boolean;
+}) {
   return (
-    <div className="flex flex-col gap-3 md:grid md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] md:gap-4 md:items-center w-full text-left pr-2 md:pr-4">
+    <div className="flex flex-col gap-3 md:grid md:grid-cols-[1.6fr_1.1fr_1.3fr_1.1fr_auto] md:gap-4 md:items-center w-full text-left pr-2 md:pr-4">
       {/* Top row on mobile / Col 1 on desktop: Student name & email */}
-      <div className="flex items-center justify-between gap-2 md:block">
+      <div className="flex items-center justify-between gap-2 md:block min-w-0">
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-slate-900 truncate">{user.student_first_name ? `${user.student_first_name} ${user.student_last_name}` : (user.first_name || "—")}</p>
-          <p className="text-slate-500 text-xs truncate">{user.student_email || user.email}</p>
+          <p className="font-bold text-slate-900 truncate text-xs sm:text-sm">{user.student_first_name ? `${user.student_first_name} ${user.student_last_name}` : (user.first_name || "—")}</p>
+          <p className="text-slate-500 text-[11px] sm:text-xs truncate">{user.student_email || user.email}</p>
         </div>
-        {/* Mobile role badge */}
-        <div className="md:hidden shrink-0">
-          <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${user.role === 'admin'
+        {/* Mobile role selector / badge */}
+        <div className="md:hidden shrink-0" onClick={(e) => e.stopPropagation()}>
+          {handleRoleChange ? (
+            <select
+              value={user.role}
+              onChange={(e) => handleRoleChange(user.id, e.target.value as any)}
+              disabled={isPending}
+              className="bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-lg focus:ring-violet-500 focus:border-violet-500 block py-1 px-2 max-w-[130px] truncate cursor-pointer shadow-2xs"
+            >
+              <option value="user">Member</option>
+              <optgroup label="── Staff Roles ──">
+                {STAFF_ROLES.map((r) => (
+                  <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                ))}
+              </optgroup>
+            </select>
+          ) : (
+            <span className={`px-2.5 py-1 text-[11px] font-bold rounded-md border ${user.role === 'admin'
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : user.role !== 'user'
+                ? 'bg-violet-50 text-violet-700 border-violet-200'
+                : 'bg-slate-100 text-slate-600 border-slate-200'
+              }`}>
+              {user.role === 'admin' ? 'Admin' : user.role !== 'user' ? ROLE_LABELS[user.role as StaffRole] || user.role : 'Member'}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Col 2: Phone */}
+      <div className="hidden md:block min-w-0">
+        <p className="text-slate-700 text-xs sm:text-sm font-medium truncate whitespace-nowrap">{formatPhoneUS(user.student_phone) || "—"}</p>
+      </div>
+
+      {/* Col 3: Role (Desktop Role Selector) */}
+      <div className="hidden md:block min-w-0" onClick={(e) => e.stopPropagation()}>
+        {handleRoleChange ? (
+          <select
+            value={user.role}
+            onChange={(e) => handleRoleChange(user.id, e.target.value as any)}
+            disabled={isPending}
+            className="bg-white border border-slate-200 text-slate-700 text-xs rounded-lg focus:ring-violet-500 focus:border-violet-500 block py-1.5 px-2 w-full max-w-[145px] truncate cursor-pointer shadow-2xs font-medium"
+          >
+            <option value="user">Member (Student/Parent)</option>
+            <optgroup label="── Staff Roles ──">
+              {STAFF_ROLES.map((r) => (
+                <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+              ))}
+            </optgroup>
+          </select>
+        ) : (
+          <span className={`px-2.5 py-1 text-xs font-bold rounded-md border whitespace-nowrap inline-block ${user.role === 'admin'
             ? 'bg-amber-50 text-amber-700 border-amber-200'
             : user.role !== 'user'
               ? 'bg-violet-50 text-violet-700 border-violet-200'
@@ -119,29 +155,12 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
             }`}>
             {user.role === 'admin' ? 'Admin' : user.role !== 'user' ? ROLE_LABELS[user.role as StaffRole] || user.role : 'Member'}
           </span>
-        </div>
-      </div>
-
-      {/* Col 2: Phone */}
-      <div className="hidden md:block">
-        <p className="text-slate-700 text-sm font-medium truncate">{formatPhoneUS(user.student_phone) || "—"}</p>
-      </div>
-
-      {/* Col 3: Role (Desktop) */}
-      <div className="hidden md:block">
-        <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${user.role === 'admin'
-          ? 'bg-amber-50 text-amber-700 border-amber-200'
-          : user.role !== 'user'
-            ? 'bg-violet-50 text-violet-700 border-violet-200'
-            : 'bg-slate-100 text-slate-600 border-slate-200'
-          }`}>
-          {user.role === 'admin' ? 'Admin' : user.role !== 'user' ? ROLE_LABELS[user.role as StaffRole] || user.role : 'Member'}
-        </span>
+        )}
       </div>
 
       {/* Col 4: Date */}
-      <div className="hidden md:block">
-        <p className="text-slate-500 text-sm font-medium">
+      <div className="hidden md:block min-w-0">
+        <p className="text-slate-500 text-xs sm:text-sm font-medium whitespace-nowrap">
           {new Date(user.created_at).toLocaleDateString("en-US", {
             month: "short", day: "numeric", year: "numeric"
           })}
@@ -149,11 +168,11 @@ function StudentSection({ user, actions }: { user: any, actions: React.ReactNode
       </div>
 
       {/* Col 5: Actions */}
-      <div className="flex items-center justify-between md:justify-end gap-2 pt-2 md:pt-0 border-t border-slate-100/80 md:border-0 w-full md:w-auto">
-        <div className="text-[11px] text-slate-400 font-medium md:hidden">
+      <div className="flex items-center justify-between md:justify-end gap-2 pt-2 md:pt-0 border-t border-slate-100/80 md:border-0 w-full md:w-auto shrink-0">
+        <div className="text-[11px] text-slate-400 font-medium md:hidden whitespace-nowrap">
           {new Date(user.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
         </div>
-        <div className="flex justify-end">{actions}</div>
+        <div className="flex justify-end shrink-0">{actions}</div>
       </div>
     </div>
   );
@@ -173,36 +192,36 @@ function ParentSection({ user, actions, isPrimary = false }: { user: any, action
   return (
     <div className={!isPrimary ? "p-4 sm:p-6 bg-slate-50/80 border-t border-slate-100" : ""}>
       {!isPrimary && <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Linked Parent</h4>}
-      <div className={`flex flex-col gap-3 md:grid md:grid-cols-[1.5fr_1fr_1fr_1fr_auto] md:gap-4 md:items-center w-full text-left ${isPrimary ? "pr-2 md:pr-4" : ""}`}>
+      <div className={`flex flex-col gap-3 md:grid md:grid-cols-[1.6fr_1.1fr_1.3fr_1.1fr_auto] md:gap-4 md:items-center w-full text-left ${isPrimary ? "pr-2 md:pr-4" : ""}`}>
         {/* Top row on mobile / Col 1 on desktop: Parent name & email */}
-        <div className="flex items-center justify-between gap-2 md:block">
+        <div className="flex items-center justify-between gap-2 md:block min-w-0">
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-slate-800 truncate">{user.parent_first_name ? `${user.parent_first_name} ${user.parent_last_name}` : "—"}</p>
-            <p className="text-slate-500 text-xs truncate">{user.parent_email || "—"}</p>
+            <p className="font-semibold text-slate-800 truncate text-xs sm:text-sm">{user.parent_first_name ? `${user.parent_first_name} ${user.parent_last_name}` : "—"}</p>
+            <p className="text-slate-500 text-[11px] sm:text-xs truncate">{user.parent_email || "—"}</p>
           </div>
           {/* Mobile role badge */}
           <div className="md:hidden shrink-0">
-            <span className="px-2.5 py-1 text-xs font-bold rounded-md border bg-slate-100 text-slate-600 border-slate-200">
+            <span className="px-2.5 py-1 text-[11px] font-bold rounded-md border bg-slate-100 text-slate-600 border-slate-200">
               Parent
             </span>
           </div>
         </div>
 
         {/* Col 2: Phone */}
-        <div className="hidden md:block">
-          <p className="text-slate-700 text-sm font-medium truncate">{formatPhoneUS(user.parent_phone) || "—"}</p>
+        <div className="hidden md:block min-w-0">
+          <p className="text-slate-700 text-xs sm:text-sm font-medium truncate whitespace-nowrap">{formatPhoneUS(user.parent_phone) || "—"}</p>
         </div>
 
         {/* Col 3: Role (Desktop) */}
-        <div className="hidden md:block">
-          <span className="px-2.5 py-1 text-xs font-bold rounded-md border bg-slate-100 text-slate-600 border-slate-200">
+        <div className="hidden md:block min-w-0">
+          <span className="px-2.5 py-1 text-xs font-bold rounded-md border bg-slate-100 text-slate-600 border-slate-200 whitespace-nowrap inline-block">
             Parent
           </span>
         </div>
 
         {/* Col 4: Date */}
-        <div className="hidden md:block">
-          <p className="text-slate-500 text-sm font-medium">
+        <div className="hidden md:block min-w-0">
+          <p className="text-slate-500 text-xs sm:text-sm font-medium whitespace-nowrap">
             {new Date(user.created_at).toLocaleDateString("en-US", {
               month: "short", day: "numeric", year: "numeric"
             })}
@@ -210,11 +229,11 @@ function ParentSection({ user, actions, isPrimary = false }: { user: any, action
         </div>
 
         {/* Col 5: Actions */}
-        <div className="flex items-center justify-between md:justify-end gap-2 pt-2 md:pt-0 border-t border-slate-100/80 md:border-0 w-full md:w-auto">
-          <div className="text-[11px] text-slate-400 font-medium md:hidden">
+        <div className="flex items-center justify-between md:justify-end gap-2 pt-2 md:pt-0 border-t border-slate-100/80 md:border-0 w-full md:w-auto shrink-0">
+          <div className="text-[11px] text-slate-400 font-medium md:hidden whitespace-nowrap">
             {new Date(user.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </div>
-          <div className="flex justify-end">{actions}</div>
+          <div className="flex justify-end shrink-0">{actions}</div>
         </div>
       </div>
     </div>
@@ -229,14 +248,12 @@ function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onMan
         {filterRole === "student" ? (
           <StudentSection
             user={user}
+            handleRoleChange={handleRoleChange}
+            isPending={isPending}
             actions={
               <UserActions
-                user={user}
-                handleRoleChange={handleRoleChange}
-                isPending={isPending}
                 onSendSms={() => onSendSms(user, "student")}
                 onManage={() => onManage(user)}
-                roleOption={true}
               />
             }
           />
@@ -246,7 +263,6 @@ function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onMan
             isPrimary={true}
             actions={
               <UserActions
-                user={user}
                 onSendSms={() => onSendSms(user, "parent")}
                 onManage={() => onManage(user)}
               />
@@ -262,14 +278,12 @@ function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onMan
       <AccordionTrigger className="px-4 sm:px-6 py-4 hover:no-underline hover:bg-slate-50/50 transition-colors [&[data-state=open]]:bg-slate-50/50">
         <StudentSection
           user={user}
+          handleRoleChange={handleRoleChange}
+          isPending={isPending}
           actions={
             <UserActions
-              user={user}
-              handleRoleChange={handleRoleChange}
-              isPending={isPending}
               onSendSms={() => onSendSms(user, "student")}
               onManage={() => onManage(user)}
-              roleOption={true}
             />
           }
         />
@@ -279,7 +293,6 @@ function UserAccordionItem({ user, isPending, handleRoleChange, onSendSms, onMan
           user={user}
           actions={
             <UserActions
-              user={user}
               onSendSms={() => onSendSms(user, "parent")}
             />
           }
@@ -594,12 +607,12 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
         </button>
       </div>
 
-      <div className="hidden md:grid grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+      <div className="hidden md:grid grid-cols-[1.6fr_1.1fr_1.3fr_1.1fr_auto] gap-4 px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
         <div>Student</div>
         <div>Contact</div>
         <div>Role</div>
         <div>Date Created</div>
-        <div className="text-right pr-12">Actions</div>
+        <div className="text-right pr-10">Actions</div>
       </div>
 
       <Accordion type="multiple" className="w-full space-y-2">
@@ -786,67 +799,67 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
       {/* Manage User Modal */}
       {manageModalOpen && manageUser && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-2xl w-full animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Pencil className="w-5 h-5 text-blue-600" /> Manage User
+          <div className="flex min-h-full items-center justify-center p-2.5 sm:p-4">
+            <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-2xl max-w-2xl w-full animate-in fade-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]">
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Pencil className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" /> Manage User
                 </h2>
                 <button onClick={() => setManageModalOpen(false)} className="p-1 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="w-5 h-5 text-slate-400" />
                 </button>
               </div>
 
-              <div className="flex border-b border-slate-100 px-6 shrink-0 bg-slate-50/50">
-                <button onClick={() => setManageTab("info")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "info" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Basic Info</button>
-                <button onClick={() => setManageTab("subscription")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "subscription" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Subscription</button>
-                <button onClick={() => setManageTab("ai_usage")} className={`py-3 px-4 text-sm font-bold border-b-2 flex items-center gap-1.5 ${manageTab === "ai_usage" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>
+              <div className="flex border-b border-slate-100 px-3 sm:px-6 shrink-0 bg-slate-50/50 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button onClick={() => setManageTab("info")} className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap shrink-0 transition-colors ${manageTab === "info" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}>Basic Info</button>
+                <button onClick={() => setManageTab("subscription")} className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap shrink-0 transition-colors ${manageTab === "subscription" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}>Subscription</button>
+                <button onClick={() => setManageTab("ai_usage")} className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-bold border-b-2 flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors ${manageTab === "ai_usage" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
                   <Sparkles className="w-3.5 h-3.5" /> AI Usage & Spend
                 </button>
-                <button onClick={() => setManageTab("security")} className={`py-3 px-4 text-sm font-bold border-b-2 ${manageTab === "security" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500"}`}>Security</button>
+                <button onClick={() => setManageTab("security")} className={`py-3 px-3 sm:px-4 text-xs sm:text-sm font-bold border-b-2 whitespace-nowrap shrink-0 transition-colors ${manageTab === "security" ? "border-violet-600 text-violet-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}>Security</button>
               </div>
 
-              <div className="p-6 overflow-y-auto flex-1">
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1">
                 {manageTab === "info" && (
                   <form onSubmit={handleUpdateInfo} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student First Name</label>
-                        <input value={manageFormData.student_first_name} onChange={(e) => setManageFormData({ ...manageFormData, student_first_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_first_name} onChange={(e) => setManageFormData({ ...manageFormData, student_first_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Last Name</label>
-                        <input value={manageFormData.student_last_name} onChange={(e) => setManageFormData({ ...manageFormData, student_last_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_last_name} onChange={(e) => setManageFormData({ ...manageFormData, student_last_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Email</label>
-                        <input value={manageFormData.student_email} onChange={(e) => setManageFormData({ ...manageFormData, student_email: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_email} onChange={(e) => setManageFormData({ ...manageFormData, student_email: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Student Phone</label>
-                        <input value={manageFormData.student_phone} onChange={(e) => setManageFormData({ ...manageFormData, student_phone: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.student_phone} onChange={(e) => setManageFormData({ ...manageFormData, student_phone: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                     </div>
-                    <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-4">
+                    <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent First Name</label>
-                        <input value={manageFormData.parent_first_name} onChange={(e) => setManageFormData({ ...manageFormData, parent_first_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_first_name} onChange={(e) => setManageFormData({ ...manageFormData, parent_first_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Last Name</label>
-                        <input value={manageFormData.parent_last_name} onChange={(e) => setManageFormData({ ...manageFormData, parent_last_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_last_name} onChange={(e) => setManageFormData({ ...manageFormData, parent_last_name: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Email</label>
-                        <input value={manageFormData.parent_email} onChange={(e) => setManageFormData({ ...manageFormData, parent_email: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_email} onChange={(e) => setManageFormData({ ...manageFormData, parent_email: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parent Phone</label>
-                        <input value={manageFormData.parent_phone} onChange={(e) => setManageFormData({ ...manageFormData, parent_phone: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" />
+                        <input value={manageFormData.parent_phone} onChange={(e) => setManageFormData({ ...manageFormData, parent_phone: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
                       </div>
                     </div>
                     <div className="flex justify-end pt-4">
-                      <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors">
+                      <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors">
                         {isSubmitting ? "Saving..." : "Save Changes"}
                       </button>
                     </div>
@@ -867,12 +880,12 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                       </p>
                     </div>
                     {manageUser.subscription_status === "active" && (
-                      <div className="p-4 border border-red-100 bg-red-50 rounded-xl flex items-center justify-between">
+                      <div className="p-4 border border-red-100 bg-red-50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                         <div>
                           <p className="font-bold text-red-900">Cancel Subscription</p>
                           <p className="text-sm text-red-700">Immediately cancel their active plan.</p>
                         </div>
-                        <button onClick={handleCancelSub} disabled={isSubmitting} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold">
+                        <button onClick={handleCancelSub} disabled={isSubmitting} className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold">
                           Cancel Plan
                         </button>
                       </div>
@@ -882,39 +895,39 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
 
                 {manageTab === "ai_usage" && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ask AI Questions</p>
-                        <p className="text-xl font-extrabold text-slate-900 mt-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                      <div className="p-3 sm:p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Ask AI Questions</p>
+                        <p className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
                           {manageUser.usage?.ask_ai_count || 0}
                         </p>
                       </div>
-                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Essay Docs</p>
-                        <p className="text-xl font-extrabold text-slate-900 mt-1">
+                      <div className="p-3 sm:p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Essay Docs</p>
+                        <p className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
                           {manageUser.usage?.essay_docs_count ?? manageUser.usage?.essay_count ?? 0}
                         </p>
                       </div>
-                      <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Resume Docs</p>
-                        <p className="text-xl font-extrabold text-slate-900 mt-1">
+                      <div className="p-3 sm:p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <p className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Resume Docs</p>
+                        <p className="text-lg sm:text-xl font-extrabold text-slate-900 mt-1">
                           {manageUser.usage?.resume_docs_count ?? manageUser.usage?.resume_count ?? 0}
                         </p>
                       </div>
-                      <div className="p-3.5 bg-violet-50 rounded-xl border border-violet-100">
-                        <p className="text-xs font-bold text-violet-600 uppercase tracking-wider">Est. Monthly Spend</p>
-                        <p className="text-xl font-extrabold text-violet-900 mt-1">
+                      <div className="p-3 sm:p-3.5 bg-violet-50 rounded-xl border border-violet-100">
+                        <p className="text-[11px] sm:text-xs font-bold text-violet-600 uppercase tracking-wider">Est. Monthly Spend</p>
+                        <p className="text-lg sm:text-xl font-extrabold text-violet-900 mt-1">
                           ${Number(manageUser.usage?.estimated_cost_usd || 0).toFixed(2)}
                         </p>
                       </div>
                     </div>
 
                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-                      <div className="flex justify-between items-center text-sm">
+                      <div className="flex justify-between items-center text-xs sm:text-sm">
                         <span className="text-slate-500 font-medium">Tracking Cycle</span>
                         <span className="font-bold text-slate-800">{formatCycleMonth(manageUser.usage?.current_month)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-sm">
+                      <div className="flex justify-between items-center text-xs sm:text-sm">
                         <span className="text-slate-500 font-medium">Limit / Cap Status</span>
                         <span className={`font-bold px-2.5 py-0.5 rounded-full text-xs ${manageUser.usage?.last_limit_reason && manageUser.usage?.last_limit_reason !== "None"
                             ? "bg-amber-100 text-amber-700"
@@ -933,7 +946,7 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
                       <button
                         onClick={handleResetAiUsage}
                         disabled={isSubmitting}
-                        className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors whitespace-nowrap"
+                        className="w-full sm:w-auto px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors whitespace-nowrap"
                       >
                         Reset AI Usage
                       </button>
@@ -943,32 +956,32 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
 
                 {manageTab === "security" && (
                   <div className="space-y-4">
-                    <div className="p-4 border border-amber-100 bg-amber-50 rounded-xl flex items-center justify-between gap-4">
+                    <div className="p-3.5 sm:p-4 border border-amber-100 bg-amber-50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                       <div>
-                        <p className="font-bold text-amber-900">Reset Password</p>
-                        <p className="text-sm text-amber-700">Set password back to default (User@12345).</p>
+                        <p className="font-bold text-amber-900 text-sm sm:text-base">Reset Password</p>
+                        <p className="text-xs sm:text-sm text-amber-700">Set password back to default (User@12345).</p>
                       </div>
-                      <button onClick={handleResetPassword} disabled={isSubmitting} className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold whitespace-nowrap">
+                      <button onClick={handleResetPassword} disabled={isSubmitting} className="w-full sm:w-auto px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold whitespace-nowrap">
                         Reset Password
                       </button>
                     </div>
 
-                    <div className="p-4 border border-orange-100 bg-orange-50 rounded-xl flex items-center justify-between gap-4">
+                    <div className="p-3.5 sm:p-4 border border-orange-100 bg-orange-50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                       <div>
-                        <p className="font-bold text-orange-900">{manageUser.is_active === false ? "Enable" : "Disable"} Account</p>
-                        <p className="text-sm text-orange-700">{manageUser.is_active === false ? "Restore user access." : "Block user from logging in."}</p>
+                        <p className="font-bold text-orange-900 text-sm sm:text-base">{manageUser.is_active === false ? "Enable" : "Disable"} Account</p>
+                        <p className="text-xs sm:text-sm text-orange-700">{manageUser.is_active === false ? "Restore user access." : "Block user from logging in."}</p>
                       </div>
-                      <button onClick={handleToggleActive} disabled={isSubmitting} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold whitespace-nowrap">
+                      <button onClick={handleToggleActive} disabled={isSubmitting} className="w-full sm:w-auto px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold whitespace-nowrap">
                         {manageUser.is_active === false ? "Enable Account" : "Disable Account"}
                       </button>
                     </div>
 
-                    <div className="p-4 border border-red-100 bg-red-50 rounded-xl flex items-center justify-between gap-4 mt-8">
+                    <div className="p-3.5 sm:p-4 border border-red-100 bg-red-50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mt-6 sm:mt-8">
                       <div>
-                        <p className="font-bold text-red-900">Delete Account</p>
-                        <p className="text-sm text-red-700">Permanently delete user and all their data.</p>
+                        <p className="font-bold text-red-900 text-sm sm:text-base">Delete Account</p>
+                        <p className="text-xs sm:text-sm text-red-700">Permanently delete user and all their data.</p>
                       </div>
-                      <button onClick={handleDeleteUser} disabled={isSubmitting} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 whitespace-nowrap">
+                      <button onClick={handleDeleteUser} disabled={isSubmitting} className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 whitespace-nowrap">
                         <Trash className="w-4 h-4" /> Delete Account
                       </button>
                     </div>

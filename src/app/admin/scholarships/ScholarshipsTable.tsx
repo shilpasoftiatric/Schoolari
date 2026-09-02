@@ -182,8 +182,8 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
   return (
     <div className="space-y-4">
       {/* Controls */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 max-w-2xl w-full">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col xl:flex-row gap-3 sm:gap-4 justify-between items-stretch xl:items-center">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 w-full xl:max-w-2xl">
           <div className="relative flex-1 w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
@@ -215,7 +215,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
             </select>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto shrink-0">
           <Button
             onClick={handleScrape}
             disabled={isScraping}

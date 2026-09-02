@@ -628,7 +628,7 @@ export function MessagesAdmin({
       <div className="h-[750px] max-h-[85vh] rounded-3xl border border-slate-200 overflow-hidden flex shadow-xl bg-[#F0F2F5]">
         {/* ── LEFT COLUMN: STUDENT INBOX LIST ── */}
         <div
-          className={`w-full md:w-[350px] lg:w-[380px] flex flex-col bg-white border-r border-slate-200 shrink-0 h-full ${showMobileChat ? "hidden md:flex" : "flex"
+          className={`w-full md:w-[280px] lg:w-[300px] xl:w-[330px] flex flex-col bg-white border-r border-slate-200 shrink-0 h-full ${showMobileChat ? "hidden md:flex" : "flex"
             }`}
         >
           {/* Header */}

@@ -104,39 +104,39 @@ export function AILimitsClient({ initialLimits, students, defaultTab }: AILimits
   return (
     <div className="space-y-6">
       {/* Toggle Switch */}
-      <div className="flex justify-start mb-8">
-        <div className="bg-slate-100 p-1 rounded-xl inline-flex shadow-inner">
+      <div className="flex justify-start mb-6">
+        <div className="bg-slate-100 p-1 rounded-xl flex sm:inline-flex w-full sm:w-auto shadow-inner">
           <button
             onClick={() => handleTabChange("limits")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === "limits" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all text-center ${activeTab === "limits" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}
           >
-            <Settings2 className="w-4 h-4" /> Global AI Limits & Caps
+            <Settings2 className="w-4 h-4 shrink-0" /> <span>Global AI Limits</span>
           </button>
           <button
             onClick={() => handleTabChange("usage")}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === "usage" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-6 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all text-center ${activeTab === "usage" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
               }`}
           >
-            <Users className="w-4 h-4" /> Student Usage & Spend
+            <Users className="w-4 h-4 shrink-0" /> <span>Student Usage</span>
           </button>
         </div>
       </div>
 
       {activeTab === "limits" && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Global AI Document Limits & Monthly Budget Caps</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Essays and Resumes are limited by document creations. Spend caps protect against API overages silently.</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div className="space-y-1">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">Global AI Document Limits &amp; Monthly Budget Caps</h2>
+              <p className="text-xs text-slate-500 leading-relaxed">Essays and Resumes are limited by document creations. Spend caps protect against API overages silently.</p>
             </div>
-            <Button onClick={handleSave} disabled={isSaving} className="bg-violet-600 hover:bg-violet-700 text-white font-bold">
+            <Button onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 text-white font-bold shrink-0">
               {isSaving ? "Saving..." : "Save Limits"}
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table className="w-full text-sm text-left min-w-[700px]">
               <thead className="bg-slate-50 text-slate-500 font-medium">
                 <tr>
                   <th className="px-4 py-3 rounded-tl-lg">Plan</th>
@@ -203,59 +203,61 @@ export function AILimitsClient({ initialLimits, students, defaultTab }: AILimits
                 ))}
               </tbody>
             </table>
-            <p className="text-xs text-slate-400 mt-2">* In-document AI tools (brainstorm, review, STAR bullets) are unlimited within created documents until the monthly budget cap is reached.</p>
+            <p className="text-xs text-slate-400 mt-3">* In-document AI tools (brainstorm, review, STAR bullets) are unlimited within created documents until the monthly budget cap is reached.</p>
           </div>
         </div>
       )}
 
       {/* Student Usage Section */}
       {activeTab === "usage" && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex flex-col gap-4 mb-6">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Student AI Usage & Spend</h2>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900">Student AI Usage &amp; Spend</h2>
               <p className="text-xs text-slate-500 mt-0.5">Live tracking of document creations, questions asked, and estimated API spend.</p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full">
+              <div className="relative flex-1 w-full">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input
                   type="text"
                   placeholder="Search students..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 w-full sm:w-64"
+                  className="pl-9 w-full"
                 />
               </div>
-              <div className="relative">
-                <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <select
-                  value={planFilter}
-                  onChange={(e) => setPlanFilter(e.target.value)}
-                  className="pl-9 pr-8 py-2 h-10 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent appearance-none cursor-pointer text-slate-700 font-medium"
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="relative flex-1 sm:flex-initial">
+                  <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <select
+                    value={planFilter}
+                    onChange={(e) => setPlanFilter(e.target.value)}
+                    className="pl-9 pr-8 py-2 h-10 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent appearance-none cursor-pointer text-slate-700 font-medium w-full sm:w-36"
+                  >
+                    <option value="all">All Plans</option>
+                    <option value="starter">Starter</option>
+                    <option value="scholar">Scholar</option>
+                    <option value="elite">Elite</option>
+                  </select>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="h-10 w-10 border-slate-200 text-slate-500 hover:text-violet-600 transition-colors shrink-0"
+                  title="Refresh student list"
                 >
-                  <option value="all">All Plans</option>
-                  <option value="starter">Starter</option>
-                  <option value="scholar">Scholar</option>
-                  <option value="elite">Elite</option>
-                </select>
+                  <RotateCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-violet-600" : ""}`} />
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="h-10 w-10 border-slate-200 text-slate-500 hover:text-violet-600 transition-colors shrink-0"
-                title="Refresh student list"
-              >
-                <RotateCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-violet-600" : ""}`} />
-              </Button>
             </div>
           </div>
 
-          <div className={`overflow-x-auto transition-opacity duration-200 ${isRefreshing ? "opacity-50 pointer-events-none" : ""}`}>
-            <table className="w-full text-sm text-left">
+          <div className={`overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 transition-opacity duration-200 ${isRefreshing ? "opacity-50 pointer-events-none" : ""}`}>
+            <table className="w-full text-sm text-left min-w-[850px]">
               <thead className="bg-slate-50 text-slate-500 font-medium">
                 <tr>
                   <th className="px-4 py-3 rounded-tl-lg">Student</th>
@@ -322,13 +324,13 @@ export function AILimitsClient({ initialLimits, students, defaultTab }: AILimits
                       <td className="px-4 py-4">
                         <span className={`font-semibold ${isCoverTriggered ? "text-red-600 font-bold" : "text-slate-950"}`}>{coverCount}</span> / {coverLimit > 900000 ? "∞" : coverLimit}
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 whitespace-nowrap">
                         <span className={`font-semibold ${isOverBudget ? "text-red-600" : "text-emerald-700"}`}>
                           ${currentSpend.toFixed(2)}
                         </span>
                         <span className="text-slate-400 text-xs ml-1">/ ${budgetCap.toFixed(2)}</span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 whitespace-nowrap">
                         {isOverBudget || (isAskLimitReached && isEssayLimitReached && isResumeLimitReached && isCoverLimitReached) ? (
                           <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-red-100 text-red-700">
                             Limit Triggered
@@ -344,7 +346,7 @@ export function AILimitsClient({ initialLimits, students, defaultTab }: AILimits
                 })}
                 {filteredStudents.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-slate-500">No students found matching your criteria.</td>
+                    <td colSpan={9} className="px-4 py-8 text-center text-slate-500">No students found matching your criteria.</td>
                   </tr>
                 )}
               </tbody>

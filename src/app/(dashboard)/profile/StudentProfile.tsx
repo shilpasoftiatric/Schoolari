@@ -162,7 +162,7 @@ export function StudentProfile({
         {isArray ? (
           renderBadges(value)
         ) : (
-          <p className="text-slate-900 font-medium text-sm">{value || <span className="text-slate-400 font-normal">Not provided</span>}</p>
+          <p className="text-slate-900 font-medium text-sm break-words">{value || <span className="text-slate-400 font-normal">Not provided</span>}</p>
         )}
       </div>
     );
@@ -327,7 +327,7 @@ export function StudentProfile({
                 <User className="w-5 h-5 text-violet-600" />
                 <h2 className="text-lg font-bold text-slate-900">Personal Information</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-6 gap-x-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-y-5 gap-x-6">
                 {renderField("First Name", "student_first_name", formData.student_first_name)}
                 {renderField("Last Name", "student_last_name", formData.student_last_name)}
                 {renderField("Mobile Number", "student_phone", formData.student_phone, "tel")}
@@ -344,8 +344,8 @@ export function StudentProfile({
               <GraduationCap className="w-5 h-5 text-violet-600" />
               <h2 className="text-lg font-bold text-slate-900">Educational Information</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-6 gap-x-8">
-              <div className="sm:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-y-5 gap-x-6">
+              <div className="sm:col-span-2 xl:col-span-2">
                 {renderField("School / Institution", "high_school_name", formData.high_school_name)}
               </div>
               {renderField("Class / Grade", "grade_level", formData.grade_level)}
@@ -363,22 +363,22 @@ export function StudentProfile({
               <Users className="w-5 h-5 text-violet-600" />
               <h2 className="text-lg font-bold text-slate-900">Parent / Guardian Information</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-6 gap-x-8">
-              <div className="flex flex-col gap-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-y-5 gap-x-6">
+              <div className="flex flex-col gap-1 min-w-0">
                 <label className="block text-xs font-medium text-slate-500">Parent / Guardian Name</label>
-                <p className="text-slate-900 font-medium text-sm">
+                <p className="text-slate-900 font-medium text-sm break-words">
                   {formData.parent_first_name || formData.parent_last_name
                     ? `${formData.parent_first_name || ''} ${formData.parent_last_name || ''}`.trim()
                     : <span className="text-slate-400 font-normal">Not provided</span>}
                 </p>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 min-w-0">
                 <label className="block text-xs font-medium text-slate-500">Parent Email</label>
-                <p className="text-slate-900 font-medium text-sm">{formData.parent_email || <span className="text-slate-400 font-normal">Not provided</span>}</p>
+                <p className="text-slate-900 font-medium text-sm break-all">{formData.parent_email || <span className="text-slate-400 font-normal">Not provided</span>}</p>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 min-w-0">
                 <label className="block text-xs font-medium text-slate-500">Parent Phone</label>
-                <p className="text-slate-900 font-medium text-sm">{formData.parent_phone || <span className="text-slate-400 font-normal">Not provided</span>}</p>
+                <p className="text-slate-900 font-medium text-sm break-words">{formData.parent_phone || <span className="text-slate-400 font-normal">Not provided</span>}</p>
               </div>
             </div>
           </div>
@@ -389,7 +389,7 @@ export function StudentProfile({
               <Info className="w-5 h-5 text-violet-600" />
               <h2 className="text-lg font-bold text-slate-900">Additional Information</h2>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-y-8 gap-x-12">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-y-6 gap-x-8">
 
               {/* Left col of Additional */}
               <div className="space-y-6">

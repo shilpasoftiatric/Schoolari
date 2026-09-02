@@ -861,21 +861,23 @@ export default function AIPage() {
               )}
             </div>
 
-            {/* Upgrade Button in Mobile Sidebar Drawer (ChatGPT style) */}
-            <div className="p-3 border-t border-slate-100 mt-auto bg-slate-50/50">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMobileSidebarOpen(false);
-                  setIsUpgradeOpen(true);
-                }}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                title="Upgrade Plan"
-              >
-                <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" />
-                <span className="text-sm font-semibold text-blue-600">Upgrade</span>
-              </button>
-            </div>
+            {/* Upgrade Button in Mobile Sidebar Drawer (ChatGPT style - hidden for Elite plan) */}
+            {currentPlan !== "elite" && (
+              <div className="p-3 border-t border-slate-100 mt-auto bg-slate-50/50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileSidebarOpen(false);
+                    setIsUpgradeOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                  title="Upgrade Plan"
+                >
+                  <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" />
+                  <span className="text-sm font-semibold text-blue-600">Upgrade</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1026,31 +1028,33 @@ export default function AIPage() {
           </div>
         )}
 
-        {/* Upgrade Button in Desktop Sidebar */}
-        {isSidebarOpen ? (
-          <div className="p-2.5 border-t border-slate-100 mt-auto bg-slate-50/40">
-            <button
-              type="button"
-              onClick={() => setIsUpgradeOpen(true)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-              title="Upgrade Plan"
-            >
-              <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" />
-              <span className="text-sm font-semibold text-blue-600">Upgrade</span>
-            </button>
-          </div>
-        ) : (
-          <div className="p-2 border-t border-slate-100 mt-auto flex justify-center">
-            <button
-              type="button"
-              onClick={() => setIsUpgradeOpen(true)}
-              className="p-2 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-              title="Upgrade Plan"
-              aria-label="Upgrade Plan"
-            >
-              <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500" />
-            </button>
-          </div>
+        {/* Upgrade Button in Desktop Sidebar (hidden for Elite plan) */}
+        {currentPlan !== "elite" && (
+          isSidebarOpen ? (
+            <div className="p-2.5 border-t border-slate-100 mt-auto bg-slate-50/40">
+              <button
+                type="button"
+                onClick={() => setIsUpgradeOpen(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                title="Upgrade Plan"
+              >
+                <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" />
+                <span className="text-sm font-semibold text-blue-600">Upgrade</span>
+              </button>
+            </div>
+          ) : (
+            <div className="p-2 border-t border-slate-100 mt-auto flex justify-center">
+              <button
+                type="button"
+                onClick={() => setIsUpgradeOpen(true)}
+                className="p-2 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                title="Upgrade Plan"
+                aria-label="Upgrade Plan"
+              >
+                <Sparkles className="w-4 h-4 text-blue-500 fill-blue-500" />
+              </button>
+            </div>
+          )
         )}
       </aside>
 

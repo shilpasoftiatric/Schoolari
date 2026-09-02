@@ -70,10 +70,10 @@ export default async function AILimitsPage(props: {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">AI Limits & Usage</h1>
-        <p className="text-sm text-slate-500">Configure global AI limits and view student usage.</p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">AI Limits &amp; Usage</h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Configure global AI limits and view student usage.</p>
       </div>
 
       <AILimitsClient 
