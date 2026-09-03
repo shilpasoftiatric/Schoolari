@@ -7,7 +7,7 @@ import { getAiDisclaimerStatus } from "@/app/actions/ai-disclaimer";
 import { AIDisclaimerModal } from "@/components/ui/AIDisclaimerModal";
 
 export const metadata: Metadata = {
-  title: "Harvard ATS Resume Builder | Schoolari USA",
+  title: "Resume Builder | Schoolari",
   description:
     "Enterprise AI-powered resume builder tailored for high school and college students with STAR bullet optimization and live ATS scoring."
 };
@@ -19,7 +19,7 @@ export default async function ResumeBuilderPage() {
   if (!canAccessFeature(plan, "resume")) {
     return (
       <LockedFeaturePage
-        featureName="Harvard ATS Resume Builder"
+        featureName="Resume Builder"
         requiredPlan="scholar"
         description="Build a professional resume with AI-powered STAR bullet optimization and live ATS scoring — available on the Scholar plan."
       />
