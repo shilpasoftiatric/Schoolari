@@ -288,19 +288,44 @@ export async function POST(req: Request) {
     // Sync notifications for deadlines
     await syncNotifications(masterId, [...scholarshipTasks, ...essayTasks, ...collegeTasks], trackerItems, supabaseAdmin);
 
+    const isItemComplete = (status: string) => {
+      const s = (status || "").toLowerCase();
+      return s === "won" || s === "completed" || s === "submitted";
+    };
+
+    const formatDeadline = (t: any) => {
+      const dueDate = t.due_date ? new Date(t.due_date) : null;
+      const isPast = dueDate ? dueDate < new Date() : false;
+      return {
+        id: t.id,
+        name: t.title,
+        date: dueDate ? dueDate.toLocaleDateString() : "",
+        rawDate: t.due_date,
+        urgent: isPast,
+        isOverdue: isPast,
+        status: t.status,
+      };
+    };
+
     if (!force && cachedData && isStateEqual) {
       // Re-inject the latest tasks and tracker deadlines from DB even if we cache AI
       cachedData.scholarships = {
         tasks: scholarshipTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
-        deadlines: trackerItems.filter((t: any) => t.reference_type === "scholarship").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+        deadlines: trackerItems
+          .filter((t: any) => (t.reference_type || "scholarship") === "scholarship" && !isItemComplete(t.status))
+          .map(formatDeadline)
       };
       cachedData.essays = {
         tasks: essayTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
-        deadlines: trackerItems.filter((t: any) => t.reference_type === "essay").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+        deadlines: trackerItems
+          .filter((t: any) => t.reference_type === "essay" && !isItemComplete(t.status))
+          .map(formatDeadline)
       };
       cachedData.colleges = {
         tasks: collegeTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
-        deadlines: trackerItems.filter((t: any) => t.reference_type === "college").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+        deadlines: trackerItems
+          .filter((t: any) => t.reference_type === "college" && !isItemComplete(t.status))
+          .map(formatDeadline)
       };
       cachedData.tracker = trackerItems.map((t: any) => ({
         id: t.id,
@@ -375,15 +400,21 @@ IMPORTANT: Generate only the exact JSON requested.`;
       ],
       scholarships: {
         tasks: scholarshipTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
-        deadlines: trackerItems.filter((t: any) => t.reference_type === "scholarship").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+        deadlines: trackerItems
+          .filter((t: any) => (t.reference_type || "scholarship") === "scholarship" && !isItemComplete(t.status))
+          .map(formatDeadline)
       },
       essays: {
         tasks: essayTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
-        deadlines: trackerItems.filter((t: any) => t.reference_type === "essay").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+        deadlines: trackerItems
+          .filter((t: any) => t.reference_type === "essay" && !isItemComplete(t.status))
+          .map(formatDeadline)
       },
       colleges: {
         tasks: collegeTasks.map(t => ({ id: t.id, title: t.title, done: false, due_date: t.due_date })),
-        deadlines: trackerItems.filter((t: any) => t.reference_type === "college").map((t: any) => ({ name: t.title, date: new Date(t.due_date).toLocaleDateString(), urgent: false }))
+        deadlines: trackerItems
+          .filter((t: any) => t.reference_type === "college" && !isItemComplete(t.status))
+          .map(formatDeadline)
       },
       tracker: trackerItems.map((t: any) => ({
         id: t.id,

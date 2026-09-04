@@ -81,7 +81,8 @@ function DashboardSection({
   sectionData,
   category,
   emptyTip,
-  onRefresh
+  onRefresh,
+  onMoveToTracker,
 }: {
   title: string,
   icon: any,
@@ -91,7 +92,8 @@ function DashboardSection({
   sectionData: any,
   category: string,
   emptyTip?: string,
-  onRefresh?: () => void
+  onRefresh?: () => void,
+  onMoveToTracker?: (item: any) => void,
 }) {
   const completedTasks = sectionData?.tasks?.filter((t: any) => t.done).length || 0;
   const totalTasks = sectionData?.tasks?.length || 0;
@@ -131,8 +133,6 @@ function DashboardSection({
       }
     } else {
       // Desktop / Laptop: Confirm completion only (Move to Tracker is available via hover)
-      setCompletedTaskIds((prev) => ({ ...prev, [taskId]: true }));
-
       const result = await Swal.fire({
         title: "Confirm Completion",
         text: `Did you complete: "${taskTitle}"?`,
@@ -145,15 +145,10 @@ function DashboardSection({
       });
 
       if (result.isConfirmed) {
+        setCompletedTaskIds((prev) => ({ ...prev, [taskId]: true }));
         startTransition(async () => {
           await completeTask(taskId, taskTitle);
           if (onRefresh) onRefresh();
-        });
-      } else {
-        setCompletedTaskIds((prev) => {
-          const next = { ...prev };
-          delete next[taskId];
-          return next;
         });
       }
     }
@@ -173,12 +168,25 @@ function DashboardSection({
     setTrackerTaskModal(null);
     setCompletedTaskIds((prev) => ({ ...prev, [id]: true }));
 
+    if (onMoveToTracker) {
+      onMoveToTracker({
+        id: `temp-${Date.now()}`,
+        title,
+        reference_type: category,
+        status: "Not Started",
+        due_date: trackerDueDate,
+        created_at: new Date().toISOString(),
+      });
+    }
+
     startTransition(async () => {
       await moveTaskToTracker(id, title, category, trackerDueDate);
       setTrackerDueDate("");
       if (onRefresh) onRefresh();
     });
   };
+
+  const activeTasks = (sectionData?.tasks || []).filter((t: any) => !t.done && !completedTaskIds[t.id]);
 
   return (
     <Card className={cn("shadow-sm border-slate-100 flex flex-col justify-between overflow-hidden", borderClass)}>
@@ -187,62 +195,50 @@ function DashboardSection({
           <span className="flex items-center gap-2">
             <Icon className={cn("w-5 h-5", colorClass)} /> {title}
           </span>
-          {/* {totalTasks > 0 && (
-            <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full bg-white border border-slate-100 shadow-sm")}>
-              {completedTasks}/{totalTasks} Done
-            </span>
-          )} */}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 pt-4 flex-1">
         <div className="space-y-3">
           <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Do This Today</h4>
           <div className="space-y-2">
-            {sectionData?.tasks && sectionData.tasks.length > 0 ? (
-              sectionData.tasks.slice(0, 3).map((t: any, i: number) => {
-                const isDone = t.done || completedTaskIds[t.id];
-                const isOverdue = !isDone && t.due_date && new Date(t.due_date) < new Date();
+            {activeTasks.length > 0 ? (
+              activeTasks.slice(0, 3).map((t: any, i: number) => {
+                const isOverdue = t.due_date && new Date(t.due_date) < new Date();
                 return (
                   <div key={t.id || i} className="flex flex-col p-2 rounded-xl hover:bg-slate-50 transition-colors group">
                     <div
-                      onClick={() => !isDone && handleComplete(t.id, t.title)}
+                      onClick={() => handleComplete(t.id, t.title)}
                       className="flex items-start gap-2.5 cursor-pointer select-none"
                     >
                       <button
                         type="button"
-                        disabled={isPending || isDone}
-                        className={cn("mt-0.5 shrink-0 transition-colors cursor-pointer", isDone ? "text-emerald-500" : isOverdue ? "text-red-400 hover:text-emerald-500" : "text-slate-300 group-hover:text-emerald-500")}
+                        disabled={isPending}
+                        className={cn("mt-0.5 shrink-0 transition-colors cursor-pointer", isOverdue ? "text-red-400 hover:text-emerald-500" : "text-slate-300 group-hover:text-emerald-500")}
                       >
-                        {isDone ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        ) : (
-                          <Circle className="w-4 h-4" />
-                        )}
+                        <Circle className="w-4 h-4" />
                       </button>
-                      <span className={cn("text-sm font-semibold transition-all", isDone ? "line-through text-slate-400" : isOverdue ? "text-red-500" : "text-slate-700 group-hover:text-slate-900")}>
+                      <span className={cn("text-sm font-semibold transition-all", isOverdue ? "text-red-500" : "text-slate-700 group-hover:text-slate-900")}>
                         {t.title}
                       </span>
                     </div>
-                    {!isDone && (
-                      <div className="pl-6 mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-3 text-[10px] font-bold text-slate-400">
-                        {isOverdue && (
-                          <button onClick={(e) => { e.stopPropagation(); handleSkip(t.id); }} disabled={isPending} className="hover:text-slate-600 flex items-center gap-1 cursor-pointer">
-                            Skip <ArrowRight className="w-3 h-3" />
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTrackerTaskModal({ id: t.id, title: t.title });
-                            setTrackerDueDate(new Date().toISOString().split("T")[0]);
-                          }}
-                          disabled={isPending}
-                          className="hover:text-blue-500 flex items-center gap-1 cursor-pointer"
-                        >
-                          Move to Tracker <ArrowRight className="w-3 h-3" />
+                    <div className="pl-6 mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-3 text-[10px] font-bold text-slate-400">
+                      {isOverdue && (
+                        <button onClick={(e) => { e.stopPropagation(); handleSkip(t.id); }} disabled={isPending} className="hover:text-slate-600 flex items-center gap-1 cursor-pointer">
+                          Skip <ArrowRight className="w-3 h-3" />
                         </button>
-                      </div>
-                    )}
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTrackerTaskModal({ id: t.id, title: t.title });
+                          setTrackerDueDate(new Date().toISOString().split("T")[0]);
+                        }}
+                        disabled={isPending}
+                        className="hover:text-blue-500 flex items-center gap-1 cursor-pointer"
+                      >
+                        Move to Tracker <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 );
               })
@@ -256,14 +252,39 @@ function DashboardSection({
           <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Upcoming Deadlines</h4>
           <div className="space-y-2">
             {sectionData?.deadlines && sectionData.deadlines.length > 0 ? (
-              sectionData.deadlines.map((d: any, i: number) => (
-                <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-slate-50/50 border border-slate-100">
-                  <span className="text-sm font-semibold text-slate-700 truncate max-w-[140px]" title={d.name}>{d.name}</span>
-                  <span className={cn("text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ml-2", d.urgent ? "bg-red-50 text-red-600 border border-red-100 animate-pulse" : "bg-slate-100 text-slate-600")}>
-                    {d.date}
-                  </span>
-                </div>
-              ))
+              sectionData.deadlines.map((d: any, i: number) => {
+                const dueDate = d.rawDate ? new Date(d.rawDate) : (d.date ? new Date(d.date) : null);
+                const isOverdue = d.urgent || d.isOverdue || (dueDate ? dueDate < new Date() : false);
+                return (
+                  <div
+                    key={d.id || i}
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded-xl border transition-colors",
+                      isOverdue ? "bg-red-50/50 border-red-200" : "bg-slate-50/50 border-slate-100"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "text-sm font-semibold truncate max-w-[140px]",
+                        isOverdue ? "text-red-700 font-bold" : "text-slate-700"
+                      )}
+                      title={d.name}
+                    >
+                      {d.name}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ml-2 border",
+                        isOverdue
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      )}
+                    >
+                      {d.date}
+                    </span>
+                  </div>
+                );
+              })
             ) : (
               <div className="pl-2 space-y-2">
                 <p className="text-xs text-slate-400 italic">No upcoming deadlines.</p>
@@ -355,6 +376,18 @@ export function DashboardClient({
   const [showScholarUpgradeModal, setShowScholarUpgradeModal] = useState(false);
   const [isRefreshingAI, setIsRefreshingAI] = useState(false);
 
+  const [liveTrackerItems, setLiveTrackerItems] = useState<any[]>(trackerItems || []);
+
+  useEffect(() => {
+    if (trackerItems) {
+      setLiveTrackerItems(trackerItems);
+    }
+  }, [trackerItems]);
+
+  const handleOptimisticMoveToTracker = (newItem: any) => {
+    setLiveTrackerItems((prev) => [newItem, ...prev.filter((i) => i.id !== newItem.id)]);
+  };
+
   async function generateDashboard(showSkeleton = false, forceAI = false) {
     if (forceAI) {
       setIsRefreshingAI(true);
@@ -387,17 +420,21 @@ export function DashboardClient({
     }
   }
 
-  // Real-time live synchronization for student dashboard items
+  // Real-time live synchronization for student dashboard items (debounced to prevent API storms)
   useEffect(() => {
     const supabase = createClient();
+    let debounceTimer: NodeJS.Timeout | null = null;
 
-    const refreshDashboardData = async () => {
-      try {
-        await generateDashboard(false);
-        router.refresh();
-      } catch (err) {
-        console.error("Realtime dashboard refresh error:", err);
-      }
+    const refreshDashboardData = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        try {
+          await generateDashboard(false);
+          router.refresh();
+        } catch (err) {
+          console.error("Realtime dashboard refresh error:", err);
+        }
+      }, 500);
     };
 
     const channel = supabase
@@ -412,6 +449,7 @@ export function DashboardClient({
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -547,8 +585,8 @@ export function DashboardClient({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Button 
-          onClick={() => generateDashboard(false, true)} 
+        <Button
+          onClick={() => generateDashboard(false, true)}
           disabled={isRefreshingAI}
           className="gap-2 bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white shadow-md rounded-xl cursor-pointer"
         >
@@ -666,53 +704,107 @@ export function DashboardClient({
 
 
 
-      <div className="flex flex-col md:flex-row flex-wrap gap-6 [&>*]:flex-1 [&>*]:min-w-[320px]">
-        <DashboardSection
-          title="Scholarships"
-          icon={Bookmark}
-          colorClass="text-emerald-600"
-          borderClass="border-emerald-100"
-          bgClass="bg-emerald-50/50"
-          sectionData={data.scholarships}
-          category="scholarship"
-          emptyTip='Start by searching for scholarships. When you find one you are interested in, click "I Will Apply" and select the date you plan to submit your application. Once you save it, your scholarship will automatically appear here and in your tracker so you can stay organized and never miss an important deadline.'
-          onRefresh={() => generateDashboard(false)}
-        />
-        {canAccessFeature(plan, 'essays') && (
-          <DashboardSection
-            title="Essays"
-            icon={FileEdit}
-            colorClass="text-violet-600"
-            borderClass="border-violet-100"
-            bgClass="bg-violet-50/50"
-            sectionData={data.essays}
-            category="essay"
-            onRefresh={() => generateDashboard(false)}
-          />
-        )}
-        <DashboardSection
-          title="Colleges"
-          icon={GraduationCap}
-          colorClass="text-blue-600"
-          borderClass="border-blue-100"
-          bgClass="bg-blue-50/50"
-          sectionData={data.colleges}
-          category="college"
-          onRefresh={() => generateDashboard(false)}
-        />
-        {coachTasks.length > 0 && canAccessFeature(plan, 'coaching') && (
-          <DashboardSection
-            title="Coach Action Items"
-            icon={ListTodo}
-            colorClass="text-indigo-600"
-            borderClass="border-indigo-100"
-            bgClass="bg-indigo-50/50"
-            sectionData={coachSectionData}
-            category="coaching"
-            onRefresh={() => generateDashboard(false)}
-          />
-        )}
-      </div>
+      {(() => {
+        const isItemComplete = (status: string) => {
+          const s = (status || "").toLowerCase();
+          return s === "won" || s === "completed" || s === "submitted";
+        };
+
+        const formatDeadlineItem = (t: any) => {
+          const dueDate = t.due_date ? new Date(t.due_date) : null;
+          const isPast = dueDate ? dueDate < new Date() : false;
+          return {
+            id: t.id,
+            name: t.title,
+            date: dueDate ? dueDate.toLocaleDateString() : "",
+            rawDate: t.due_date,
+            urgent: isPast,
+            isOverdue: isPast,
+            status: t.status,
+          };
+        };
+
+        const getLiveSectionDeadlines = (category: string, fallbackDeadlines: any[] = []) => {
+          if (liveTrackerItems && liveTrackerItems.length > 0) {
+            return liveTrackerItems
+              .filter(
+                (t: any) =>
+                  (t.reference_type || "scholarship").toLowerCase() === category.toLowerCase() &&
+                  !isItemComplete(t.status)
+              )
+              .map(formatDeadlineItem);
+          }
+          return (fallbackDeadlines || [])
+            .filter((d: any) => !isItemComplete(d.status))
+            .map((d: any) => {
+              const dueDate = d.rawDate ? new Date(d.rawDate) : (d.date ? new Date(d.date) : null);
+              const isPast = dueDate ? dueDate < new Date() : false;
+              return { ...d, isOverdue: isPast, urgent: isPast };
+            });
+        };
+
+        return (
+          <div className="flex flex-col md:flex-row flex-wrap gap-6 [&>*]:flex-1 [&>*]:min-w-[320px]">
+            <DashboardSection
+              title="Scholarships"
+              icon={Bookmark}
+              colorClass="text-emerald-600"
+              borderClass="border-emerald-100"
+              bgClass="bg-emerald-50/50"
+              sectionData={{
+                ...data.scholarships,
+                deadlines: getLiveSectionDeadlines("scholarship", data.scholarships?.deadlines),
+              }}
+              category="scholarship"
+              emptyTip='Start by searching for scholarships. When you find one you are interested in, click "I Will Apply" and select the date you plan to submit your application. Once you save it, your scholarship will automatically appear here and in your tracker so you can stay organized and never miss an important deadline.'
+              onRefresh={() => generateDashboard(false)}
+              onMoveToTracker={handleOptimisticMoveToTracker}
+            />
+            {canAccessFeature(plan, "essays") && (
+              <DashboardSection
+                title="Essays"
+                icon={FileEdit}
+                colorClass="text-violet-600"
+                borderClass="border-violet-100"
+                bgClass="bg-violet-50/50"
+                sectionData={{
+                  ...data.essays,
+                  deadlines: getLiveSectionDeadlines("essay", data.essays?.deadlines),
+                }}
+                category="essay"
+                onRefresh={() => generateDashboard(false)}
+                onMoveToTracker={handleOptimisticMoveToTracker}
+              />
+            )}
+            <DashboardSection
+              title="Colleges"
+              icon={GraduationCap}
+              colorClass="text-blue-600"
+              borderClass="border-blue-100"
+              bgClass="bg-blue-50/50"
+              sectionData={{
+                ...data.colleges,
+                deadlines: getLiveSectionDeadlines("college", data.colleges?.deadlines),
+              }}
+              category="college"
+              onRefresh={() => generateDashboard(false)}
+              onMoveToTracker={handleOptimisticMoveToTracker}
+            />
+            {coachTasks.length > 0 && canAccessFeature(plan, "coaching") && (
+              <DashboardSection
+                title="Coach Action Items"
+                icon={ListTodo}
+                colorClass="text-indigo-600"
+                borderClass="border-indigo-100"
+                bgClass="bg-indigo-50/50"
+                sectionData={coachSectionData}
+                category="coaching"
+                onRefresh={() => generateDashboard(false)}
+              />
+            )}
+          </div>
+        );
+      })()}
 
       {(() => {
         const calculateProgress = (status: string) => {
@@ -723,8 +815,8 @@ export function DashboardClient({
           return 0;
         };
 
-        // Use live trackerItems from DB (fixes sync bug with sidebar tracker)
-        const allTrackerItems = trackerItems || [];
+        // Use live trackerItems from state for instant responsiveness
+        const allTrackerItems = liveTrackerItems || [];
         const filteredTrackerItems = allTrackerItems.filter((item: any) => {
           if (trackerCategoryFilter === "all") return true;
           const cat = (item.reference_type || "scholarship").toLowerCase();
@@ -985,7 +1077,7 @@ export function DashboardClient({
         {/* 5. College Coach (Unlocked for Elite, Locked Overlay for Non-Elite) */}
         <Card className="h-full shadow-sm border-indigo-100 relative overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-50 flex flex-col min-h-[150px] hover:shadow-md transition-all">
           {!canAccessFeature(plan, 'coaching') && renderLockedOverlay("College Coach", "Unlock your personal Schoolari Coach to guide you every step of the way.", "elite")}
-          
+
           <CardHeader className={cn("pb-2 flex flex-row items-center justify-between", !canAccessFeature(plan, 'coaching') && "blur-sm")}>
             <CardTitle className="text-base flex items-center gap-2 font-bold text-slate-800">
               <GraduationCap className="w-5 h-5 text-indigo-600" />

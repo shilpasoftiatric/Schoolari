@@ -520,9 +520,12 @@ export function CoachingDashboard({
                 </p>
                 <p className="text-xs font-bold text-slate-700 flex items-center gap-1 mt-0.5">
                   <Star className="w-3.5 h-3.5 fill-[#F2C94C] text-[#F2C94C]" />
-                  {coachInfo?.rating || 4.9}{" "}
+                  {coachInfo?.rating !== undefined && Number(coachInfo.rating) > 0
+                    ? Number(coachInfo.rating).toFixed(1)
+                    : "0.0"}{" "}
                   <span className="text-slate-400 font-normal">
-                    ({coachInfo?.studentsCount || 230}+ students)
+                    ({coachInfo?.studentsCount || 0}{" "}
+                    {coachInfo?.studentsCount === 1 ? "student" : "students"})
                   </span>
                 </p>
               </div>

@@ -337,6 +337,64 @@ export async function getCoachInfo(): Promise<CoachInfo> {
     }
   }
 
+  // 4. Calculate dynamic overall session rating and the number of students who provided a rating
+  let calculatedRating = 0;
+  let studentsCount = 0;
+
+  try {
+    let feedbackItems: { rating: number; studentId?: string }[] = [];
+
+    // Try fetching from coaching_feedback table
+    try {
+      const { data: dbFeedback, error: dbErr } = await (adminSupabase as any)
+        .from("coaching_feedback")
+        .select("rating, student_id");
+
+      if (!dbErr && dbFeedback && dbFeedback.length > 0) {
+        feedbackItems = dbFeedback.map((f: any) => ({
+          rating: Number(f.rating) || 5,
+          studentId: f.student_id,
+        }));
+      }
+    } catch (dbErr) {
+      console.warn("DB coaching feedback query fallback:", dbErr);
+    }
+
+    // Fallback to storage manifest if database table returned nothing
+    if (feedbackItems.length === 0) {
+      try {
+        const FEEDBACK_MANIFEST = "coaching-feedback/feedback.json";
+        const { data: dlData } = await adminSupabase.storage.from("vault").download(FEEDBACK_MANIFEST);
+        if (dlData) {
+          const rawList = JSON.parse(await dlData.text());
+          if (Array.isArray(rawList) && rawList.length > 0) {
+            feedbackItems = rawList.map((f: any) => ({
+              rating: Number(f.rating) || 5,
+              studentId: f.student_id,
+            }));
+          }
+        }
+      } catch (storageErr) {
+        // ignore
+      }
+    }
+
+    if (feedbackItems.length > 0) {
+      const validRatings = feedbackItems.filter((f) => !isNaN(f.rating) && f.rating > 0);
+      if (validRatings.length > 0) {
+        const sum = validRatings.reduce((acc, curr) => acc + curr.rating, 0);
+        calculatedRating = Number((sum / validRatings.length).toFixed(1));
+      }
+
+      const uniqueStudents = new Set(
+        feedbackItems.map((f) => f.studentId).filter(Boolean)
+      );
+      studentsCount = uniqueStudents.size > 0 ? uniqueStudents.size : feedbackItems.length;
+    }
+  } catch (ratingErr) {
+    console.warn("Error calculating coach rating:", ratingErr);
+  }
+
   if (!coachProfile) {
     return {
       id: "default-coach",
@@ -345,8 +403,8 @@ export async function getCoachInfo(): Promise<CoachInfo> {
       displayTitle: "College Admissions Coach",
       email: "coach@schoolari.com",
       avatarUrl: null,
-      rating: 4.9,
-      studentsCount: 240,
+      rating: calculatedRating,
+      studentsCount,
     };
   }
 
@@ -378,8 +436,8 @@ export async function getCoachInfo(): Promise<CoachInfo> {
     displayTitle,
     email: coachProfile.student_email || coachProfile.parent_email || "coach@schoolari.com",
     avatarUrl: coachProfile.avatar_url || null,
-    rating: 4.9,
-    studentsCount: 230,
+    rating: calculatedRating,
+    studentsCount,
   };
 }
 

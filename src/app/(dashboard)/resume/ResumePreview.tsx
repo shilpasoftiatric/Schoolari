@@ -416,7 +416,7 @@ export function ResumePreview({
       <FullscreenPortal isFullscreen={isFullscreen} onClose={() => setIsFullscreen(false)}>
         <div
           id="print-resume-area"
-          className={`bg-white text-slate-900 rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] p-8 sm:p-12 lg:p-14 print:border-none print:shadow-none print:w-full print:max-w-none print:min-h-0 print:m-0 print:rounded-none max-w-[850px] w-full mx-auto min-h-[956px] flex flex-col transition-all relative group ${
+          className={`bg-white text-slate-900 rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] p-5 sm:p-8 lg:p-12 print:border-none print:shadow-none print:w-full print:max-w-none print:min-h-0 print:m-0 print:rounded-none max-w-[850px] w-full mx-auto min-h-[956px] flex flex-col transition-all relative group ${
             theme === "classic" ? "font-serif text-slate-950" :
             theme === "college" ? "font-serif text-slate-900" :
             theme === "modern" ? "font-sans text-slate-900" :

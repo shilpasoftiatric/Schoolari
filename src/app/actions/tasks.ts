@@ -95,14 +95,6 @@ export async function moveTaskToTracker(taskId: string, title: string, category:
 }
 
 async function forceDashboardRefresh(userId: string) {
-  const supabaseAdmin = await createClient(); // Wait, need service role for profile update if RLS blocks. RLS for profiles allows update for self though!
-  
-  // We can just set ai_dashboard_data = null to force a refresh on next load
-  await supabaseAdmin
-    .from("profiles")
-    .update({ ai_dashboard_data: null })
-    .eq("id", userId);
-
   revalidatePath("/dashboard");
   revalidatePath("/tracker");
 }
