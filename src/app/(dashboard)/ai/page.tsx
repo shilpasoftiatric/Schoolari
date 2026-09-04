@@ -639,21 +639,28 @@ export default function AIPage() {
                 streamResetDate = parsed.resetDate || "";
               }
               if (parsed.done && parsed.sessionId) {
-                if (parsed.sessionId !== activeSessionId) {
-                  setActiveSessionId(parsed.sessionId);
+                const finalSessionId = parsed.sessionId;
+                if (finalSessionId !== activeSessionId) {
+                  setActiveSessionId(finalSessionId);
+                  currentSessionIdRef.current = finalSessionId;
+                  window.history.replaceState({}, "", `/ai?session=${finalSessionId}`);
                   setSessions((prev) => {
-                    const exists = prev.some((s) => s.id === parsed.sessionId);
+                    const exists = prev.some((s) => s.id === finalSessionId);
                     if (!exists) {
                       const cleanedTitle = trimmed.replace(/\s+/g, " ").trim().slice(0, 80);
-                      return [
+                      const updatedSessions = [
                         {
-                          id: parsed.sessionId,
+                          id: finalSessionId,
                           title: cleanedTitle,
                           createdAt: new Date().toISOString(),
                           updatedAt: new Date().toISOString(),
                         },
                         ...prev,
                       ];
+                      try {
+                        localStorage.setItem("ai_chat_sessions", JSON.stringify(updatedSessions));
+                      } catch (_) {}
+                      return updatedSessions;
                     }
                     return prev;
                   });
@@ -682,6 +689,12 @@ export default function AIPage() {
                 isError: true,
                 timestamp: new Date(),
               });
+            }
+            const targetSessionId = currentSessionIdRef.current || activeSessionId;
+            if (targetSessionId) {
+              try {
+                localStorage.setItem(`ai_chat_session_${targetSessionId}`, JSON.stringify(baseMsgs));
+              } catch (_) {}
             }
             return baseMsgs;
           });

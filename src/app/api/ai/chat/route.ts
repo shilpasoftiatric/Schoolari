@@ -160,6 +160,35 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // Save assistant message and log costs BEFORE finishing the stream and closing
+          try {
+            const inputCost = (inputTokens / 1_000_000) * 3.0;
+            const outputCost = (outputTokens / 1_000_000) * 15.0;
+            const totalCost = inputCost + outputCost;
+
+            if (totalCost > 0) {
+              await recordAiSpend(totalCost, masterId);
+            }
+
+            if (fullAssistantText) {
+              const supabaseAdmin = await createAdminClient();
+              const { error: insertErr } = await supabaseAdmin.from("ai_chat_messages").insert({
+                user_id: masterId,
+                role: "assistant",
+                content: fullAssistantText,
+                session_id: activeSessionId || null,
+              });
+              if (insertErr) {
+                console.error("[streamAskSchoolariAI] Failed to insert assistant message:", insertErr);
+              }
+            }
+          } catch (persistErr) {
+            console.warn(
+              "[streamAskSchoolariAI] Failed to record spend or message:",
+              persistErr
+            );
+          }
+
           // Send finish event with session ID and limit details
           controller.enqueue(
             encoder.encode(
@@ -176,42 +205,6 @@ export async function POST(req: NextRequest) {
           controller.error(streamErr);
         } finally {
           controller.close();
-
-          // Save assistant message and log costs
-          try {
-            const inputCost = (inputTokens / 1_000_000) * 3.0;
-            const outputCost = (outputTokens / 1_000_000) * 15.0;
-            const totalCost = inputCost + outputCost;
-
-            console.log(`
-┌───────────────────────────────────────────────────────────────┐
-│ 🤖 Ask Schoolari AI (Live Streamed)                           │
-├───────────────────────────────────────────────────────────────┤
-│ Provider:       CLAUDE (${model})                             │
-│ Input Tokens:   ${inputTokens.toLocaleString()} tokens        │
-│ Output Tokens:  ${outputTokens.toLocaleString()} tokens       │
-│ Total Cost:     $${totalCost.toFixed(6)} USD                  │
-└───────────────────────────────────────────────────────────────┘`);
-
-            if (totalCost > 0) {
-              await recordAiSpend(totalCost, masterId);
-            }
-
-            if (fullAssistantText) {
-              const supabaseAdmin = await createAdminClient();
-              await supabaseAdmin.from("ai_chat_messages").insert({
-                user_id: masterId,
-                role: "assistant",
-                content: fullAssistantText,
-                session_id: activeSessionId || null,
-              });
-            }
-          } catch (persistErr) {
-            console.warn(
-              "[streamAskSchoolariAI] Failed to record spend or message:",
-              persistErr
-            );
-          }
         }
       },
     });
