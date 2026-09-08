@@ -420,25 +420,54 @@ export function MessageCoachModal({
     if (!contact) return [];
     return messages.filter((m) => {
       const title = m.title || "";
+      const titleLower = title.toLowerCase();
 
       // Welcome message support: show under Super Admin thread
       if (
-        title.includes("Welcome to Schoolari Elite") &&
+        titleLower.includes("welcome to schoolari elite") &&
         (contact.role === "super_admin" || contact.name?.toLowerCase().includes("super admin") || (contact.id && title.includes(contact.id)))
       ) {
         return true;
       }
 
+      // Broadcast announcements: match sender tags, or show in the Lead Director / Super Admin thread
+      if (title.toUpperCase().includes("[BROADCAST]")) {
+        const isFromThisContact =
+          (contact.id && (title.includes(`[FROM:${contact.id}]`) || title.includes(`[FROM_ID:${contact.id}]`))) ||
+          (contact.email && titleLower.includes(`[from_email:${contact.email.toLowerCase()}]`)) ||
+          (contact.role && (titleLower.includes(`[from_role:${contact.role.toLowerCase()}]`) || titleLower.includes(`[role:${contact.role.toLowerCase()}]`))) ||
+          (contact.name && (titleLower.includes(`[from_name:${contact.name.toLowerCase()}]`) || titleLower.includes(`[name:${contact.name.toLowerCase()}]`)));
+
+        if (isFromThisContact) return true;
+
+        // If not tagged to another specific staff member, display broadcast announcements under Lead Admissions Director / Super Admin
+        const isSuperAdminOrLead =
+          contact.role === "super_admin" ||
+          contact.name?.toLowerCase().includes("super admin") ||
+          contact.name?.toLowerCase().includes("director");
+
+        const isTaggedToOtherStaff = allContacts.some(
+          (other) =>
+            other.id !== contact.id &&
+            ((other.id && title.includes(other.id)) ||
+              (other.email && titleLower.includes(other.email.toLowerCase())))
+        );
+
+        if (isSuperAdminOrLead && !isTaggedToOtherStaff) {
+          return true;
+        }
+      }
+
       const isToThisContact =
         (contact.id && (title.includes(`[TO:${contact.id}]`) || title.includes(`[TO_ID:${contact.id}]`))) ||
-        (contact.email && title.includes(`[TO_EMAIL:${contact.email}]`)) ||
+        (contact.email && titleLower.includes(`[to_email:${contact.email.toLowerCase()}]`)) ||
         (contact.name && (title.includes(`[TO:${contact.name}]`) || title.includes(`[TO_NAME:${contact.name}]`)));
 
       const isFromThisContact =
         (contact.id && (title.includes(`[FROM:${contact.id}]`) || title.includes(`[FROM_ID:${contact.id}]`))) ||
-        (contact.email && title.includes(`[FROM_EMAIL:${contact.email}]`)) ||
-        (contact.role && (title.includes(`[FROM_ROLE:${contact.role}]`) || title.includes(`[ROLE:${contact.role}]`))) ||
-        (contact.name && title.includes(`[NAME:${contact.name}]`));
+        (contact.email && titleLower.includes(`[from_email:${contact.email.toLowerCase()}]`)) ||
+        (contact.role && (titleLower.includes(`[from_role:${contact.role.toLowerCase()}]`) || titleLower.includes(`[role:${contact.role.toLowerCase()}]`))) ||
+        (contact.name && (titleLower.includes(`[from_name:${contact.name.toLowerCase()}]`) || titleLower.includes(`[name:${contact.name.toLowerCase()}]`)));
 
       return isToThisContact || isFromThisContact;
     });

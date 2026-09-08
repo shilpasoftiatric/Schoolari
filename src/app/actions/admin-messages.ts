@@ -1,6 +1,6 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { verifyAdmin, requirePermission } from "@/app/actions/admin";
 import { revalidatePath } from "next/cache";
 import { getPlanFromPriceId } from "@/lib/subscription";
@@ -109,19 +109,22 @@ export async function broadcastMessage(
   targetRole: "all" | "student" | "parent" = "all"
 ) {
   await requirePermission("send_messages");
+  const supabase = await createClient();
   const adminClient = await createAdminClient();
 
   const {
     data: { user },
-  } = await adminClient.auth.getUser();
+  } = await supabase.auth.getUser();
 
-  let senderName = "Admissions Coach";
-  let senderRole = "Coach";
+  let senderName = "Super Admin";
+  let senderRole = "super_admin";
+  let senderEmail = user?.email || "superadmin@schoolari.com";
+  let senderId = user?.id || "";
 
   if (user) {
     const { data: profile } = await adminClient
       .from("profiles")
-      .select("student_first_name, student_last_name, parent_first_name, role")
+      .select("student_first_name, student_last_name, parent_first_name, role, student_email, parent_email")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -135,15 +138,26 @@ export async function broadcastMessage(
     if (fullName) {
       senderName = fullName;
     }
-    const userRole = (profile?.role as string) || "college_coach";
-    if (userRole === "super_admin") {
-      senderRole = "Director";
-    } else if (userRole === "college_coach") {
-      senderRole = "College Coach";
-    } else if (userRole === "essay_coach") {
-      senderRole = "Essay Coach";
-    } else {
-      senderRole = "Admin";
+    const userRole = (profile?.role as string) || "super_admin";
+    senderRole = userRole;
+    if (profile?.student_email || profile?.parent_email) {
+      senderEmail = profile.student_email || profile.parent_email;
+    }
+  } else {
+    const { data: superAdmin } = await adminClient
+      .from("profiles")
+      .select("id, student_first_name, student_last_name, student_email, role")
+      .eq("role", "super_admin")
+      .limit(1)
+      .maybeSingle();
+
+    if (superAdmin) {
+      senderId = superAdmin.id;
+      senderEmail = superAdmin.student_email || "superadmin@schoolari.com";
+      senderName =
+        [superAdmin.student_first_name, superAdmin.student_last_name].filter(Boolean).join(" ") ||
+        "Super Admin";
+      senderRole = superAdmin.role;
     }
   }
 
@@ -169,7 +183,7 @@ export async function broadcastMessage(
 
   if (!eliteUsers || eliteUsers.length === 0) return { error: "No Elite student/parent users found to receive broadcast" };
 
-  const fullTitle = `[COACH][FROM_ID:${user?.id || "coach"}][FROM_EMAIL:${user?.email || ""}][NAME:${senderName}][ROLE:${senderRole}][BROADCAST] ${title}`;
+  const fullTitle = `[COACH][FROM:${senderId}][FROM_ID:${senderId}][FROM_EMAIL:${senderEmail}][FROM_ROLE:${senderRole}][FROM_NAME:${senderName}][NAME:${senderName}][ROLE:${senderRole}][BROADCAST] ${title}`;
 
   const rows = eliteUsers.map((u) => ({
     user_id: u.id,
@@ -367,8 +381,6 @@ export async function getAdminConversations(): Promise<AdminConversationUser[]> 
     return b.messages.length - a.messages.length;
   });
 }
-
-import { createClient } from "@/lib/supabase/server";
 
 /**
  * Send a direct reply from Coach/Admin to a student thread with authenticated identity
@@ -714,13 +726,15 @@ export async function scheduleBroadcastMessage(data: {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let senderName = "Admissions Coach";
-  let senderRole = "Coach";
+  let senderName = "Super Admin";
+  let senderRole = "super_admin";
+  let senderEmail = user?.email || "superadmin@schoolari.com";
+  let senderId = user?.id || "";
 
   if (user) {
     const { data: profile } = await adminClient
       .from("profiles")
-      .select("student_first_name, student_last_name, parent_first_name, role")
+      .select("student_first_name, student_last_name, parent_first_name, role, student_email, parent_email")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -730,12 +744,30 @@ export async function scheduleBroadcastMessage(data: {
       profile?.parent_first_name;
 
     if (fullName) senderName = fullName;
-    const userRole = (profile?.role as string) || "college_coach";
-    if (userRole === "super_admin") senderRole = "Director";
-    else if (userRole === "college_coach") senderRole = "College Coach";
+    const userRole = (profile?.role as string) || "super_admin";
+    senderRole = userRole;
+    if (profile?.student_email || profile?.parent_email) {
+      senderEmail = profile.student_email || profile.parent_email;
+    }
+  } else {
+    const { data: superAdmin } = await adminClient
+      .from("profiles")
+      .select("id, student_first_name, student_last_name, student_email, role")
+      .eq("role", "super_admin")
+      .limit(1)
+      .maybeSingle();
+
+    if (superAdmin) {
+      senderId = superAdmin.id;
+      senderEmail = superAdmin.student_email || "superadmin@schoolari.com";
+      senderName =
+        [superAdmin.student_first_name, superAdmin.student_last_name].filter(Boolean).join(" ") ||
+        "Super Admin";
+      senderRole = superAdmin.role;
+    }
   }
 
-  const fullTitle = `[COACH][FROM_ID:${user?.id || "coach"}][FROM_EMAIL:${user?.email || ""}][NAME:${senderName}][ROLE:${senderRole}][BROADCAST] ${data.title.trim()}`;
+  const fullTitle = `[COACH][FROM:${senderId}][FROM_ID:${senderId}][FROM_EMAIL:${senderEmail}][FROM_ROLE:${senderRole}][FROM_NAME:${senderName}][NAME:${senderName}][ROLE:${senderRole}][BROADCAST] ${data.title.trim()}`;
 
   const payload = {
     sender_id: user?.id || null,
