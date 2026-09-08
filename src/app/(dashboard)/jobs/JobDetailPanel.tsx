@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building, MapPin, ExternalLink, Sparkles, CheckCircle2, FileText, Bot, Globe, Laptop, GraduationCap, Briefcase, AlertCircle, Loader2 } from "lucide-react";
+import { Building, MapPin, ExternalLink, Sparkles, CheckCircle2, FileText, Bot, Globe, Laptop, GraduationCap, Briefcase, AlertCircle, Loader2, Heart, CalendarCheck2, HelpCircle, Lightbulb } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
-import { matchResumeToJobAction, saveJobToTrackerAction, generateCoverLetterDraftAction, getCareerAiLimitsAction } from "@/app/actions/career-ai";
+import { matchResumeToJobAction, saveJobToTrackerAction, generateCoverLetterDraftAction, getCareerAiLimitsAction, getJobInterviewQuestionsAction } from "@/app/actions/career-ai";
 import { getResumesAction } from "@/app/actions/resume";
 import { useRouter } from "next/navigation";
 
@@ -19,7 +19,9 @@ export function JobDetailPanel({
   isTracked, 
   onSave,
   initialResumes = null,
-  initialAiLimits = null
+  initialAiLimits = null,
+  isWishlisted = false,
+  onToggleWishlist,
 }: { 
   job: any; 
   isOpen: boolean; 
@@ -28,6 +30,8 @@ export function JobDetailPanel({
   onSave: () => void;
   initialResumes?: any;
   initialAiLimits?: any;
+  isWishlisted?: boolean;
+  onToggleWishlist?: () => void;
 }) {
   const router = useRouter();
   const [matchData, setMatchData] = useState<any>(null);
@@ -87,6 +91,22 @@ export function JobDetailPanel({
   const empType = job.job_employment_type === "INTERN" ? "Internship" : job.job_employment_type === "PARTTIME" ? "Part-Time" : (job.job_employment_type || "Internship");
   const isRemote = job.workplace_type === "Remote" || (job.job_city && job.job_city.toLowerCase().includes("remote"));
   const isHybrid = job.workplace_type === "Hybrid";
+
+  const [interviewQuestions, setInterviewQuestions] = useState<any>(null);
+  const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
+
+  const handleGetInterviewPrep = async () => {
+    setIsLoadingQuestions(true);
+    try {
+      const data = await getJobInterviewQuestionsAction(job.job_title, job.employer_name, job.job_description);
+      setInterviewQuestions(data);
+      toast.success("5-7 Interview Practice Questions generated!");
+    } catch (error) {
+      Swal.fire({ title: "Error", text: "Failed to generate interview practice questions.", icon: "error" });
+    } finally {
+      setIsLoadingQuestions(false);
+    }
+  };
 
   const handleMatch = async () => {
     setIsMatching(true);
@@ -197,9 +217,25 @@ export function JobDetailPanel({
                 </div>
               </div>
             </div>
-            <Button onClick={handleApply} className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 text-white rounded-xl sm:rounded-full px-6 py-2.5 shadow-md shadow-violet-500/20 mr-0 sm:mr-8 text-xs sm:text-sm font-bold shrink-0">
-              Apply Now <ExternalLink className="w-4 h-4 ml-1.5" />
-            </Button>
+            <div className="flex items-center gap-2.5 shrink-0 mr-0 sm:mr-8 w-full sm:w-auto">
+              {onToggleWishlist && (
+                <button
+                  type="button"
+                  onClick={onToggleWishlist}
+                  title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
+                  className={`p-2.5 rounded-xl border transition-all flex items-center justify-center shrink-0 ${
+                    isWishlisted
+                      ? "bg-rose-50 text-rose-500 border-rose-200 shadow-xs"
+                      : "bg-white text-slate-400 border-slate-200 hover:text-rose-500 hover:bg-rose-50 hover:border-rose-200"
+                  }`}
+                >
+                  <Heart className="w-5 h-5" fill={isWishlisted ? "currentColor" : "none"} />
+                </button>
+              )}
+              <Button onClick={handleApply} className="flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700 text-white rounded-xl sm:rounded-full px-6 py-2.5 shadow-md shadow-violet-500/20 text-xs sm:text-sm font-bold">
+                Apply Now <ExternalLink className="w-4 h-4 ml-1.5" />
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -393,6 +429,86 @@ export function JobDetailPanel({
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Interview Prep & Likely Questions */}
+              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm overflow-hidden relative">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-md font-bold text-slate-800 flex items-center">
+                    <CalendarCheck2 className="w-5 h-5 mr-2 text-purple-600" />
+                    Interview Prep
+                  </h3>
+                  <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-bold">
+                    Claude AI
+                  </Badge>
+                </div>
+
+                {!interviewQuestions ? (
+                  <div className="text-center py-2 space-y-3">
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Prepare with 5–7 tailored behavioral and role-specific interview questions generated by Claude AI.
+                    </p>
+                    <Button
+                      onClick={handleGetInterviewPrep}
+                      disabled={isLoadingQuestions}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs"
+                    >
+                      {isLoadingQuestions ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating Questions...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-1.5" />
+                          Generate Practice Questions
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                    {interviewQuestions.general_advice && (
+                      <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-xl text-xs text-purple-900 font-medium">
+                        💡 <strong>Pro Strategy:</strong> {interviewQuestions.general_advice}
+                      </div>
+                    )}
+
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                      {interviewQuestions.questions?.map((q: any, i: number) => (
+                        <div key={i} className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">
+                              Q{i + 1}
+                            </span>
+                            <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                              {q.type || "Interview Question"}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-slate-900 leading-snug">
+                            {q.question}
+                          </p>
+                          {q.tip && (
+                            <p className="text-[11px] text-slate-600 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed flex items-start gap-1.5">
+                              <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                              <span>{q.tip}</span>
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      onClick={handleGetInterviewPrep}
+                      disabled={isLoadingQuestions}
+                      className="w-full text-xs font-bold text-purple-700 border-purple-200 hover:bg-purple-50"
+                    >
+                      {isLoadingQuestions ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
+                      Regenerate Questions
+                    </Button>
                   </div>
                 )}
               </div>

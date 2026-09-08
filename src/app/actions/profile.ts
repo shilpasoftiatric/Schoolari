@@ -411,11 +411,30 @@ export async function updateProfile(updates: any) {
     if (tp) existingProfile = tp;
   }
 
-  const scholarshipFields = ['unweighted_gpa', 'grade_level', 'intended_major', 'state', 'extracurricular_activities', 'citizenship', 'sat_score_range', 'act_score_range', 'career_interest'];
-  const collegeFields = ['unweighted_gpa', 'intended_major', 'career_interest', 'sat_score_range', 'act_score_range'];
-  const jobFields = ['unweighted_gpa', 'intended_major', 'state', 'career_interest'];
-  const taskFields = ['grade_level'];
-  const resumeFields = ['student_first_name', 'student_last_name', 'student_email', 'student_phone', 'state', 'unweighted_gpa', 'grade_level', 'expected_graduation_year', 'high_school_name', 'career_interest', 'languages_spoken', 'extracurricular_activities'];
+  const scholarshipFields = [
+    'unweighted_gpa', 'weighted_gpa', 'gpa_range', 'grade_level', 'intended_major', 
+    'fields_of_study', 'state', 'extracurricular_activities', 'citizenship', 
+    'sat_score_range', 'act_score_range', 'career_interest', 'career_interests',
+    'ethnicity', 'gender', 'financial_need'
+  ];
+  const collegeFields = [
+    'unweighted_gpa', 'weighted_gpa', 'gpa_range', 'intended_major', 'fields_of_study', 
+    'career_interest', 'career_interests', 'sat_score_range', 'act_score_range', 
+    'preferred_college_type', 'top_3_schools', 'state'
+  ];
+  const jobFields = [
+    'unweighted_gpa', 'weighted_gpa', 'intended_major', 'fields_of_study', 
+    'state', 'career_interest', 'career_interests', 'grade_level'
+  ];
+  const taskFields = [
+    'grade_level', 'schoolari_goals', 'unweighted_gpa', 'expected_graduation_year'
+  ];
+  const resumeFields = [
+    'student_first_name', 'student_last_name', 'student_email', 'student_phone', 
+    'state', 'unweighted_gpa', 'weighted_gpa', 'grade_level', 'expected_graduation_year', 
+    'high_school_name', 'career_interest', 'career_interests', 'intended_major', 
+    'fields_of_study', 'languages_spoken', 'extracurricular_activities'
+  ];
 
   let scholarshipsNeedRefresh = false;
   let collegesNeedRefresh = false;

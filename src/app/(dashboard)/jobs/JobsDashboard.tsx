@@ -4,11 +4,16 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, MapPin, Building, Heart, FileText, ChevronRight, Sparkles, Loader2, BellRing, CheckCircle2, Trophy, Globe, Laptop, GraduationCap, X } from "lucide-react";
+import { Briefcase, MapPin, Building, Heart, FileText, ChevronRight, Sparkles, Loader2, BellRing, CheckCircle2, Trophy, Globe, Laptop, GraduationCap, X, CalendarCheck2, Calendar, Clock } from "lucide-react";
 import { JobDetailPanel } from "@/app/(dashboard)/jobs/JobDetailPanel";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
-import { saveJobToTrackerAction, getPersonalizedJobsAction } from "@/app/actions/career-ai";
+import { 
+  saveJobToTrackerAction, 
+  getPersonalizedJobsAction, 
+  getWishlistJobsAction, 
+  toggleWishlistJobAction 
+} from "@/app/actions/career-ai";
 import { getCareerArticles } from "@/app/actions/career";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -28,25 +33,41 @@ export function JobsDashboard({
   initialArticles = null,
   initialResumes = null,
   initialAiLimits = null,
+  initialWishlist = [],
 }: { 
   initialJobs?: any[] | null, 
   trackedJobMap: any, 
   initialArticles?: any[] | null,
   initialResumes?: any,
   initialAiLimits?: any,
+  initialWishlist?: any[],
 }) {
   const { jobsData, setJobsData, careerArticles, setCareerArticles } = useAIState();
   const [jobs, setJobs] = useState<any[] | null>(initialJobs || jobsData);
   const [tracked, setTracked] = useState(trackedJobMap);
-  const [likedJobs, setLikedJobs] = useState<Record<string, boolean>>({});
+  const [wishlistJobs, setWishlistJobs] = useState<any[]>(initialWishlist || []);
+  const [likedJobs, setLikedJobs] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    (initialWishlist || []).forEach((j: any) => {
+      if (j.job_id) map[j.job_id] = true;
+    });
+    return map;
+  });
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<"jobs" | "articles">("jobs");
+  const [activeTab, setActiveTab] = useState<"jobs" | "wishlist" | "articles">("jobs");
   const [articles, setArticles] = useState<any[] | null>(initialArticles || careerArticles);
   const [loading, setLoading] = useState(!(initialJobs || jobsData) && !(initialArticles || careerArticles));
 
+  // Application reminder dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<string>("");
   const [targetTime, setTargetTime] = useState<string>("");
+
+  // Interview Scheduled dialog state
+  const [isInterviewDialogOpen, setIsInterviewDialogOpen] = useState(false);
+  const [interviewDate, setInterviewDate] = useState<string>("");
+  const [interviewTime, setInterviewTime] = useState<string>("10:00");
+
   const [jobPendingAction, setJobPendingAction] = useState<any | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -64,6 +85,18 @@ export function JobsDashboard({
   useEffect(() => {
     articlesRef.current = articles;
   }, [articles]);
+
+  // Sync initial server data into context on mount or when props change
+  useEffect(() => {
+    if (initialWishlist) {
+      setWishlistJobs(initialWishlist);
+      const map: Record<string, boolean> = {};
+      initialWishlist.forEach((j: any) => {
+        if (j.job_id) map[j.job_id] = true;
+      });
+      setLikedJobs(map);
+    }
+  }, [initialWishlist]);
 
   const handleSearch = async (e?: React.FormEvent, customQuery?: string) => {
     if (e) e.preventDefault();
@@ -98,22 +131,64 @@ export function JobsDashboard({
     }
   };
 
-  const handleLikeJob = (e: React.MouseEvent, jobId: string) => {
+  // Toggle Job in Wishlist (Heart icon click)
+  const handleLikeJob = async (e: React.MouseEvent, job: any) => {
     e.stopPropagation();
-    setLikedJobs(prev => ({ ...prev, [jobId]: !prev[jobId] }));
+    const jobId = String(job.job_id);
+    const wasLiked = Boolean(likedJobs[jobId]);
+    const willBeLiked = !wasLiked;
+
+    // Optimistic UI updates
+    setLikedJobs((prev) => ({ ...prev, [jobId]: willBeLiked }));
+    setWishlistJobs((prev) => {
+      if (willBeLiked) {
+        if (prev.some((j) => String(j.job_id) === jobId)) return prev;
+        return [job, ...prev];
+      } else {
+        return prev.filter((j) => String(j.job_id) !== jobId);
+      }
+    });
+
+    if (willBeLiked) {
+      toast.success("Added to your Wishlist!");
+    } else {
+      toast.info("Removed from Wishlist");
+    }
+
+    try {
+      const res = await toggleWishlistJobAction(job);
+      if (res && typeof res.isWishlisted === "boolean" && res.isWishlisted !== willBeLiked) {
+        setLikedJobs((prev) => ({ ...prev, [jobId]: res.isWishlisted }));
+      }
+    } catch (err: any) {
+      console.error("Failed to toggle wishlist job:", err);
+      toast.error(err.message || "Failed to update wishlist");
+      // Rollback
+      setLikedJobs((prev) => ({ ...prev, [jobId]: wasLiked }));
+      setWishlistJobs((prev) => {
+        if (wasLiked) {
+          return prev.some((j) => String(j.job_id) === jobId) ? prev : [job, ...prev];
+        } else {
+          return prev.filter((j) => String(j.job_id) !== jobId);
+        }
+      });
+    }
   };
 
-  const handleJobAction = async (job: any, action: "will_apply" | "applied" | "won", dueDate?: string, dueTime?: string) => {
+  const handleJobAction = async (job: any, action: "will_apply" | "applied" | "interview" | "won", dueDate?: string, dueTime?: string) => {
     if (processingId) return;
     setProcessingId(job.job_id);
 
     if (action === "will_apply") {
       setIsDialogOpen(false);
+    } else if (action === "interview") {
+      setIsInterviewDialogOpen(false);
     }
 
     const STATUS_MAP = {
       will_apply: "Not Started",
       applied: "In Progress",
+      interview: "Interview Scheduled",
       won: "Won",
     };
 
@@ -125,9 +200,11 @@ export function JobsDashboard({
       await saveJobToTrackerAction(job, STATUS_MAP[action], dueDate, dueTime);
 
       if (action === "will_apply") {
-        toast.success(`Saved to tracker! We'll send you a reminder.`);
+        toast.success(`Saved to tracker! We'll send you a deadline reminder.`);
       } else if (action === "applied") {
         toast.success("Marked as applied in your tracker.");
+      } else if (action === "interview") {
+        toast.success("🎉 Interview scheduled! Prep reminders set for 5 days prior.");
       } else if (action === "won") {
         toast.success("🏆 Congratulations! Job offer recorded.");
       }
@@ -139,10 +216,11 @@ export function JobsDashboard({
       setProcessingId(null);
       setJobPendingAction(null);
       setTargetDate("");
+      setInterviewDate("");
     }
   };
 
-  // Real-time live synchronization for custom jobs and career articles
+  // Real-time live synchronization for custom jobs, career articles, and saved jobs
   useEffect(() => {
     const supabase = createClient();
 
@@ -158,7 +236,6 @@ export function JobsDashboard({
     };
 
     const refreshJobs = async () => {
-      // Only refresh default recommendations if user is NOT actively in a custom search
       if (!activeSearchRef.current) {
         try {
           const latest = await getPersonalizedJobsAction();
@@ -168,6 +245,22 @@ export function JobsDashboard({
         } catch (err) {
           console.error("Failed to refresh jobs:", err);
         }
+      }
+    };
+
+    const refreshWishlist = async () => {
+      try {
+        const freshWishlist = await getWishlistJobsAction();
+        if (freshWishlist) {
+          setWishlistJobs(freshWishlist);
+          const map: Record<string, boolean> = {};
+          freshWishlist.forEach((j: any) => {
+            if (j.job_id) map[j.job_id] = true;
+          });
+          setLikedJobs(map);
+        }
+      } catch (err) {
+        console.error("Failed to refresh wishlist:", err);
       }
     };
 
@@ -189,6 +282,13 @@ export function JobsDashboard({
           refreshArticles();
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "saved_jobs" },
+        () => {
+          refreshWishlist();
+        }
+      )
       .on("broadcast", { event: "career_data_updated" }, (payload: any) => {
         const type = payload?.payload?.type;
         if (type === "articles") {
@@ -198,6 +298,7 @@ export function JobsDashboard({
         } else {
           refreshArticles();
           refreshJobs();
+          refreshWishlist();
         }
       })
       .subscribe();
@@ -249,6 +350,240 @@ export function JobsDashboard({
 
   const trackedCount = Object.keys(tracked).length;
 
+  // Reusable Job Card Renderer for both Recommended Jobs and Wishlist tabs
+  const renderJobCard = (job: any, idx: number) => {
+    const actionStatus = tracked[job.job_id];
+    const isWon = actionStatus === "Won";
+    const isInterview = actionStatus === "Interview Scheduled" || actionStatus === "Interviewing";
+    const isApplied = actionStatus === "In Progress" || actionStatus === "Submitted" || isInterview || isWon;
+    const isWillApply = actionStatus === "Not Started";
+    const processing = processingId === job.job_id;
+    const isLiked = Boolean(likedJobs[job.job_id]);
+
+    const empType = job.job_employment_type === "INTERN" ? "Internship" : job.job_employment_type === "PARTTIME" ? "Part-Time" : (job.job_employment_type || "Internship");
+    const isRemote = job.workplace_type === "Remote" || (job.job_city && job.job_city.toLowerCase().includes("remote"));
+    const isHybrid = job.workplace_type === "Hybrid";
+
+    return (
+      <div
+        key={job.job_id || idx}
+        className={`group bg-white border rounded-3xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 relative overflow-hidden flex flex-col h-full cursor-pointer ${
+          isWon 
+            ? "border-amber-300 bg-amber-50/20" 
+            : isInterview 
+            ? "border-purple-300 bg-purple-50/15" 
+            : "border-slate-200"
+        }`}
+        onClick={() => setSelectedJob(job)}
+      >
+        {/* Decorative gradient blob */}
+        <div className="absolute -right-8 -top-8 w-32 h-32 bg-gradient-to-br from-violet-100 to-fuchsia-100 rounded-full blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+        {/* Header Badges & Wishlist Heart */}
+        <div className="flex items-start justify-between gap-2 mb-4 relative z-10">
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {/* Employment Type Badge */}
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border flex items-center gap-1 ${
+              empType === "Internship"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                : empType === "Part-Time"
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : empType === "Co-Op"
+                ? "bg-teal-50 text-teal-700 border-teal-200"
+                : "bg-indigo-50 text-indigo-700 border-indigo-200"
+            }`}>
+              <GraduationCap className="w-3 h-3" />
+              {empType}
+            </span>
+
+            {/* Workplace Modality Badge */}
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border flex items-center gap-1 ${
+              isRemote
+                ? "bg-sky-50 text-sky-700 border-sky-200"
+                : isHybrid
+                ? "bg-purple-50 text-purple-700 border-purple-200"
+                : "bg-slate-100 text-slate-700 border-slate-200"
+            }`}>
+              {isRemote ? (
+                <>
+                  <Globe className="w-3 h-3 text-sky-600" />
+                  Remote / Virtual
+                </>
+              ) : isHybrid ? (
+                <>
+                  <Laptop className="w-3 h-3 text-purple-600" />
+                  Hybrid
+                </>
+              ) : (
+                <>
+                  <Building className="w-3 h-3 text-slate-500" />
+                  On-Site
+                </>
+              )}
+            </span>
+
+            <span className="flex items-center gap-1 bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-2xs">
+              <Sparkles className="w-3 h-3 fill-amber-500 text-amber-500" /> AI Match
+            </span>
+            {isInterview && (
+              <span className="flex items-center gap-1 bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border border-purple-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-2xs">
+                <CalendarCheck2 className="w-3 h-3 text-purple-600" /> Interview
+              </span>
+            )}
+            {isWon && (
+              <span className="flex items-center gap-1 bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-2xs">
+                <Trophy className="w-3 h-3 fill-emerald-500 text-emerald-500" /> Won
+              </span>
+            )}
+          </div>
+
+          {/* Persistent Heart Icon Button */}
+          <button
+            type="button"
+            className={`h-8 w-8 rounded-full transition-all duration-200 p-0 hover:scale-110 active:scale-95 flex items-center justify-center shrink-0 shadow-2xs ${
+              isLiked ? "text-rose-500 bg-rose-50 border border-rose-200" : "text-slate-300 hover:text-rose-500 hover:bg-rose-50"
+            }`}
+            title={isLiked ? "Remove from Wishlist" : "Save to Wishlist"}
+            onClick={(e) => handleLikeJob(e, job)}
+          >
+            <Heart className="w-5 h-5 transition-all duration-300" fill={isLiked ? "#f43f5e" : "none"} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10 flex-1">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 shadow-sm border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+              {job.employer_logo ? (
+                <img src={job.employer_logo} alt={job.employer_name} className="w-full h-full object-contain p-1" />
+              ) : (
+                <Building className="w-5 h-5 text-slate-400 group-hover:text-violet-500 transition-colors" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-bold text-slate-900 text-lg group-hover:text-violet-600 transition-colors line-clamp-1">
+                {job.job_title}
+              </h3>
+              <p className="text-slate-500 text-xs font-medium truncate">
+                {job.employer_name}
+              </p>
+            </div>
+          </div>
+
+          <p className="text-slate-600 text-xs line-clamp-2 mb-4 leading-relaxed">
+            {job.job_description || "No description provided."}
+          </p>
+
+          {/* Badges for Location, Modality & Type */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700">
+              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate max-w-[150px]">
+                {job.job_city && !job.job_city.toLowerCase().includes("remote") 
+                  ? `${job.job_city}${job.job_state ? `, ${job.job_state}` : ""}` 
+                  : "Remote / Online"}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700">
+              <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate max-w-[120px] capitalize">{empType}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700">
+              {isRemote ? (
+                <Globe className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              ) : isHybrid ? (
+                <Laptop className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+              ) : (
+                <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              )}
+              <span className="truncate max-w-[120px]">
+                {isRemote ? "Remote / Virtual" : isHybrid ? "Hybrid" : "On-Site"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="mt-auto relative z-10 border-t border-slate-100 pt-4 flex flex-col items-stretch space-y-2" onClick={(e) => e.stopPropagation()}>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">My Status</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            {/* 1. I Will Apply */}
+            <button
+              onClick={() => {
+                if (!isApplied && !isInterview && !isWon) {
+                  setJobPendingAction(job);
+                  setIsDialogOpen(true);
+                }
+              }}
+              disabled={processing || isApplied || isInterview || isWon}
+              className={`flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-xl border text-[11px] font-bold transition-all ${isWillApply
+                ? "bg-violet-600 text-white border-violet-600 shadow-xs shadow-violet-200"
+                : isApplied || isInterview || isWon
+                  ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200"
+                } ${processing ? "opacity-50 cursor-wait" : ""}`}
+            >
+              {processing && isWillApply ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BellRing className={`w-3.5 h-3.5 ${isWillApply ? "text-white" : ""}`} />}
+              <span className="leading-tight text-center">I Will Apply</span>
+              {isWillApply && !processing && <CheckCircle2 className="w-3 h-3 text-white/80" />}
+            </button>
+
+            {/* 2. Applied */}
+            <button
+              onClick={() => handleJobAction(job, "applied")}
+              disabled={processing || isInterview || isWon}
+              className={`flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-xl border text-[11px] font-bold transition-all ${isApplied && !isInterview && !isWon
+                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs shadow-emerald-200"
+                : isInterview || isWon
+                  ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200"
+                } ${processing ? "opacity-50 cursor-wait" : ""}`}
+            >
+              {processing && isApplied && !isInterview && !isWon ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className={`w-3.5 h-3.5 ${isApplied && !isInterview && !isWon ? "text-white" : ""}`} />}
+              <span className="leading-tight text-center">Applied</span>
+              {isApplied && !isInterview && !isWon && !processing && <CheckCircle2 className="w-3 h-3 text-white/80" />}
+            </button>
+
+            {/* 3. Interview Scheduled */}
+            <button
+              onClick={() => {
+                if (!isWon) {
+                  setJobPendingAction(job);
+                  setIsInterviewDialogOpen(true);
+                }
+              }}
+              disabled={processing || isWon}
+              className={`flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-xl border text-[11px] font-bold transition-all ${isInterview && !isWon
+                ? "bg-purple-600 text-white border-purple-600 shadow-xs shadow-purple-200"
+                : isWon
+                  ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200"
+                } ${processing ? "opacity-50 cursor-wait" : ""}`}
+            >
+              {processing && isInterview && !isWon ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarCheck2 className={`w-3.5 h-3.5 ${isInterview && !isWon ? "text-white" : ""}`} />}
+              <span className="leading-tight text-center">Interview</span>
+              {isInterview && !isWon && !processing && <CheckCircle2 className="w-3 h-3 text-white/80" />}
+            </button>
+
+            {/* 4. Got Offer */}
+            <button
+              onClick={() => handleJobAction(job, "won")}
+              disabled={processing}
+              className={`flex flex-col items-center gap-1 py-2.5 px-1.5 rounded-xl border text-[11px] font-bold transition-all ${isWon
+                ? "bg-amber-500 text-white border-amber-500 shadow-xs shadow-amber-200"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200"
+                } ${processing ? "opacity-50 cursor-wait" : ""}`}
+            >
+              {processing && isWon ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trophy className={`w-3.5 h-3.5 ${isWon ? "text-white" : ""}`} />}
+              <span className="leading-tight text-center">Got Offer</span>
+              {isWon && !processing && <CheckCircle2 className="w-3 h-3 text-white/80" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       {/* Tracker Link Card - Live Updating Count */}
@@ -267,301 +602,150 @@ export function JobsDashboard({
         </a>
       </div>
 
-      <div className="flex p-1 bg-slate-100 rounded-xl w-fit mb-6">
+      {/* Tabs Bar */}
+      <div className="flex flex-wrap p-1 bg-slate-100 rounded-xl w-fit mb-6 gap-1">
         <button
           onClick={() => setActiveTab("jobs")}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === "jobs" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          className={`flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            activeTab === "jobs" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
         >
           <Briefcase className="w-4 h-4" /> Recommended Jobs
         </button>
+
+        <button
+          onClick={() => setActiveTab("wishlist")}
+          className={`flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            activeTab === "wishlist"
+              ? "bg-white text-rose-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Heart
+            className={`w-4 h-4 ${
+              activeTab === "wishlist" || wishlistJobs.length > 0
+                ? "fill-rose-500 text-rose-500"
+                : "text-slate-400"
+            }`}
+          />
+          <span>Wishlist</span>
+          {wishlistJobs.length > 0 && (
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold min-w-[18px] text-center ${
+                activeTab === "wishlist"
+                  ? "bg-rose-500 text-white"
+                  : "bg-slate-200 text-slate-700"
+              }`}
+            >
+              {wishlistJobs.length}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={() => setActiveTab("articles")}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === "articles" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          className={`flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-lg text-sm font-bold transition-all ${
+            activeTab === "articles" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
         >
           <FileText className="w-4 h-4" /> Career Resources
         </button>
       </div>
 
+      {/* ── RECOMMENDED JOBS TAB ── */}
       {activeTab === "jobs" && (
-        <div className="mb-6">
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                type="text"
-                placeholder="Search jobs, internships, or companies..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="rounded-xl border-slate-200 bg-white p-5 pr-10 shadow-xs"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
-                  title="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+        <>
+          <div className="mb-6">
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type="text"
+                  placeholder="Search jobs, internships, or companies..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="rounded-xl border-slate-200 bg-white p-5 pr-10 shadow-xs"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+                    title="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <Button type="submit" disabled={isSearching} className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-6 py-5 shadow-xs">
+                {isSearching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Search
+              </Button>
+            </form>
+          </div>
+
+          {jobs.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
+              <p className="text-slate-500">No personalized jobs found. Make sure your profile has career interests set.</p>
             </div>
-            <Button type="submit" disabled={isSearching} className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl px-6 py-5 shadow-xs">
-              {isSearching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Search
-            </Button>
-          </form>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {jobs.map((job: any, idx: number) => renderJobCard(job, idx))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── WISHLIST TAB ── */}
+      {activeTab === "wishlist" && (
+        <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                Saved Wishlist Jobs
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500">
+                {wishlistJobs.length} {wishlistJobs.length === 1 ? "opportunity" : "opportunities"} bookmarked for future review and application.
+              </p>
+            </div>
+            {wishlistJobs.length > 0 && (
+              <button
+                onClick={() => setActiveTab("jobs")}
+                className="text-xs font-semibold text-violet-600 hover:text-violet-700 bg-violet-50 hover:bg-violet-100 px-3.5 py-1.5 rounded-xl border border-violet-200 transition-colors w-fit"
+              >
+                + Find More Jobs
+              </button>
+            )}
+          </div>
+
+          {wishlistJobs.length === 0 ? (
+            <div className="p-12 sm:p-16 text-center bg-white rounded-3xl border border-slate-200 shadow-xs space-y-4 max-w-lg mx-auto my-6">
+              <div className="w-16 h-16 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center mx-auto text-rose-500 shadow-sm">
+                <Heart className="w-8 h-8 fill-rose-500/20 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Your Wishlist is Empty</h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-sm mx-auto">
+                  Click the heart icon on any job card in Recommended Jobs to save it here for quick access.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab("jobs")}
+                className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-violet-500/20 transition-all inline-flex items-center gap-2"
+              >
+                <Briefcase className="w-4 h-4" />
+                Browse Recommended Jobs
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {wishlistJobs.map((job: any, idx: number) => renderJobCard(job, idx))}
+            </div>
+          )}
         </div>
       )}
 
-      {activeTab === "jobs" && (
-        jobs.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200">
-            <p className="text-slate-500">No personalized jobs found. Make sure your profile has career interests set.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {jobs.map((job: any, idx: number) => {
-              const actionStatus = tracked[job.job_id];
-              const isWon = actionStatus === "Won";
-              const isApplied = actionStatus === "In Progress" || isWon;
-              const isWillApply = actionStatus === "Not Started";
-              const processing = processingId === job.job_id;
-              const isLiked = likedJobs[job.job_id];
-
-              const empType = job.job_employment_type === "INTERN" ? "Internship" : job.job_employment_type === "PARTTIME" ? "Part-Time" : (job.job_employment_type || "Internship");
-              const isRemote = job.workplace_type === "Remote" || (job.job_city && job.job_city.toLowerCase().includes("remote"));
-              const isHybrid = job.workplace_type === "Hybrid";
-
-              return (
-                <div
-                  key={job.job_id || idx}
-                  className={`group bg-white border rounded-3xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 relative overflow-hidden flex flex-col h-full cursor-pointer ${isWon ? "border-amber-300 bg-amber-50/20" : "border-slate-200"
-                    }`}
-                  onClick={() => setSelectedJob(job)}
-                >
-                  {/* Decorative gradient blob */}
-                  <div className="absolute -right-8 -top-8 w-32 h-32 bg-gradient-to-br from-violet-100 to-fuchsia-100 rounded-full blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                  {/* Header Badges & Like */}
-                  <div className="flex items-start justify-between gap-2 mb-4 relative z-10">
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      {/* Employment Type Badge */}
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border flex items-center gap-1 ${
-                        empType === "Internship"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : empType === "Part-Time"
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                          : empType === "Co-Op"
-                          ? "bg-teal-50 text-teal-700 border-teal-200"
-                          : "bg-indigo-50 text-indigo-700 border-indigo-200"
-                      }`}>
-                        <GraduationCap className="w-3 h-3" />
-                        {empType}
-                      </span>
-
-                      {/* Workplace Modality Badge */}
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border flex items-center gap-1 ${
-                        isRemote
-                          ? "bg-sky-50 text-sky-700 border-sky-200"
-                          : isHybrid
-                          ? "bg-purple-50 text-purple-700 border-purple-200"
-                          : "bg-slate-100 text-slate-700 border-slate-200"
-                      }`}>
-                        {isRemote ? (
-                          <>
-                            <Globe className="w-3 h-3 text-sky-600" />
-                            Remote / Virtual
-                          </>
-                        ) : isHybrid ? (
-                          <>
-                            <Laptop className="w-3 h-3 text-purple-600" />
-                            Hybrid
-                          </>
-                        ) : (
-                          <>
-                            <Building className="w-3 h-3 text-slate-500" />
-                            On-Site
-                          </>
-                        )}
-                      </span>
-
-                      <span className="flex items-center gap-1 bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-2xs">
-                        <Sparkles className="w-3 h-3 fill-amber-500 text-amber-500" /> AI Match
-                      </span>
-                      {isWon && (
-                        <span className="flex items-center gap-1 bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide shadow-2xs">
-                          <Trophy className="w-3 h-3 fill-emerald-500 text-emerald-500" /> Won
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      className={`h-8 w-8 rounded-full transition-all duration-200 p-0 hover:scale-110 active:scale-95 flex items-center justify-center shrink-0 ${isLiked ? 'text-rose-500 bg-rose-50' : 'text-slate-300 hover:text-rose-500 hover:bg-rose-50'}`}
-                      onClick={(e) => handleLikeJob(e, job.job_id)}
-                    >
-                      <Heart className="w-5 h-5 transition-all duration-300" fill={isLiked ? "currentColor" : "none"} />
-                    </button>
-                  </div>
-
-                  {/* Content */}
-                  <div className="relative z-10 flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 shadow-sm border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                        {job.employer_logo ? (
-                          <img src={job.employer_logo} alt={job.employer_name} className="w-full h-full object-contain p-1" />
-                        ) : (
-                          <Building className="w-5 h-5 text-slate-400 group-hover:text-violet-500 transition-colors" />
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-extrabold text-slate-900 leading-tight line-clamp-2 group-hover:text-violet-700 transition-colors">
-                          {job.job_title}
-                        </h3>
-                        <p className="text-xs font-semibold text-slate-600">{job.employer_name}</p>
-                      </div>
-                    </div>
-
-                    {/* Badges for Location, Modality & Type */}
-                    <div className="flex flex-wrap gap-2 mb-4 mt-4">
-                      <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[150px]">
-                          {job.job_city && !job.job_city.toLowerCase().includes("remote") 
-                            ? `${job.job_city}${job.job_state ? `, ${job.job_state}` : ''}` 
-                            : "Remote / Online"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700">
-                        <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[120px] capitalize">{empType}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700">
-                        {isRemote ? (
-                          <Globe className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                        ) : isHybrid ? (
-                          <Laptop className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-                        ) : (
-                          <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        )}
-                        <span className="truncate max-w-[120px]">
-                          {isRemote ? "Remote / Virtual" : isHybrid ? "Hybrid" : "On-Site"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="mt-auto relative z-10 border-t border-slate-100 pt-4 flex flex-col items-stretch space-y-2" onClick={(e) => e.stopPropagation()}>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">My Status</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {/* I Will Apply */}
-                      <button
-                        onClick={() => {
-                          if (!isApplied && !isWon) {
-                            setJobPendingAction(job);
-                            setIsDialogOpen(true);
-                          }
-                        }}
-                        disabled={processing || isApplied || isWon}
-                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-bold transition-all ${isWillApply
-                          ? "bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-200"
-                          : isApplied || isWon
-                            ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-violet-50 hover:text-violet-700 hover:border-violet-200"
-                          } ${processing ? "opacity-50 cursor-wait" : ""}`}
-                      >
-                        {processing && isWillApply ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className={`w-4 h-4 ${isWillApply ? "text-white" : ""}`} />}
-                        <span className="leading-tight text-center">I Will Apply</span>
-                        {isWillApply && !processing && <CheckCircle2 className="w-3 h-3 text-white/80" />}
-                      </button>
-
-                      {/* Applied */}
-                      <button
-                        onClick={() => handleJobAction(job, "applied")}
-                        disabled={processing || isWon}
-                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-bold transition-all ${isApplied && !isWon
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-200"
-                          : isWon
-                            ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200"
-                          } ${processing ? "opacity-50 cursor-wait" : ""}`}
-                      >
-                        {processing && isApplied && !isWon ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className={`w-4 h-4 ${isApplied && !isWon ? "text-white" : ""}`} />}
-                        <span className="leading-tight text-center">Applied</span>
-                        {isApplied && !isWon && !processing && <CheckCircle2 className="w-3 h-3 text-white/80" />}
-                      </button>
-
-                      {/* Got Offer */}
-                      <button
-                        onClick={() => handleJobAction(job, "won")}
-                        disabled={processing}
-                        className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border text-xs font-bold transition-all ${isWon
-                          ? "bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200"
-                          } ${processing ? "opacity-50 cursor-wait" : ""}`}
-                      >
-                        {processing && isWon ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className={`w-4 h-4 ${isWon ? "text-white" : ""}`} />}
-                        <span className="leading-tight text-center">Got the Job</span>
-                        {isWon && !processing && <CheckCircle2 className="w-3 h-3 text-white/80" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )
-      )}
-
-      {/* Target Date Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add to Tracker</DialogTitle>
-            <DialogDescription>
-              When do you plan to complete and submit this application? We will add it to your dashboard tasks.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <label className="text-sm font-medium mb-2 block text-slate-700">Set Application Reminder</label>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="date"
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className="rounded-xl text-sm"
-              />
-              <Input
-                type="time"
-                value={targetTime}
-                onChange={(e) => setTargetTime(e.target.value)}
-                className="rounded-xl text-sm"
-              />
-            </div>
-            <p className="text-[10px] text-slate-500 leading-tight text-center mt-3">
-              You'll get an immediate calendar link & a scheduled text via Twilio SMS.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={!!processingId}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (jobPendingAction) {
-                  handleJobAction(jobPendingAction, "will_apply", targetDate, targetTime);
-                }
-              }}
-              disabled={!!processingId || !targetDate}
-              className="bg-violet-600 hover:bg-violet-700 text-white"
-            >
-              {processingId && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Save to Tracker
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+      {/* ── CAREER RESOURCES TAB ── */}
       {activeTab === "articles" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {!articles || articles.length === 0 ? (
@@ -602,6 +786,129 @@ export function JobsDashboard({
         </div>
       )}
 
+      {/* Target Date Dialog for Tracker (I Will Apply) */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add to Tracker</DialogTitle>
+            <DialogDescription>
+              When do you plan to complete and submit this application? We will add it to your dashboard tasks.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-sm font-medium mb-2 block text-slate-700">Set Application Reminder</label>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                className="rounded-xl text-sm"
+              />
+              <Input
+                type="time"
+                value={targetTime}
+                onChange={(e) => setTargetTime(e.target.value)}
+                className="rounded-xl text-sm"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 leading-tight text-center mt-3">
+              You'll get an immediate calendar link & a scheduled text via Twilio SMS.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={!!processingId}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (jobPendingAction) {
+                  handleJobAction(jobPendingAction, "will_apply", targetDate, targetTime);
+                }
+              }}
+              disabled={!!processingId || !targetDate}
+              className="bg-violet-600 hover:bg-violet-700 text-white"
+            >
+              {processingId && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save to Tracker
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Interview Scheduled Dialog */}
+      <Dialog open={isInterviewDialogOpen} onOpenChange={setIsInterviewDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mb-1">
+              <CalendarCheck2 className="w-5 h-5" />
+            </div>
+            <DialogTitle className="text-xl font-bold text-slate-900">
+              Schedule Interview
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 text-sm">
+              Enter your interview date & time for <strong>{jobPendingAction?.job_title}</strong> at <strong>{jobPendingAction?.employer_name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                Interview Date & Time
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="date"
+                  value={interviewDate}
+                  onChange={(e) => setInterviewDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="rounded-xl text-sm font-semibold"
+                />
+                <Input
+                  type="time"
+                  value={interviewTime}
+                  onChange={(e) => setInterviewTime(e.target.value)}
+                  className="rounded-xl text-sm font-semibold"
+                />
+              </div>
+            </div>
+
+            <div className="bg-purple-50 border border-purple-200/80 rounded-xl p-3.5 space-y-1.5">
+              <p className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                Automated 5-Day Interview Prep Reminders
+              </p>
+              <p className="text-[11px] text-purple-700/90 leading-relaxed">
+                We will automatically send you an immediate calendar link and dispatch interview prep practice reminders via <strong>SMS & Email 5 days before</strong> your interview date!
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsInterviewDialogOpen(false)}
+              disabled={!!processingId}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (jobPendingAction) {
+                  handleJobAction(jobPendingAction, "interview", interviewDate, interviewTime);
+                }
+              }}
+              disabled={!!processingId || !interviewDate}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold"
+            >
+              {processingId && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Save Interview Date
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Detail Panel */}
       {selectedJob && (
         <JobDetailPanel
           job={selectedJob}
@@ -610,6 +917,8 @@ export function JobsDashboard({
           isTracked={!!tracked[selectedJob.job_id]}
           initialResumes={initialResumes}
           initialAiLimits={initialAiLimits}
+          isWishlisted={Boolean(likedJobs[selectedJob.job_id])}
+          onToggleWishlist={() => handleLikeJob({ stopPropagation: () => {} } as any, selectedJob)}
           onSave={() => {
             setTracked((prev: any) => ({ ...prev, [selectedJob.job_id]: "Not Started" }));
           }}

@@ -86,7 +86,6 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
 
   const updatePayloadState = (newPayload: UserResumesPayload | null) => {
     setPayload(newPayload);
-    setResumeData(newPayload);
   };
 
   const searchParams = useSearchParams();
@@ -158,12 +157,19 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
   const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
-    if (resumeData) {
+    if (resumeData && !payload) {
       setPayload(resumeData);
       setActiveId((prev) => prev || resumeData.active_resume_id || resumeData.resumes[0]?.id || "");
       setLoading(false);
     }
-  }, [resumeData]);
+  }, [resumeData, payload]);
+
+  // Synchronize payload updates to AIStateContext safely in effect phase
+  useEffect(() => {
+    if (payload) {
+      setResumeData(payload);
+    }
+  }, [payload, setResumeData]);
 
   if (loading || !payload) {
     return (
@@ -243,14 +249,12 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
 
       const updated = typeof updatedOrUpdater === "function" ? updatedOrUpdater(active) : updatedOrUpdater;
 
-      const newPayload = {
+      return {
         ...prevPayload,
         resumes: prevPayload.resumes.map((r) =>
           r.id === updated.id ? updated : r
         )
       };
-      setResumeData(newPayload);
-      return newPayload;
     });
   };
 

@@ -5,7 +5,7 @@ import { Sparkles } from "lucide-react";
 import { getUserPlan, canAccessFeature } from "@/lib/subscription-server";
 import { LockedFeaturePage } from "@/components/ui/LockedFeaturePage";
 import { getCareerArticles } from "@/app/actions/career";
-import { getPersonalizedJobsAction } from "@/app/actions/career-ai";
+import { getPersonalizedJobsAction, getWishlistJobsAction } from "@/app/actions/career-ai";
 
 export const metadata = {
   title: "Jobs & Internships",
@@ -42,12 +42,13 @@ export default async function JobsPage() {
     return acc;
   }, {});
 
-  // Fetch initial personalized jobs, career resources, resumes, and AI limits server-side
-  const [initialArticles, initialJobs, initialResumes, initialAiLimits] = await Promise.all([
+  // Fetch initial personalized jobs, career resources, resumes, AI limits, and wishlist server-side
+  const [initialArticles, initialJobs, initialResumes, initialAiLimits, initialWishlist] = await Promise.all([
     getCareerArticles().catch(() => []),
     getPersonalizedJobsAction().catch(() => []),
     import("@/app/actions/resume").then(m => m.getResumesAction()).catch(() => ({ resumes: [], active_resume_id: "" })),
     import("@/app/actions/career-ai").then(m => m.getCareerAiLimitsAction()).catch(() => null),
+    getWishlistJobsAction().catch(() => []),
   ]);
 
   return (
@@ -70,6 +71,7 @@ export default async function JobsPage() {
         initialArticles={initialArticles} 
         initialResumes={initialResumes}
         initialAiLimits={initialAiLimits}
+        initialWishlist={initialWishlist}
       />
     </div>
   );

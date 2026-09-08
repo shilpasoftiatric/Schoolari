@@ -384,7 +384,7 @@ export function CoachingDashboard({
 
             {/* 3-Step Visual Diagram */}
             <div className="pt-2 pb-1">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-2 bg-[#FAF9FF] p-5 sm:p-6 rounded-2xl border border-violet-50/60 max-w-xl">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-2 bg-[#FAF9FF] p-5 sm:p-6 rounded-2xl border border-violet-50/60 max-w-full">
                 {/* Step 1: Talk with coach */}
                 <div className="flex flex-col items-center text-center space-y-2 flex-1">
                   <div className="w-14 h-14 rounded-full bg-[#EAF5FF] flex items-center justify-center text-[#2F80ED] shadow-xs">

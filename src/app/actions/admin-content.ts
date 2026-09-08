@@ -113,7 +113,7 @@ export async function getActiveContentBanners(): Promise<any[]> {
     .from("dashboard_content" as any)
     .select("*")
     .eq("is_active", true)
-    .in("type", ["banner", "announcement", "event", "tip"])
+    .in("type", ["banner", "announcement", "event", "tip", "quote", "featured_scholarship"])
     .order("created_at", { ascending: false });
 
   if (error) {

@@ -7,6 +7,7 @@ import {
   sendTrialDay5ReminderEmail, 
   sendTrialDay7ConvertedEmail 
 } from "@/lib/email";
+import { processDueScheduledMessages } from "@/app/actions/admin-messages";
 
 /**
  * GET /api/cron/reminders
@@ -37,43 +38,37 @@ export async function GET(req: Request) {
       throw new Error(`Failed to fetch profiles: ${error.message}`);
     }
 
-    if (!incompleteProfiles || incompleteProfiles.length === 0) {
-      return NextResponse.json({ success: true, message: "No reminders to send." });
-    }
-
-    // 3. Send SMS via Twilio
+    // 3. Send SMS via Twilio for incomplete onboarding profiles
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+    const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
-    if (!accountSid || !authToken || !twilioPhone) {
-      throw new Error("Twilio credentials are not configured properly.");
-    }
-
-    const client = twilio(accountSid, authToken);
     let sentCount = 0;
     let failCount = 0;
 
-    for (const profile of incompleteProfiles) {
-      try {
-        const phone = formatPhoneE164(profile.student_phone);
-        if (!phone) continue;
+    if (incompleteProfiles && incompleteProfiles.length > 0 && client && twilioPhone) {
+      for (const profile of incompleteProfiles) {
+        try {
+          const phone = formatPhoneE164(profile.student_phone);
+          if (!phone) continue;
 
-        // Skip if created within the last 24 hours to give them time to finish
-        const createdDate = new Date(profile.created_at);
-        const hoursSinceCreation = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60);
-        if (hoursSinceCreation < 24) continue;
+          // Skip if created within the last 24 hours to give them time to finish
+          const createdDate = new Date(profile.created_at);
+          const hoursSinceCreation = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+          if (hoursSinceCreation < 24) continue;
 
-        await client.messages.create({
-          body: `Hi ${profile.student_first_name || "Student"}, a quick reminder from Schoolari! Please log in to complete your onboarding profile so we can start finding your scholarships. Reply STOP to unsubscribe.`,
-          from: twilioPhone,
-          to: phone,
-        });
+          await client.messages.create({
+            body: `Hi ${profile.student_first_name || "Student"}, a quick reminder from Schoolari! Please log in to complete your onboarding profile so we can start finding your scholarships. Reply STOP to unsubscribe.`,
+            from: twilioPhone,
+            to: phone,
+          });
 
-        sentCount++;
-      } catch (smsError) {
-        console.error(`Failed to send reminder to ${profile.id}:`, smsError);
-        failCount++;
+          sentCount++;
+        } catch (smsError) {
+          console.error(`Failed to send reminder to ${profile.id}:`, smsError);
+          failCount++;
+        }
       }
     }
 
@@ -130,13 +125,15 @@ export async function GET(req: Request) {
 
         // Try SMS (unique formatted phone numbers)
         const pAny = profile as any;
-        const rawPhones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean) as string[];
-        const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
-        for (const phone of uniquePhones) {
-          try {
-            await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
-            sentCount++;
-          } catch (e) { failCount++; }
+        if (client && twilioPhone) {
+          const rawPhones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean) as string[];
+          const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
+          for (const phone of uniquePhones) {
+            try {
+              await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
+              sentCount++;
+            } catch (e) { failCount++; }
+          }
         }
 
         // Try Email (unique normalized email addresses)
@@ -152,6 +149,96 @@ export async function GET(req: Request) {
 
         // Mark ALL grouped duplicate reminder rows as reminded so none re-fire
         await supabase.from("reminders").update({ reminded_at: now.toISOString() }).in("id", allIds);
+      }
+    }
+
+    // 4B. 5-Day Pre-Interview Prep Reminders (SMS + Email)
+    const fiveDaysFromNow = new Date();
+    fiveDaysFromNow.setDate(fiveDaysFromNow.getDate() + 5.5);
+
+    const { data: interviewReminders, error: interviewError } = await supabase
+      .from("reminders")
+      .select("*, profiles(*)")
+      .eq("entity_type", "job")
+      .is("reminded_at", null)
+      .gte("due_date", now.toISOString())
+      .lte("due_date", fiveDaysFromNow.toISOString());
+
+    if (!interviewError && interviewReminders && interviewReminders.length > 0) {
+      for (const rem of interviewReminders) {
+        const profile = rem.profiles;
+        if (!profile) {
+          await supabase.from("reminders").update({ reminded_at: now.toISOString() }).eq("id", rem.id);
+          continue;
+        }
+
+        const dueDate = new Date(rem.due_date);
+        const deadlineStr = dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const timeStr = dueDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+        const jobTitle = rem.title.replace(/^Interview:\s*/i, "");
+
+        const msgText = `Schoolari Interview Prep: Your interview for ${jobTitle} is coming up on ${deadlineStr} at ${timeStr}! 💼 Research the company, review your resume, and prepare talking points at members.schoolari.app/jobs. Good luck! \n\nReply STOP to unsubscribe.`;
+
+        const msgHtml = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;">
+            <div style="background: linear-gradient(135deg, #7c3aed, #4f46e5); padding: 28px 24px; border-radius: 16px 16px 0 0; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800;">🎯 5-Day Interview Prep Checklist</h1>
+              <p style="color: #ede9fe; margin: 8px 0 0 0; font-size: 14px;">Your interview for <strong>${jobTitle}</strong> is on <strong>${deadlineStr} at ${timeStr}</strong></p>
+            </div>
+            <div style="background: #ffffff; padding: 28px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 16px 16px;">
+              <p style="font-size: 15px; line-height: 1.6; margin-top: 0;">Hi ${(profile as any)?.student_first_name || "there"},</p>
+              <p style="font-size: 14px; line-height: 1.6; color: #475569;">You are 5 days away from your scheduled interview. Here is your targeted preparation checklist to help you make a winning impression:</p>
+              
+              <div style="margin: 20px 0; background: #f8fafc; border-left: 4px solid #7c3aed; padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #1e1b4b;">1. 🏢 Research the Employer & Team</h3>
+                <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">Review the company's recent news, mission statement, products, and core culture values.</p>
+              </div>
+
+              <div style="margin: 20px 0; background: #f8fafc; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #172554;">2. ⭐ Master the STAR Method</h3>
+                <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">Prepare 3–4 stories from school, clubs, or projects highlighting <strong>Situation, Task, Action, and Result</strong>.</p>
+              </div>
+
+              <div style="margin: 20px 0; background: #f8fafc; border-left: 4px solid #10b981; padding: 16px; border-radius: 8px;">
+                <h3 style="margin: 0 0 10px 0; font-size: 15px; color: #064e3b;">3. ❓ Prepare 3 Smart Questions</h3>
+                <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.5;">Have thoughtful questions ready about day-to-day responsibilities, team growth, and success metrics.</p>
+              </div>
+
+              <div style="text-align: center; margin: 30px 0 10px 0;">
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://members.schoolari.app'}/jobs" style="background: #7c3aed; color: #ffffff; font-weight: 700; font-size: 14px; padding: 12px 28px; border-radius: 10px; text-decoration: none; display: inline-block;">
+                  Open Jobs & Interview Tracker →
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Dispatch SMS
+        const pAny = profile as any;
+        if (client && twilioPhone) {
+          const rawPhones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean) as string[];
+          const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
+          for (const phone of uniquePhones) {
+            try {
+              await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
+              sentCount++;
+            } catch (e) { failCount++; }
+          }
+        }
+
+        // Dispatch Email
+        const rawEmails = [pAny?.student_email, pAny?.parent_email, pAny?.email].filter(Boolean) as string[];
+        const uniqueEmails = Array.from(new Set(rawEmails.map((e) => e.trim().toLowerCase())));
+        for (const email of uniqueEmails) {
+          try {
+            await sendAlertEmail(email, `Interview Prep: Your interview for ${jobTitle} is in 5 days!`, msgHtml);
+          } catch (e) {
+            console.error(`Failed to send interview prep email to ${email}:`, e);
+          }
+        }
+
+        // Mark as reminded
+        await supabase.from("reminders").update({ reminded_at: now.toISOString() }).eq("id", rem.id);
       }
     }
 
@@ -184,13 +271,15 @@ export async function GET(req: Request) {
             const msgHtml = `<p>Hi ${pAny?.student_first_name || 'there'},</p><p>It's been a week since your last <strong>Earn While You Learn</strong> video! Check out the next video in your path and unlock more income opportunities.</p><p>Log in to your Dashboard to continue.</p>`;
 
             // Try SMS
-            const rawPhones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean) as string[];
-            const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
-            for (const phone of uniquePhones) {
-              try {
-                await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
-                sentCount++;
-              } catch (e) { failCount++; }
+            if (client && twilioPhone) {
+              const rawPhones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean) as string[];
+              const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
+              for (const phone of uniquePhones) {
+                try {
+                  await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
+                  sentCount++;
+                } catch (e) { failCount++; }
+              }
             }
 
             // Try Email
@@ -241,19 +330,21 @@ export async function GET(req: Request) {
           if (!profile.trial_day5_sms_sent) {
             const msgText = `Hi ${name}, a quick reminder from Schoolari that your free trial ends in 2 days. Manage your subscription at ${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/pricing`;
             let smsSuccess = false;
-            for (const phone of uniquePhones) {
-              if (sentDay5PhonesThisRun.has(phone)) {
-                smsSuccess = true;
-                continue;
+            if (client && twilioPhone) {
+              for (const phone of uniquePhones) {
+                if (sentDay5PhonesThisRun.has(phone)) {
+                  smsSuccess = true;
+                  continue;
+                }
+                try {
+                  await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
+                  smsSuccess = true;
+                  sentDay5PhonesThisRun.add(phone);
+                  sentCount++;
+                } catch (e) { failCount++; }
               }
-              try {
-                await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
-                smsSuccess = true;
-                sentDay5PhonesThisRun.add(phone);
-                sentCount++;
-              } catch (e) { failCount++; }
             }
-            if (smsSuccess || uniquePhones.length === 0) {
+            if (smsSuccess || uniquePhones.length === 0 || !client) {
               await supabase.from("profiles").update({ trial_day5_sms_sent: true }).eq("id", profile.id);
             }
           }
@@ -290,19 +381,21 @@ export async function GET(req: Request) {
           if (!profile.trial_day7_sms_sent) {
             const msgText = `Hi ${name}, your Schoolari free trial has ended and your card has been successfully charged. Thank you for subscribing!`;
             let smsSuccess = false;
-            for (const phone of uniquePhones) {
-              if (sentDay7PhonesThisRun.has(phone)) {
-                smsSuccess = true;
-                continue;
+            if (client && twilioPhone) {
+              for (const phone of uniquePhones) {
+                if (sentDay7PhonesThisRun.has(phone)) {
+                  smsSuccess = true;
+                  continue;
+                }
+                try {
+                  await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
+                  smsSuccess = true;
+                  sentDay7PhonesThisRun.add(phone);
+                  sentCount++;
+                } catch (e) { failCount++; }
               }
-              try {
-                await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
-                smsSuccess = true;
-                sentDay7PhonesThisRun.add(phone);
-                sentCount++;
-              } catch (e) { failCount++; }
             }
-            if (smsSuccess || uniquePhones.length === 0) {
+            if (smsSuccess || uniquePhones.length === 0 || !client) {
               await supabase.from("profiles").update({ trial_day7_sms_sent: true }).eq("id", profile.id);
             }
           }
@@ -335,10 +428,22 @@ export async function GET(req: Request) {
       }
     }
 
+    // 7. Process Due Scheduled Messages (1-on-1 and Broadcast)
+    let scheduledProcessed = 0;
+    try {
+      const schedRes = await processDueScheduledMessages();
+      if (schedRes.success) {
+        scheduledProcessed = schedRes.processed || 0;
+      }
+    } catch (schedErr) {
+      console.error("[cron/reminders] Error processing scheduled messages:", schedErr);
+    }
+
     return NextResponse.json({
       success: true,
       sent: sentCount,
-      failed: failCount
+      failed: failCount,
+      scheduled_processed: scheduledProcessed
     });
 
   } catch (err: any) {

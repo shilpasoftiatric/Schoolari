@@ -393,7 +393,7 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
     if (error) throw new Error(error.message);
   }
 
-  // --- NEW TWILIO SMS LOGIC ---
+  // --- TWILIO SMS LOGIC & REMINDERS ---
   if (status === "Not Started") {
     // Attempt to send an SMS
     const { data: profile } = await supabase
@@ -486,8 +486,136 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
         }
       }
     }
-  }
+  } else if (status === "Interview Scheduled" || status === "Interviewing") {
+    // 1. Sync interview event to reminders table for automated 5-day cron notifications
+    if (dueDate) {
+      const interviewDateIso = new Date(`${dueDate}T${dueTime || '09:00'}`).toISOString();
+      const { data: existingRem } = await supabase
+        .from("reminders")
+        .select("id")
+        .eq("user_id", masterId)
+        .eq("entity_type", "job")
+        .eq("entity_id", String(jobData.job_id))
+        .maybeSingle();
 
+      if (existingRem) {
+        await supabase
+          .from("reminders")
+          .update({
+            title: `Interview: ${jobData.job_title} at ${jobData.employer_name}`,
+            due_date: interviewDateIso,
+            reminded_at: null
+          })
+          .eq("id", existingRem.id);
+      } else {
+        await supabase
+          .from("reminders")
+          .insert({
+            user_id: masterId,
+            entity_type: "job",
+            entity_id: String(jobData.job_id),
+            title: `Interview: ${jobData.job_title} at ${jobData.employer_name}`,
+            due_date: interviewDateIso,
+            reminded_at: null
+          });
+      }
+    }
+
+    // 2. Send instant SMS with Calendar link + schedule 5-day prep text
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("phone, student_first_name")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.phone) {
+      const e164Phone = formatPhoneE164(profile.phone);
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+
+      if (e164Phone && accountSid && authToken && messagingServiceSid) {
+        try {
+          const client = twilio(accountSid, authToken);
+          const studentName = profile.student_first_name || "there";
+          const employerName = jobData.employer_name || "the company";
+          const jobTitle = jobData.job_title || "the position";
+
+          let immediateMessage = "";
+          let finalDueDate: Date | null = null;
+
+          if (dueDate) {
+            finalDueDate = new Date(`${dueDate}T${dueTime || '09:00'}`);
+
+            // Google Calendar Event Link for Interview
+            const encodedTitle = encodeURIComponent(`Interview: ${jobTitle} at ${employerName}`);
+            const formatFloatingDate = (d: Date) => {
+              const pad = (n: number) => n.toString().padStart(2, '0');
+              return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+            };
+
+            const eventDateStr = formatFloatingDate(finalDueDate);
+            const endDueDate = new Date(finalDueDate.getTime() + 60 * 60 * 1000);
+            const endDateStr = formatFloatingDate(endDueDate);
+            const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&dates=${eventDateStr}/${endDateStr}`;
+
+            const formattedDate = finalDueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            const formattedTime = finalDueDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+            immediateMessage = `🎉 Congrats ${studentName}! Your interview for ${jobTitle} at ${employerName} is scheduled for ${formattedDate} at ${formattedTime}. Add to calendar: ${calendarLink}\n\nWe will text & email you interview prep practice reminders 5 days prior. Reply STOP to unsubscribe.`;
+          } else {
+            immediateMessage = `🎉 Congrats ${studentName}! Your interview for ${jobTitle} at ${employerName} is recorded in your tracker. We will send you prep reminders 5 days before your interview date! \n\nReply STOP to unsubscribe.`;
+          }
+
+          // Send Immediate SMS
+          await client.messages.create({
+            body: immediateMessage,
+            messagingServiceSid,
+            to: e164Phone
+          });
+
+          // Schedule the 5-day Pre-Interview Prep SMS via Twilio if within scheduling horizon (15 min to 34 days)
+          if (finalDueDate) {
+            const now = new Date();
+            // Exactly 5 days before interview
+            const fiveDaysBefore = new Date(finalDueDate.getTime() - 5 * 24 * 60 * 60 * 1000);
+            fiveDaysBefore.setHours(9, 0, 0, 0); // 9:00 AM
+
+            const minSendAt = new Date(now.getTime() + 16 * 60 * 1000);
+            const maxSendAt = new Date(now.getTime() + 34 * 24 * 60 * 60 * 1000);
+
+            let scheduledSendDate: Date | null = null;
+            if (fiveDaysBefore > minSendAt && fiveDaysBefore < maxSendAt) {
+              scheduledSendDate = fiveDaysBefore;
+            } else if (finalDueDate.getTime() - now.getTime() > 24 * 60 * 60 * 1000 && fiveDaysBefore <= minSendAt) {
+              // Interview is less than 5 days away, send tomorrow at 9 AM
+              const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+              tomorrow.setHours(9, 0, 0, 0);
+              if (tomorrow > minSendAt && tomorrow < finalDueDate) {
+                scheduledSendDate = tomorrow;
+              }
+            }
+
+            if (scheduledSendDate) {
+              const scheduledMessage = `Schoolari Interview Prep: Your interview for ${jobTitle} at ${employerName} is in 5 days! 💼 Research the company, review your resume, and prepare key talking points at members.schoolari.app/jobs. Good luck!`;
+
+              await client.messages.create({
+                body: scheduledMessage,
+                messagingServiceSid,
+                sendAt: scheduledSendDate,
+                scheduleType: 'fixed',
+                to: e164Phone
+              }).catch(err => {
+                console.error("Twilio scheduling error (interview prep):", err.message);
+              });
+            }
+          }
+        } catch (err: any) {
+          console.error("[saveJobToTrackerAction] Interview Twilio error:", err.message);
+        }
+      }
+    }
+  }
 
   // Clear profile AI dashboard cache so dashboard reflects updated tracker items immediately
   const { createAdminClient } = await import("@/lib/supabase/server");
@@ -500,6 +628,234 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
   revalidatePath("/jobs");
   revalidatePath("/tracker");
   revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/**
+ * Surface 5-7 tailored interview questions powered by Claude AI for a scheduled job interview
+ */
+export async function getJobInterviewQuestionsAction(jobTitle: string, company: string, jobDescription: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const resume = await getResume();
+
+  const systemPrompt = `You are an elite corporate recruiter and career coach preparing a high school / college student for a job interview.
+Given a job title, employer name, job description, and the student's background, generate 5 to 7 highly tailored, likely interview questions.
+Include a mix of behavioral (STAR method), technical/role-specific, and company-fit questions.
+For each question, provide:
+1. "question": The exact interview question.
+2. "type": "Behavioral" | "Role-Specific" | "Company-Fit" | "Situational".
+3. "tip": A 1-2 sentence pro tip on how the student should structure their answer using their background.
+
+Required JSON structure:
+{
+  "questions": [
+    {
+      "question": "string",
+      "type": "Behavioral",
+      "tip": "string"
+    }
+  ],
+  "general_advice": "1-2 sentences of key encouragement and strategy for this specific employer."
+}`;
+
+  const userPrompt = `Target Role: ${jobTitle} at ${company}
+Job Description:
+${(jobDescription || "").substring(0, 3000)}
+
+Student Resume Data:
+${JSON.stringify(resume?.content || {}, null, 2)}`;
+
+  try {
+    const aiResponse = await callAI({
+      systemPrompt,
+      userPrompt,
+      provider: "claude",
+      jsonMode: true
+    });
+
+    const cleanedResponse = aiResponse.replace(/```(?:json)?/g, '').trim();
+    const parsed = JSON.parse(cleanedResponse);
+    return { success: true, ...parsed };
+  } catch (error) {
+    console.error("AI Interview Questions generation failed:", error);
+    // Fallback standard high-impact interview questions
+    return {
+      success: true,
+      questions: [
+        {
+          question: `Tell me about yourself and why you are excited about the ${jobTitle} role at ${company}.`,
+          type: "Company-Fit",
+          tip: "Focus on your academic background, 1-2 relevant projects, and what drew you specifically to this company's culture."
+        },
+        {
+          question: "Can you share an example of a challenging project or task you worked on and how you overcame obstacles?",
+          type: "Behavioral",
+          tip: "Use the STAR method: describe the Situation, Task, Action you took, and measurable Result."
+        },
+        {
+          question: `What relevant skills or coursework have prepared you for this position?`,
+          type: "Role-Specific",
+          tip: "Highlight specific tools, software, or class projects that directly match the job description requirements."
+        },
+        {
+          question: "Describe a time when you had to collaborate closely with a team to meet a tight deadline.",
+          type: "Behavioral",
+          tip: "Demonstrate communication, active listening, and how you supported your team members under pressure."
+        },
+        {
+          question: `What questions do you have for us about the team or day-to-day work at ${company}?`,
+          type: "Company-Fit",
+          tip: "Always have 2 thoughtful questions ready about team dynamics, learning opportunities, or company goals."
+        }
+      ],
+      general_advice: `Research ${company}'s latest projects, arrive 10 minutes early, and let your enthusiasm for learning shine through!`
+    };
+  }
+}
+
+/**
+ * Fetch all saved / wishlisted jobs for the authenticated user
+ */
+export async function getWishlistJobsAction() {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { masterId } = await getStudentDashboardData(user.id);
+    const { createAdminClient } = await import("@/lib/supabase/server");
+    const adminClient = await createAdminClient();
+
+    const { data, error } = await adminClient
+      .from("saved_jobs" as any)
+      .select("*")
+      .eq("user_id", masterId)
+      .order("created_at", { ascending: false });
+
+    if (error || !data) return [];
+
+    return (data as any[]).map((row) => ({
+      job_id: row.job_id,
+      job_title: row.job_title,
+      employer_name: row.employer_name,
+      employer_logo: row.employer_logo,
+      job_city: row.job_city,
+      job_state: row.job_state,
+      job_country: row.job_country,
+      job_employment_type: row.job_employment_type,
+      workplace_type: row.workplace_type,
+      job_apply_link: row.job_apply_link,
+      job_description: row.job_description,
+      job_min_salary: row.job_min_salary,
+      job_max_salary: row.job_max_salary,
+      job_salary_currency: row.job_salary_currency,
+      job_posted_at_datetime_utc: row.job_posted_at_datetime_utc,
+      job_offer_expiration_timestamp: row.job_offer_expiration_timestamp,
+      job_highlights: row.job_highlights,
+      job_required_skills: row.job_required_skills,
+      job_benefits: row.job_benefits,
+      ...(row.raw_job_data || {}),
+    }));
+  } catch (err: any) {
+    console.error("[getWishlistJobsAction] Error:", err);
+    return [];
+  }
+}
+
+/**
+ * Toggle a job in the user's Wishlist (save or remove)
+ */
+export async function toggleWishlistJobAction(jobData: any) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { masterId } = await getStudentDashboardData(user.id);
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const adminClient = await createAdminClient();
+
+  const jobId = String(jobData.job_id);
+
+  // Check if already in wishlist
+  const { data: existing } = await adminClient
+    .from("saved_jobs" as any)
+    .select("id")
+    .eq("user_id", masterId)
+    .eq("job_id", jobId)
+    .maybeSingle();
+
+  if (existing) {
+    // Remove from wishlist
+    const { error: delError } = await adminClient
+      .from("saved_jobs" as any)
+      .delete()
+      .eq("id", (existing as any).id);
+
+    if (delError) throw new Error(delError.message);
+
+    revalidatePath("/jobs");
+    return { isWishlisted: false, message: "Removed from Wishlist" };
+  } else {
+    // Insert into wishlist
+    const payload = {
+      user_id: masterId,
+      job_id: jobId,
+      job_title: jobData.job_title || "Untitled Opportunity",
+      employer_name: jobData.employer_name || "Company",
+      employer_logo: jobData.employer_logo || null,
+      job_city: jobData.job_city || null,
+      job_state: jobData.job_state || null,
+      job_country: jobData.job_country || "USA",
+      job_employment_type: jobData.job_employment_type || "INTERN",
+      workplace_type: jobData.workplace_type || "On-Site",
+      job_apply_link: jobData.job_apply_link || null,
+      job_description: jobData.job_description || "",
+      job_min_salary: jobData.job_min_salary || null,
+      job_max_salary: jobData.job_max_salary || null,
+      job_salary_currency: jobData.job_salary_currency || "USD",
+      job_posted_at_datetime_utc: jobData.job_posted_at_datetime_utc || null,
+      job_offer_expiration_timestamp: jobData.job_offer_expiration_timestamp || null,
+      job_highlights: jobData.job_highlights || null,
+      job_required_skills: jobData.job_required_skills || [],
+      job_benefits: jobData.job_benefits || [],
+      raw_job_data: jobData,
+    };
+
+    const { error: insError } = await adminClient
+      .from("saved_jobs" as any)
+      .upsert(payload, { onConflict: "user_id,job_id" });
+
+    if (insError) throw new Error(insError.message);
+
+    revalidatePath("/jobs");
+    return { isWishlisted: true, message: "Added to Wishlist!" };
+  }
+}
+
+/**
+ * Remove a job from wishlist by jobId
+ */
+export async function removeWishlistJobAction(jobId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { masterId } = await getStudentDashboardData(user.id);
+  const { createAdminClient } = await import("@/lib/supabase/server");
+  const adminClient = await createAdminClient();
+
+  const { error } = await adminClient
+    .from("saved_jobs" as any)
+    .delete()
+    .eq("user_id", masterId)
+    .eq("job_id", String(jobId));
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/jobs");
   return { success: true };
 }
 

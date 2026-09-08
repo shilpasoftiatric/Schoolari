@@ -1,5 +1,5 @@
-import CareerSkeleton from "@/components/skeletons/CareerSkeleton";
+import ResumeSkeleton from "@/components/skeletons/ResumeSkeleton";
 
 export default function Loading() {
-  return <CareerSkeleton />;
+  return <ResumeSkeleton />;
 }

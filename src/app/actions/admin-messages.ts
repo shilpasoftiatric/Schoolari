@@ -30,6 +30,76 @@ export async function sendMessageToStudent(
 }
 
 /**
+ * Helper to determine if a profile is on the Elite plan, either directly
+ * or through a linked family member (e.g. parent linked to an Elite student).
+ */
+function isProfileElite(
+  profile: any,
+  profileMap: Map<string, any>,
+  allProfiles: any[] = []
+): boolean {
+  if (!profile) return false;
+
+  // 1. Direct subscription / role check
+  const directElite =
+    getPlanFromPriceId(profile.stripe_price_id) === "elite" ||
+    (profile as any).subscription_tier === "elite" ||
+    profile.role === "elite";
+
+  if (directElite) return true;
+
+  // 2. Parent -> Linked Student by linked_student_id
+  if (profile.account_type === "parent" && profile.linked_student_id) {
+    const student = profileMap.get(profile.linked_student_id);
+    if (
+      student &&
+      (getPlanFromPriceId(student.stripe_price_id) === "elite" ||
+        (student as any).subscription_tier === "elite" ||
+        student.role === "elite")
+    ) {
+      return true;
+    }
+  }
+
+  // 3. Parent -> Student by matching student_email / parent_email
+  if (profile.account_type === "parent") {
+    const parentEmail = (profile.parent_email || profile.email || "").toLowerCase().trim();
+    if (parentEmail) {
+      const studentMatch = allProfiles.find(
+        (p) =>
+          p.account_type !== "parent" &&
+          (p.parent_email || "").toLowerCase().trim() === parentEmail
+      );
+      if (
+        studentMatch &&
+        (getPlanFromPriceId(studentMatch.stripe_price_id) === "elite" ||
+          (studentMatch as any).subscription_tier === "elite" ||
+          studentMatch.role === "elite")
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // 4. Student -> Parent (if parent holds the Elite subscription)
+  if (profile.account_type !== "parent") {
+    const parent = allProfiles.find(
+      (p) => p.account_type === "parent" && p.linked_student_id === profile.id
+    );
+    if (
+      parent &&
+      (getPlanFromPriceId(parent.stripe_price_id) === "elite" ||
+        (parent as any).subscription_tier === "elite" ||
+        parent.role === "elite")
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Broadcast a message to ALL Elite students/parents (or filtered by target role)
  */
 export async function broadcastMessage(
@@ -77,23 +147,24 @@ export async function broadcastMessage(
     }
   }
 
-  // Only broadcast to active Elite students and parents (exclude staff accounts and non-Elite plans)
-  let query = adminClient
+  // Fetch all non-staff profiles so family linkages (parents to elite students) are fully resolved
+  const { data: allProfiles, error: usersError } = await adminClient
     .from("profiles")
-    .select("id, role, account_type, stripe_price_id, linked_student_id")
+    .select("id, role, account_type, stripe_price_id, linked_student_id, student_email, parent_email")
     .not("role", "in", '("super_admin","admin","college_coach","essay_coach","content_manager","customer_support")');
 
-  if (targetRole === "student") {
-    query = query.or("account_type.eq.student,account_type.is.null");
-  } else if (targetRole === "parent") {
-    query = query.eq("account_type", "parent");
-  }
-
-  const { data: users, error: usersError } = await query;
   if (usersError) return { error: usersError.message };
 
-  const eliteUsers = (users || []).filter((u: any) => {
-    return getPlanFromPriceId(u.stripe_price_id) === "elite" || u.role === "elite";
+  const profileMap = new Map<string, any>();
+  (allProfiles || []).forEach((p) => profileMap.set(p.id, p));
+
+  const eliteUsers = (allProfiles || []).filter((u: any) => {
+    // Role filter
+    if (targetRole === "student" && u.account_type === "parent") return false;
+    if (targetRole === "parent" && u.account_type !== "parent") return false;
+
+    // Elite status check (direct or through family link)
+    return isProfileElite(u, profileMap, allProfiles || []);
   });
 
   if (!eliteUsers || eliteUsers.length === 0) return { error: "No Elite student/parent users found to receive broadcast" };
@@ -259,8 +330,8 @@ export async function getAdminConversations(): Promise<AdminConversationUser[]> 
     const accountType: "student" | "parent" | "staff" = isStaff
       ? "staff"
       : p?.account_type === "parent"
-      ? "parent"
-      : "student";
+        ? "parent"
+        : "student";
 
     return {
       id: userId,
@@ -283,22 +354,7 @@ export async function getAdminConversations(): Promise<AdminConversationUser[]> 
   const eliteStudentParentConversations = conversations.filter((c) => {
     if (c.accountType === "staff") return false;
     const p = profileMap.get(c.id);
-    let isElite =
-      getPlanFromPriceId(p?.stripe_price_id) === "elite" ||
-      p?.subscription_tier === "elite" ||
-      p?.role === "elite";
-
-    if (!isElite && p?.account_type === "parent" && p?.linked_student_id) {
-      const linkedP = profileMap.get(p.linked_student_id);
-      if (
-        getPlanFromPriceId(linkedP?.stripe_price_id) === "elite" ||
-        linkedP?.subscription_tier === "elite" ||
-        linkedP?.role === "elite"
-      ) {
-        isElite = true;
-      }
-    }
-    return isElite;
+    return isProfileElite(p, profileMap, profiles || []);
   });
 
   const finalConversations = eliteStudentParentConversations;
@@ -460,6 +516,9 @@ export async function getStaffUnreadCount(): Promise<number> {
   }
 }
 
+import { sendSMS } from "@/lib/twilio";
+import { formatPhoneE164 } from "@/lib/phone";
+
 /**
  * Get summary stats for admin messages page
  */
@@ -477,3 +536,556 @@ export async function getMessageStats() {
     return { total: 0, unread: 0 };
   }
 }
+
+/**
+ * Get real-time audience estimates for Bulk SMS and Broadcasts
+ */
+export async function getAudienceEstimate(targetRole: "all" | "student" | "parent" = "all") {
+  try {
+    await requirePermission("send_messages");
+    const adminClient = await createAdminClient();
+
+    const { data: users, error } = await adminClient
+      .from("profiles")
+      .select("id, role, account_type, student_phone, parent_phone, phone, stripe_price_id, subscription_status, linked_student_id, student_email, parent_email")
+      .not("role", "in", '("super_admin","admin","college_coach","essay_coach","content_manager","customer_support")');
+
+    if (error) return { totalUsers: 0, usersWithPhone: 0, eliteUsers: 0 };
+
+    const profileMap = new Map<string, any>();
+    (users || []).forEach((p) => profileMap.set(p.id, p));
+
+    const uniquePhones = new Set<string>();
+    let totalUsers = 0;
+    let eliteUsers = 0;
+
+    for (const u of (users || [])) {
+      let candidatePhones: (string | null | undefined)[] = [];
+
+      if (targetRole === "student") {
+        // Students: only student accounts and student mobile numbers
+        if (u.account_type !== "parent") {
+          totalUsers++;
+          candidatePhones = [u.student_phone || u.phone].filter(Boolean);
+        }
+      } else if (targetRole === "parent") {
+        // Parents: parent accounts only
+        if (u.account_type === "parent") {
+          totalUsers++;
+          candidatePhones = [u.parent_phone || u.phone].filter(Boolean);
+        }
+      } else {
+        // All members: both students and parents
+        totalUsers++;
+        const studentP = u.student_phone || (u.account_type !== "parent" ? u.phone : null);
+        const parentP = u.parent_phone || (u.account_type === "parent" ? u.phone : null);
+        candidatePhones = [studentP, parentP].filter(Boolean);
+      }
+
+      for (const p of candidatePhones) {
+        const formatted = formatPhoneE164(p);
+        if (formatted) {
+          uniquePhones.add(formatted);
+        }
+      }
+
+      // Check Elite status
+      const isElite = isProfileElite(u, profileMap, users || []);
+      if (isElite) {
+        if (targetRole === "student" && u.account_type !== "parent") {
+          eliteUsers++;
+        } else if (targetRole === "parent" && u.account_type === "parent") {
+          eliteUsers++;
+        } else if (targetRole === "all") {
+          eliteUsers++;
+        }
+      }
+    }
+
+    return { totalUsers, usersWithPhone: uniquePhones.size, eliteUsers };
+  } catch (err: any) {
+    console.error("[getAudienceEstimate]", err);
+    return { totalUsers: 0, usersWithPhone: 0, eliteUsers: 0 };
+  }
+}
+
+export interface ScheduledMessageItem {
+  id: string;
+  sender_id?: string | null;
+  target_user_id?: string | null;
+  target_user_name?: string | null;
+  target_role: "all" | "student" | "parent";
+  delivery_channel: "in_app" | "sms" | "both";
+  title: string;
+  content: string;
+  message_type: string;
+  scheduled_for: string;
+  status: "pending" | "sent" | "cancelled" | "failed";
+  sent_at?: string | null;
+  sent_count?: number;
+  created_at?: string;
+}
+
+/**
+ * Schedule a direct 1-on-1 message to a student or parent for a future date/time
+ */
+export async function scheduleDirectMessage(data: {
+  targetUserId: string;
+  content: string;
+  scheduledFor: string;
+  messageType?: string;
+  deliveryChannel?: "in_app" | "sms" | "both";
+}) {
+  await requirePermission("send_messages");
+  const supabase = await createClient();
+  const adminClient = await createAdminClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let senderName = "Admissions Coach";
+  let senderRole = "Coach";
+
+  if (user) {
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("student_first_name, student_last_name, parent_first_name, role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const fullName =
+      (profile &&
+        [profile.student_first_name, profile.student_last_name].filter(Boolean).join(" ")) ||
+      profile?.parent_first_name;
+
+    if (fullName) senderName = fullName;
+    const userRole = (profile?.role as string) || "college_coach";
+    if (userRole === "super_admin") senderRole = "Director";
+    else if (userRole === "college_coach") senderRole = "College Coach";
+    else if (userRole === "essay_coach") senderRole = "Essay Coach";
+  }
+
+  const fullTitle = `[COACH][FROM:${user?.id || "coach"}][FROM_ID:${user?.id || "coach"}][FROM_EMAIL:${user?.email || ""}][NAME:${senderName}][ROLE:${senderRole}] Advisory Feedback`;
+
+  const payload = {
+    sender_id: user?.id || null,
+    target_user_id: data.targetUserId,
+    target_role: "student",
+    delivery_channel: data.deliveryChannel || "in_app",
+    title: fullTitle,
+    content: data.content.trim(),
+    message_type: data.messageType || "guidance",
+    scheduled_for: new Date(data.scheduledFor).toISOString(),
+    status: "pending",
+  };
+
+  const { data: inserted, error } = await adminClient
+    .from("scheduled_messages" as any)
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[scheduleDirectMessage] Error inserting schedule:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/admin/messages");
+  return { success: true, item: inserted };
+}
+
+/**
+ * Schedule a broadcast announcement for a future date/time
+ */
+export async function scheduleBroadcastMessage(data: {
+  title: string;
+  content: string;
+  scheduledFor: string;
+  targetRole?: "all" | "student" | "parent";
+  messageType?: string;
+  deliveryChannel?: "in_app" | "sms" | "both";
+}) {
+  await requirePermission("send_messages");
+  const supabase = await createClient();
+  const adminClient = await createAdminClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let senderName = "Admissions Coach";
+  let senderRole = "Coach";
+
+  if (user) {
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("student_first_name, student_last_name, parent_first_name, role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const fullName =
+      (profile &&
+        [profile.student_first_name, profile.student_last_name].filter(Boolean).join(" ")) ||
+      profile?.parent_first_name;
+
+    if (fullName) senderName = fullName;
+    const userRole = (profile?.role as string) || "college_coach";
+    if (userRole === "super_admin") senderRole = "Director";
+    else if (userRole === "college_coach") senderRole = "College Coach";
+  }
+
+  const fullTitle = `[COACH][FROM_ID:${user?.id || "coach"}][FROM_EMAIL:${user?.email || ""}][NAME:${senderName}][ROLE:${senderRole}][BROADCAST] ${data.title.trim()}`;
+
+  const payload = {
+    sender_id: user?.id || null,
+    target_user_id: null,
+    target_role: data.targetRole || "all",
+    delivery_channel: data.deliveryChannel || "in_app",
+    title: fullTitle,
+    content: data.content.trim(),
+    message_type: data.messageType || "announcement",
+    scheduled_for: new Date(data.scheduledFor).toISOString(),
+    status: "pending",
+  };
+
+  const { data: inserted, error } = await adminClient
+    .from("scheduled_messages" as any)
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[scheduleBroadcastMessage] Error inserting schedule:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/admin/messages");
+  return { success: true, item: inserted };
+}
+
+/**
+ * Fetch all pending scheduled messages
+ */
+export async function getScheduledMessages(): Promise<ScheduledMessageItem[]> {
+  try {
+    await requirePermission("send_messages");
+    const adminClient = await createAdminClient();
+
+    // Auto-process any pending messages that are already due
+    await processDueScheduledMessages();
+
+    const { data: list, error } = await adminClient
+      .from("scheduled_messages" as any)
+      .select("*")
+      .eq("status", "pending")
+      .order("scheduled_for", { ascending: true });
+
+    if (error || !list) return [];
+
+    // Fetch names for target user IDs
+    const targetUserIds = Array.from(new Set(list.map((i: any) => i.target_user_id).filter(Boolean)));
+    const nameMap = new Map<string, string>();
+
+    if (targetUserIds.length > 0) {
+      const { data: profiles } = await adminClient
+        .from("profiles")
+        .select("id, student_first_name, student_last_name, parent_first_name, parent_last_name")
+        .in("id", targetUserIds);
+
+      (profiles || []).forEach((p: any) => {
+        const name =
+          [p.student_first_name, p.student_last_name].filter(Boolean).join(" ") ||
+          [p.parent_first_name, p.parent_last_name].filter(Boolean).join(" ") ||
+          "Student";
+        nameMap.set(p.id, name);
+      });
+    }
+
+    return list.map((item: any) => ({
+      ...item,
+      target_user_name: item.target_user_id ? nameMap.get(item.target_user_id) || "Student" : null,
+    }));
+  } catch (err: any) {
+    console.error("[getScheduledMessages] Error:", err);
+    return [];
+  }
+}
+
+/**
+ * Cancel a pending scheduled message
+ */
+export async function cancelScheduledMessage(id: string) {
+  try {
+    await requirePermission("send_messages");
+    const adminClient = await createAdminClient();
+
+    const { error } = await adminClient
+      .from("scheduled_messages" as any)
+      .update({ status: "cancelled" })
+      .eq("id", id);
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/admin/messages");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+/**
+ * Send Bulk SMS and/or In-App Notifications immediately to Students, Parents, or Both
+ */
+export async function sendBulkSMS(data: {
+  title?: string;
+  content: string;
+  targetRole: "all" | "student" | "parent";
+  deliveryChannel: "sms" | "in_app" | "both";
+  messageType?: string;
+}) {
+  await requirePermission("send_messages");
+  const adminClient = await createAdminClient();
+
+  const title = (data.title || "Schoolari Announcement").trim();
+  const content = data.content.trim();
+  const channel = data.deliveryChannel || "sms";
+
+  // Query all non-staff member profiles
+  const { data: users, error: usersError } = await adminClient
+    .from("profiles")
+    .select("id, role, account_type, student_first_name, parent_first_name, student_phone, parent_phone, phone, student_email, parent_email, stripe_price_id, subscription_status, linked_student_id")
+    .not("role", "in", '("super_admin","admin","college_coach","essay_coach","content_manager","customer_support")');
+
+  if (usersError) return { error: usersError.message };
+
+  if (!users || users.length === 0) {
+    return { error: "No users found in the selected target audience." };
+  }
+
+  const profileMap = new Map<string, any>();
+  (users || []).forEach((p) => profileMap.set(p.id, p));
+
+  let sentSMS = 0;
+  let skippedSMS = 0;
+  let failedSMS = 0;
+  let sentInApp = 0;
+
+  // 1. Deliver In-App Messages & Notifications if channel includes in_app
+  if (channel === "in_app" || channel === "both") {
+    const inAppRes = await broadcastMessage(title, content, data.messageType || "announcement", data.targetRole);
+    if ((inAppRes as any)?.count) {
+      sentInApp = (inAppRes as any).count;
+    }
+
+    // In-App notifications are intended for Elite tier members
+    const targetEliteUsers = (users as any[]).filter((u) => {
+      if (data.targetRole === "student" && u.account_type === "parent") return false;
+      if (data.targetRole === "parent" && u.account_type !== "parent") return false;
+
+      return isProfileElite(u, profileMap, users || []);
+    });
+
+    const notifRows = targetEliteUsers.map((u) => ({
+      user_id: u.id,
+      title: title,
+      message: content,
+      type: data.messageType || "announcement",
+      link: "/messages",
+      is_read: false,
+    }));
+
+    if (notifRows.length > 0) {
+      try {
+        await adminClient.from("notifications").insert(notifRows as any);
+      } catch (nErr) {
+        console.warn("[sendBulkSMS] Notifications insert error:", nErr);
+      }
+    }
+  }
+
+  // 2. Deliver Twilio SMS if channel includes sms
+  if (channel === "sms" || channel === "both") {
+    const smsBody = `Schoolari: ${content}\n\nReply STOP to unsubscribe.`;
+
+    // Extract unique valid E.164 phone numbers strictly matching targetRole
+    const phoneToRecipient = new Map<string, { userId: string; role: "student" | "parent" }>();
+
+    for (const u of (users as any[])) {
+      let candidatePhones: { phone: string | null | undefined; role: "student" | "parent" }[] = [];
+
+      if (data.targetRole === "student") {
+        // STRICTLY Student mobile numbers only
+        const studentP = u.student_phone || (u.account_type !== "parent" ? u.phone : null);
+        if (studentP) {
+          candidatePhones.push({ phone: studentP, role: "student" });
+        }
+      } else if (data.targetRole === "parent") {
+        // STRICTLY Parent mobile numbers only
+        const parentP = u.parent_phone || (u.account_type === "parent" ? u.phone : null);
+        if (parentP) {
+          candidatePhones.push({ phone: parentP, role: "parent" });
+        }
+      } else {
+        // ALL: Both Students AND Parents
+        const studentP = u.student_phone || (u.account_type !== "parent" ? u.phone : null);
+        const parentP = u.parent_phone || (u.account_type === "parent" ? u.phone : null);
+
+        if (studentP) {
+          candidatePhones.push({ phone: studentP, role: "student" });
+        }
+        if (parentP) {
+          candidatePhones.push({ phone: parentP, role: "parent" });
+        }
+      }
+
+      let userHadValidPhone = false;
+      for (const item of candidatePhones) {
+        const formatted = formatPhoneE164(item.phone);
+        if (formatted) {
+          userHadValidPhone = true;
+          if (!phoneToRecipient.has(formatted)) {
+            phoneToRecipient.set(formatted, { userId: u.id, role: item.role });
+          }
+        }
+      }
+
+      if (!userHadValidPhone && candidatePhones.length > 0) {
+        skippedSMS++;
+      }
+    }
+
+    for (const [phone] of phoneToRecipient.entries()) {
+      try {
+        const res = await sendSMS(phone, smsBody);
+        if (res.success) {
+          sentSMS++;
+        } else {
+          failedSMS++;
+        }
+      } catch {
+        failedSMS++;
+      }
+    }
+  }
+
+  return {
+    success: true,
+    sentSMS,
+    skippedSMS,
+    failedSMS,
+    sentInApp,
+    totalAudience: users.length,
+  };
+}
+
+/**
+ * Worker function: Process all scheduled messages that are due
+ */
+export async function processDueScheduledMessages(): Promise<{ success: boolean; processed: number }> {
+  try {
+    const adminClient = await createAdminClient();
+    const now = new Date().toISOString();
+
+    const { data: dueItems, error } = await adminClient
+      .from("scheduled_messages" as any)
+      .select("*")
+      .eq("status", "pending")
+      .lte("scheduled_for", now);
+
+    const dueList = (dueItems || []) as any[];
+    if (error || dueList.length === 0) return { success: true, processed: 0 };
+
+    let processedCount = 0;
+
+    for (const item of dueList) {
+      try {
+        const isDirect = Boolean(item.target_user_id);
+        const channel = item.delivery_channel || "in_app";
+
+        if (isDirect) {
+          // Direct 1-on-1 scheduled delivery
+          if (channel === "in_app" || channel === "both") {
+            await adminClient.from("coaching_messages").insert({
+              user_id: item.target_user_id,
+              title: item.title,
+              content: item.content,
+              type: item.message_type || "guidance",
+              is_read: false,
+            });
+
+            await adminClient.from("notifications").insert({
+              user_id: item.target_user_id,
+              title: "New Coach Guidance",
+              message: item.content.slice(0, 120),
+              type: item.message_type || "guidance",
+              link: "/messages",
+              is_read: false,
+            } as any);
+          }
+
+          if (channel === "sms" || channel === "both") {
+            const { data: profile } = await adminClient
+              .from("profiles")
+              .select("student_phone, parent_phone, phone, account_type")
+              .eq("id", item.target_user_id)
+              .maybeSingle();
+
+            if (profile) {
+              const pAny = profile as any;
+              let targetPhone: string | null = null;
+              if (item.target_role === "parent") {
+                targetPhone = pAny?.parent_phone || (pAny?.account_type === "parent" ? pAny?.phone : null);
+              } else if (item.target_role === "student") {
+                targetPhone = pAny?.student_phone || (pAny?.account_type !== "parent" ? pAny?.phone : null);
+              } else {
+                targetPhone = pAny?.student_phone || pAny?.phone || pAny?.parent_phone;
+              }
+
+              const phone = formatPhoneE164(targetPhone);
+              if (phone) {
+                await sendSMS(phone, `Schoolari Coach: ${item.content}\n\nReply STOP to unsubscribe.`);
+              }
+            }
+          }
+        } else {
+          // Broadcast scheduled delivery
+          await sendBulkSMS({
+            title: item.title.replace(/^\[COACH\](\[[^\]]+\])*\s*/, ""),
+            content: item.content,
+            targetRole: item.target_role || "all",
+            deliveryChannel: channel,
+            messageType: item.message_type || "announcement",
+          });
+        }
+
+        // Mark as sent
+        await adminClient
+          .from("scheduled_messages" as any)
+          .update({
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            sent_count: 1,
+          })
+          .eq("id", item.id);
+
+        processedCount++;
+      } catch (procErr: any) {
+        console.error(`[processDueScheduledMessages] Failed item ${item.id}:`, procErr);
+        await adminClient
+          .from("scheduled_messages" as any)
+          .update({
+            status: "failed",
+            error_message: procErr.message,
+          })
+          .eq("id", item.id);
+      }
+    }
+
+    return { success: true, processed: processedCount };
+  } catch (err: any) {
+    console.error("[processDueScheduledMessages] Error:", err);
+    return { success: false, processed: 0 };
+  }
+}
+

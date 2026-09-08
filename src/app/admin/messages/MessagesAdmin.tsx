@@ -25,6 +25,16 @@ import {
   Loader2,
   X,
   ExternalLink,
+  Clock,
+  Calendar,
+  Smartphone,
+  ListOrdered,
+  AlertCircle,
+  Trash2,
+  CalendarClock,
+  Layers,
+  Info,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -34,6 +44,13 @@ import {
   markStudentMessagesAsRead,
   getAdminConversations,
   getMessageStats,
+  scheduleDirectMessage,
+  scheduleBroadcastMessage,
+  getScheduledMessages,
+  cancelScheduledMessage,
+  sendBulkSMS,
+  getAudienceEstimate,
+  ScheduledMessageItem,
 } from "@/app/actions/admin-messages";
 import { createClient } from "@/lib/supabase/client";
 import { playMessageChime } from "@/lib/audioSound";
@@ -69,13 +86,50 @@ export function MessagesAdmin({
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isStudentTyping, setIsStudentTyping] = useState(false);
 
-  // Broadcast Modal State
+  // ── Scheduled Messages Queue State ─────────────────────────────
+  const [scheduledQueue, setScheduledQueue] = useState<ScheduledMessageItem[]>([]);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isLoadingQueue, setIsLoadingQueue] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  // ── 1-on-1 Direct Schedule Modal State ─────────────────────────
+  const [isDirectScheduleOpen, setIsDirectScheduleOpen] = useState(false);
+  const [directScheduleDate, setDirectScheduleDate] = useState("");
+  const [directScheduleTime, setDirectScheduleTime] = useState("");
+  const [directScheduleChannel, setDirectScheduleChannel] = useState<"in_app" | "sms" | "both">("in_app");
+  const [directScheduleType, setDirectScheduleType] = useState("guidance");
+  const [directScheduleContent, setDirectScheduleContent] = useState("");
+  const [isSubmittingDirectSchedule, setIsSubmittingDirectSchedule] = useState(false);
+
+  // ── Broadcast Modal State (Enhanced with Scheduling & Channels) ──
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [broadcastTitle, setBroadcastTitle] = useState("");
   const [broadcastContent, setBroadcastContent] = useState("");
   const [broadcastType, setBroadcastType] = useState("announcement");
   const [broadcastTarget, setBroadcastTarget] = useState<"all" | "student" | "parent">("all");
+  const [broadcastChannel, setBroadcastChannel] = useState<"in_app" | "sms" | "both">("in_app");
+  const [broadcastIsScheduled, setBroadcastIsScheduled] = useState(false);
+  const [broadcastScheduleDate, setBroadcastScheduleDate] = useState("");
+  const [broadcastScheduleTime, setBroadcastScheduleTime] = useState("");
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+
+  // ── Bulk SMS & Multi-Channel Modal State ────────────────────────
+  const [isBulkSMSOpen, setIsBulkSMSOpen] = useState(false);
+  const [bulkTitle, setBulkTitle] = useState("");
+  const [bulkContent, setBulkContent] = useState("");
+  const [bulkTarget, setBulkTarget] = useState<"all" | "student" | "parent">("all");
+  const [bulkChannel, setBulkChannel] = useState<"sms" | "in_app" | "both">("sms");
+  const [bulkType, setBulkType] = useState("announcement");
+  const [bulkIsScheduled, setBulkIsScheduled] = useState(false);
+  const [bulkScheduleDate, setBulkScheduleDate] = useState("");
+  const [bulkScheduleTime, setBulkScheduleTime] = useState("");
+  const [bulkAudienceStats, setBulkAudienceStats] = useState<{
+    totalUsers: number;
+    usersWithPhone: number;
+    eliteUsers: number;
+  }>({ totalUsers: 0, usersWithPhone: 0, eliteUsers: 0 });
+  const [isEstimatingAudience, setIsEstimatingAudience] = useState(false);
+  const [isSendingBulk, setIsSendingBulk] = useState(false);
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -110,13 +164,43 @@ export function MessagesAdmin({
     }
   }, [initialConversations]);
 
+  // Load scheduled messages queue on mount
+  const loadScheduledQueue = async () => {
+    setIsLoadingQueue(true);
+    try {
+      const items = await getScheduledMessages();
+      setScheduledQueue(items);
+    } catch (err) {
+      console.error("Failed to fetch scheduled messages:", err);
+    } finally {
+      setIsLoadingQueue(false);
+    }
+  };
+
+  useEffect(() => {
+    loadScheduledQueue();
+  }, []);
+
+  // Fetch Audience Estimate when Bulk Modal is opened or target changes
+  useEffect(() => {
+    if (isBulkSMSOpen || isBroadcastOpen) {
+      const target = isBulkSMSOpen ? bulkTarget : broadcastTarget;
+      setIsEstimatingAudience(true);
+      getAudienceEstimate(target)
+        .then((stats) => {
+          setBulkAudienceStats(stats);
+        })
+        .finally(() => setIsEstimatingAudience(false));
+    }
+  }, [isBulkSMSOpen, isBroadcastOpen, bulkTarget, broadcastTarget]);
+
   // Active student conversation object
   const activeConversation =
     conversations.find((c) => c.id === selectedUserId) ||
     conversations[0] ||
     null;
 
-  // WhatsApp-style Auto-scroll to bottom
+  // Auto-scroll to bottom
   const scrollToBottom = React.useCallback((instant = true) => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -124,7 +208,6 @@ export function MessagesAdmin({
     messagesEndRef.current?.scrollIntoView({ behavior: instant ? "instant" : "smooth", block: "end" });
   }, []);
 
-  // Callback ref: executes the exact millisecond the chat DOM element mounts
   const setChatScrollRef = React.useCallback((node: HTMLDivElement | null) => {
     chatScrollRef.current = node;
     if (node) {
@@ -192,7 +275,6 @@ export function MessagesAdmin({
         unread: Math.max(0, prev.unread - activeConversation.unreadCount),
       }));
 
-      // Broadcast and emit event so AdminNav immediately clears the red dot without refresh
       try {
         channelRef.current?.send({
           type: "broadcast",
@@ -220,13 +302,10 @@ export function MessagesAdmin({
 
     const handleIncomingMessage = (newMsg: any) => {
       if (!newMsg) return;
-      // If this broadcast originated from this exact tab/session, ignore (already rendered optimistically)
       if (newMsg.sender_session_id === sessionId) return;
 
       const title = newMsg.title || "";
-      const profile = currentUserProfileRef.current;
 
-      // Strictly accept incoming messages directed to this specific staff member by Email, ID, or Name
       if (newMsg.type === "student_message" || (title && title.toUpperCase().includes("[STUDENT]"))) {
         const staff = currentUserProfileRef.current || currentUser;
         if (staff) {
@@ -240,7 +319,7 @@ export function MessagesAdmin({
           const isToMeByName = myName && (lowerTitle.includes(`[to_name:${myName}]`) || lowerTitle.includes(`[to:${myName}]`));
 
           if (!isToMeById && !isToMeByEmail && !isToMeByName) {
-            return; // Ignore student message addressed to a different staff member
+            return;
           }
         }
       }
@@ -258,7 +337,6 @@ export function MessagesAdmin({
 
         const updated = prev.map((c) => {
           if (c.id === targetUserId) {
-            // Check if this message already exists or replaces an optimistic message
             const existingIdx = c.messages.findIndex(
               (m) =>
                 m.id === newMsg.id ||
@@ -271,7 +349,6 @@ export function MessagesAdmin({
             let updatedMsgs: any[];
             if (existingIdx !== -1) {
               updatedMsgs = [...c.messages];
-              // Preserve stable client_key so React never unmounts/flickers the DOM node!
               updatedMsgs[existingIdx] = {
                 ...newMsg,
                 client_key: (c.messages[existingIdx] as any).client_key || c.messages[existingIdx].id,
@@ -305,11 +382,9 @@ export function MessagesAdmin({
           return c;
         });
 
-        // Reorder: newest message at top!
         return updated.sort((a, b) => b.lastTimestamp - a.lastTimestamp);
       });
 
-      // If incoming message is from a student, play chime and notify AdminNav
       if (
         newMsg.title?.includes("[STUDENT]") ||
         newMsg.type === "student_message"
@@ -399,13 +474,15 @@ export function MessagesAdmin({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const [updatedConvs, updatedStats] = await Promise.all([
+      const [updatedConvs, updatedStats, queue] = await Promise.all([
         getAdminConversations(),
         getMessageStats(),
+        getScheduledMessages(),
       ]);
       if (updatedConvs) setConversations(updatedConvs);
       if (updatedStats) setLiveStats(updatedStats);
-      toast.success("Inbox refreshed!");
+      if (queue) setScheduledQueue(queue);
+      toast.success("Inbox and queue refreshed!");
     } catch (e) {
       console.error(e);
       toast.error("Failed to refresh inbox.");
@@ -414,7 +491,7 @@ export function MessagesAdmin({
     }
   };
 
-  // Send Reply from Coach to Selected Student
+  // Send Reply from Coach to Selected Student (Instant 1-on-1)
   const handleSendReply = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const text = content.trim();
@@ -442,7 +519,6 @@ export function MessagesAdmin({
       created_at: new Date().toISOString(),
     };
 
-    // Update conversation state and move student to top of inbox
     setConversations((prev) => {
       const updated = prev.map((c) => {
         if (c.id === activeConversation.id) {
@@ -456,7 +532,6 @@ export function MessagesAdmin({
         }
         return c;
       });
-      // Re-sort: newest at top!
       return updated.sort((a, b) => b.lastTimestamp - a.lastTimestamp);
     });
 
@@ -464,7 +539,6 @@ export function MessagesAdmin({
     scrollToBottom(true);
     setIsSending(true);
 
-    // Broadcast instant peer-to-peer over WebSocket to recipient
     try {
       channelRef.current?.send({
         type: "broadcast",
@@ -477,7 +551,6 @@ export function MessagesAdmin({
       await sendCoachReply(activeConversation.id, text, selectedType);
     } catch (err: any) {
       toast.error(err.message || "Failed to send response.");
-      // Rollback optimistic
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id === activeConversation.id) {
@@ -494,14 +567,78 @@ export function MessagesAdmin({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSendReply();
+  // Open 1-on-1 Direct Schedule Modal
+  const openDirectScheduleModal = () => {
+    if (!activeConversation) {
+      toast.error("Please select a student or parent first.");
+      return;
+    }
+    setDirectScheduleContent(content.trim());
+    setDirectScheduleType(selectedType);
+    // Default to tomorrow 10:00 AM
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split("T")[0];
+    setDirectScheduleDate(dateStr);
+    setDirectScheduleTime("10:00");
+    setIsDirectScheduleOpen(true);
+  };
+
+  // Submit 1-on-1 Direct Scheduled Message
+  const handleScheduleDirectSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeConversation) return;
+    if (!directScheduleContent.trim()) {
+      toast.error("Please provide message content to schedule.");
+      return;
+    }
+    if (!directScheduleDate || !directScheduleTime) {
+      toast.error("Please choose a valid scheduled date and time.");
+      return;
+    }
+
+    const scheduledDateObj = new Date(`${directScheduleDate}T${directScheduleTime}:00`);
+    if (isNaN(scheduledDateObj.getTime())) {
+      toast.error("Invalid scheduled date or time.");
+      return;
+    }
+
+    if (scheduledDateObj.getTime() <= Date.now() + 60 * 1000) {
+      toast.error("Scheduled time must be at least 2 minutes in the future.");
+      return;
+    }
+
+    setIsSubmittingDirectSchedule(true);
+    try {
+      const res = await scheduleDirectMessage({
+        targetUserId: activeConversation.id,
+        content: directScheduleContent.trim(),
+        scheduledFor: scheduledDateObj.toISOString(),
+        messageType: directScheduleType,
+        deliveryChannel: directScheduleChannel,
+      });
+
+      if (res?.error) {
+        toast.error(`Scheduling failed: ${res.error}`);
+      } else {
+        toast.success(
+          `Message scheduled for ${activeConversation.name} on ${scheduledDateObj.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })} at ${scheduledDateObj.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}!`
+        );
+        setIsDirectScheduleOpen(false);
+        setContent("");
+        loadScheduledQueue();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to schedule message.");
+    } finally {
+      setIsSubmittingDirectSchedule(false);
     }
   };
 
-  // Broadcast Submission
+  // Broadcast Submission (Supports instant broadcast and scheduled broadcast)
   const handleBroadcastSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastTitle.trim() || !broadcastContent.trim()) {
@@ -509,6 +646,51 @@ export function MessagesAdmin({
       return;
     }
 
+    if (broadcastIsScheduled) {
+      if (!broadcastScheduleDate || !broadcastScheduleTime) {
+        toast.error("Please select a date and time for scheduled broadcast.");
+        return;
+      }
+      const schedObj = new Date(`${broadcastScheduleDate}T${broadcastScheduleTime}:00`);
+      if (isNaN(schedObj.getTime()) || schedObj.getTime() <= Date.now() + 60 * 1000) {
+        toast.error("Scheduled time must be in the future.");
+        return;
+      }
+
+      setIsBroadcasting(true);
+      try {
+        const res = await scheduleBroadcastMessage({
+          title: broadcastTitle,
+          content: broadcastContent,
+          scheduledFor: schedObj.toISOString(),
+          targetRole: broadcastTarget,
+          messageType: broadcastType,
+          deliveryChannel: broadcastChannel,
+        });
+
+        if (res?.error) {
+          toast.error(`Schedule broadcast failed: ${res.error}`);
+        } else {
+          toast.success(
+            `Broadcast scheduled for ${schedObj.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            })} at ${schedObj.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}!`
+          );
+          setIsBroadcastOpen(false);
+          setBroadcastTitle("");
+          setBroadcastContent("");
+          loadScheduledQueue();
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to schedule broadcast.");
+      } finally {
+        setIsBroadcasting(false);
+      }
+      return;
+    }
+
+    // Instant Delivery
     setIsBroadcasting(true);
     try {
       const res = await broadcastMessage(
@@ -544,6 +726,105 @@ export function MessagesAdmin({
     }
   };
 
+  // Bulk SMS & Alerts Modal Submission
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkContent.trim()) {
+      toast.error("Please enter the SMS/Notification message content.");
+      return;
+    }
+
+    if (bulkIsScheduled) {
+      if (!bulkScheduleDate || !bulkScheduleTime) {
+        toast.error("Please select a date and time for scheduled message.");
+        return;
+      }
+      const schedObj = new Date(`${bulkScheduleDate}T${bulkScheduleTime}:00`);
+      if (isNaN(schedObj.getTime()) || schedObj.getTime() <= Date.now() + 60 * 1000) {
+        toast.error("Scheduled time must be in the future.");
+        return;
+      }
+
+      setIsSendingBulk(true);
+      try {
+        const res = await scheduleBroadcastMessage({
+          title: bulkTitle || "Schoolari Notification",
+          content: bulkContent,
+          scheduledFor: schedObj.toISOString(),
+          targetRole: bulkTarget,
+          messageType: bulkType,
+          deliveryChannel: bulkChannel,
+        });
+
+        if (res?.error) {
+          toast.error(`Scheduling failed: ${res.error}`);
+        } else {
+          toast.success(
+            `Bulk ${bulkChannel.toUpperCase()} scheduled for ${schedObj.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            })} at ${schedObj.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}!`
+          );
+          setIsBulkSMSOpen(false);
+          setBulkContent("");
+          setBulkTitle("");
+          loadScheduledQueue();
+        }
+      } catch (err: any) {
+        toast.error(err.message || "Failed to schedule bulk message.");
+      } finally {
+        setIsSendingBulk(false);
+      }
+      return;
+    }
+
+    // Instant Delivery
+    setIsSendingBulk(true);
+    try {
+      const res = await sendBulkSMS({
+        title: bulkTitle,
+        content: bulkContent,
+        targetRole: bulkTarget,
+        deliveryChannel: bulkChannel,
+        messageType: bulkType,
+      });
+
+      if (res?.error) {
+        toast.error(`Failed to send bulk: ${res.error}`);
+      } else {
+        const smsInfo = bulkChannel !== "in_app" ? ` (${res.sentSMS} SMS sent, ${res.skippedSMS || 0} skipped)` : "";
+        const appInfo = bulkChannel !== "sms" ? ` (${res.sentInApp || 0} In-App delivered)` : "";
+        toast.success(`Delivered successfully!${smsInfo}${appInfo}`);
+        setIsBulkSMSOpen(false);
+        setBulkContent("");
+        setBulkTitle("");
+        handleRefresh();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send bulk message.");
+    } finally {
+      setIsSendingBulk(false);
+    }
+  };
+
+  // Cancel a scheduled message
+  const handleCancelScheduled = async (id: string) => {
+    setCancellingId(id);
+    try {
+      const res = await cancelScheduledMessage(id);
+      if (res.error) {
+        toast.error(`Cancel failed: ${res.error}`);
+      } else {
+        toast.success("Scheduled message cancelled.");
+        setScheduledQueue((prev) => prev.filter((item) => item.id !== id));
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   // Filter contacts in Left Column
   const filteredConversations = conversations.filter((c) => {
     const q = (searchQuery || "").toLowerCase().trim();
@@ -568,7 +849,6 @@ export function MessagesAdmin({
     "Great progress on your college list! 🌟",
   ];
 
-  // Dynamically calculate actual unread count directly from real loaded conversations
   const dynamicUnreadCount = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
 
   return (
@@ -576,50 +856,103 @@ export function MessagesAdmin({
       {/* ─────────────────────────────────────────────────────────────
           1. TOP STATS BAR & QUICK ACTIONS
           ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 text-white flex items-center justify-center shadow-md shadow-slate-900/10">
-            <MessageSquareText className="w-6 h-6 text-emerald-400" />
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 text-white flex items-center justify-center shadow-md shadow-slate-900/10 shrink-0">
+            <MessageSquareText className="w-5 h-5 text-emerald-400" />
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              Admissions Coach & Student Inbox
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 font-medium">
-              Live 2-way direct messaging, student inquiries, and personalized guidance
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                Messages & Advisory Hub
+              </h1>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/70 text-emerald-700 text-[11px] font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {conversations.length} Active
+                </span>
+                {dynamicUnreadCount > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200/70 text-rose-700 text-[11px] font-bold animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    {dynamicUnreadCount} Unread
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200/70 text-slate-600 text-[11px] font-medium">
+                    All caught up
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 font-normal mt-0.5 truncate">
+              Live 2-way student chat, guidance scheduling, mass broadcasts & bulk SMS alerts
             </p>
           </div>
         </div>
-      </div>
 
-      {/* Stats & Actions */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          {conversations.length} Active Users
+        {/* Action Buttons Group */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Scheduled Messages Queue Button */}
+          <button
+            onClick={() => {
+              loadScheduledQueue();
+              setIsQueueOpen(true);
+            }}
+            className="h-9 px-3.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 text-xs font-semibold flex items-center gap-2 transition-all border border-slate-200 shadow-2xs"
+          >
+            <CalendarClock className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Scheduled Queue</span>
+            {scheduledQueue.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-indigo-600 text-white text-[10px] font-bold min-w-[18px] text-center">
+                {scheduledQueue.length}
+              </span>
+            )}
+          </button>
+
+          {/* Broadcast Announcement Button */}
+          <button
+            onClick={() => {
+              setBroadcastTarget("all");
+              setBroadcastChannel("in_app");
+              setBroadcastIsScheduled(false);
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              setBroadcastScheduleDate(tomorrow.toISOString().split("T")[0]);
+              setBroadcastScheduleTime("10:00");
+              setIsBroadcastOpen(true);
+            }}
+            className="h-9 px-3.5 rounded-xl bg-[#111827] hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm shadow-slate-900/10"
+          >
+            <Radio className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Broadcast</span>
+          </button>
+
+          {/* Bulk SMS & Notifications Button */}
+          <button
+            onClick={() => {
+              setBulkTarget("all");
+              setBulkChannel("sms");
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              setBulkScheduleDate(tomorrow.toISOString().split("T")[0]);
+              setBulkScheduleTime("10:00");
+              setIsBulkSMSOpen(true);
+            }}
+            className="h-9 px-3.5 rounded-xl bg-[#00A884] hover:bg-[#008f6f] text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm shadow-emerald-500/20"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-white" />
+            <span>Bulk SMS & Alerts</span>
+          </button>
+
+          {/* Refresh button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh All Threads & Queue"
+            className="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center transition-colors disabled:opacity-50 shadow-2xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
+          </button>
         </div>
-
-        <div className="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-rose-500" />
-          {dynamicUnreadCount} Unread Inquiries
-        </div>
-
-        <button
-          onClick={() => setIsBroadcastOpen(true)}
-          className="px-4 py-2 rounded-xl bg-[#111827] hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-md shadow-slate-900/10"
-        >
-          <Radio className="w-4 h-4 text-emerald-400" />
-          New Broadcast
-        </button>
-
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          title="Refresh All Threads"
-          className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
-        </button>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -664,7 +997,6 @@ export function MessagesAdmin({
                 { id: "unread", label: "Unread", count: dynamicUnreadCount },
                 { id: "student", label: "Students" },
                 { id: "parent", label: "Parents" },
-                // { id: "staff", label: "Coaches/Staff" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -846,12 +1178,14 @@ export function MessagesAdmin({
 
                 {/* Header Actions */}
                 <div className="flex items-center gap-2 shrink-0">
-                  {/*<Link
-                    href={`/admin/students`}
-                    className="hidden sm:inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
+                  <button
+                    onClick={openDirectScheduleModal}
+                    title="Schedule guidance for future date/time"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold transition-all border border-slate-700/60"
                   >
-                    <User className="w-3.5 h-3.5" /> View Profile
-                  </Link> */}
+                    <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Schedule</span>
+                  </button>
 
                   <button
                     onClick={handleRefresh}
@@ -864,7 +1198,7 @@ export function MessagesAdmin({
                 </div>
               </div>
 
-              {/* Chat Messages Feed Area with WhatsApp CSS flex-col-reverse */}
+              {/* Chat Messages Feed Area */}
               <div
                 ref={setChatScrollRef}
                 className="flex-1 overflow-y-auto flex flex-col-reverse p-4 sm:p-5 gap-3 bg-[#EFEAE2]/40 bg-radial-[at_top_right] from-slate-50 to-[#EFEAE2]/60 min-h-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
@@ -1017,7 +1351,6 @@ export function MessagesAdmin({
                       type="text"
                       value={content}
                       onChange={handleInputChange}
-                      onKeyDown={handleKeyDown}
                       placeholder={`Type guidance reply to ${activeConversation.name}... (Press Enter to send)`}
                       className="w-full pl-4 pr-12 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-900 placeholder:text-slate-400"
                     />
@@ -1027,6 +1360,16 @@ export function MessagesAdmin({
                       </span>
                     )}
                   </div>
+
+                  {/* Schedule 1-on-1 Clock Button */}
+                  <button
+                    type="button"
+                    onClick={openDirectScheduleModal}
+                    title="Schedule this message for later"
+                    className="p-2.5 rounded-2xl border border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-600 transition-all shrink-0"
+                  >
+                    <Clock className="w-4 h-4 text-indigo-600" />
+                  </button>
 
                   <button
                     type="submit"
@@ -1058,10 +1401,150 @@ export function MessagesAdmin({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          3. BROADCAST ANNOUNCEMENT MODAL
+          3. SCHEDULE DIRECT 1-ON-1 MESSAGE MODAL
+          ───────────────────────────────────────────────────────────── */}
+      {isDirectScheduleOpen && activeConversation && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-[#111827] p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Schedule 1-on-1 Guidance</h3>
+                  <p className="text-xs text-slate-300">
+                    To: {activeConversation.name} ({activeConversation.accountType || "Student"})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsDirectScheduleOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleScheduleDirectSubmit} className="p-5 sm:p-6 space-y-4">
+              {/* Delivery Channel Tabs */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Delivery Channel</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "in_app", label: "💬 In-App Only" },
+                    { id: "sms", label: "📱 SMS Only" },
+                    { id: "both", label: "⚡ In-App + SMS" },
+                  ].map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => setDirectScheduleChannel(ch.id as any)}
+                      className={`p-2 rounded-xl text-xs font-bold border transition-all ${directScheduleChannel === ch.id
+                        ? "bg-[#111827] text-white border-[#111827] shadow-sm"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      {ch.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message Type */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Message Category</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {MESSAGE_TYPES.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setDirectScheduleType(type.value)}
+                      className={`p-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${directScheduleType === type.value
+                        ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      <type.icon className="w-3.5 h-3.5" />
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message Content */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Message Content</label>
+                <textarea
+                  rows={4}
+                  value={directScheduleContent}
+                  onChange={(e) => setDirectScheduleContent(e.target.value)}
+                  placeholder={`Write scheduled guidance for ${activeConversation.name}...`}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  required
+                />
+              </div>
+
+              {/* Date & Time Pickers */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Scheduled Date & Time (US Local)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={directScheduleDate}
+                      onChange={(e) => setDirectScheduleDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="time"
+                      value={directScheduleTime}
+                      onChange={(e) => setDirectScheduleTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  The automated scheduler will deliver this message to {activeConversation.name} at the exact set time.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsDirectScheduleOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingDirectSchedule || !directScheduleContent.trim()}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                >
+                  {isSubmittingDirectSchedule ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Clock className="w-4 h-4" />
+                  )}
+                  <span>Confirm Schedule</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          4. BROADCAST ANNOUNCEMENT MODAL (Instant + Schedule)
           ───────────────────────────────────────────────────────────── */}
       {isBroadcastOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="bg-[#111827] p-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -1070,7 +1553,7 @@ export function MessagesAdmin({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">Broadcast Announcement</h3>
-                  <p className="text-xs text-slate-300">Deliver mass guidance or urgent alert</p>
+                  <p className="text-xs text-slate-300">Deliver mass guidance or priority alerts</p>
                 </div>
               </div>
               <button
@@ -1082,8 +1565,14 @@ export function MessagesAdmin({
             </div>
 
             <form onSubmit={handleBroadcastSubmit} className="p-5 sm:p-6 space-y-4">
+              {/* Target Audience */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700">Target Audience</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">Target Audience</label>
+                  <span className="text-[11px] text-slate-400">
+                    Est. {isEstimatingAudience ? "..." : `${bulkAudienceStats.eliteUsers} Elite users`}
+                  </span>
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { id: "all", label: "All Users" },
@@ -1104,6 +1593,62 @@ export function MessagesAdmin({
                   ))}
                 </div>
               </div>
+
+              {/* Delivery Timing Toggle */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Delivery Timing</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastIsScheduled(false)}
+                    className={`p-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${!broadcastIsScheduled
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send Immediately</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastIsScheduled(true)}
+                    className={`p-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${broadcastIsScheduled
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Schedule for Later</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Scheduled Date/Time if scheduled */}
+              {broadcastIsScheduled && (
+                <div className="p-3 bg-indigo-50/60 rounded-2xl border border-indigo-200/80 space-y-2 animate-in fade-in">
+                  <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <CalendarClock className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Scheduled Delivery Time</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={broadcastScheduleDate}
+                      onChange={(e) => setBroadcastScheduleDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full px-3 py-2 rounded-xl border border-indigo-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                    <input
+                      type="time"
+                      value={broadcastScheduleTime}
+                      onChange={(e) => setBroadcastScheduleTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-indigo-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">Broadcast Title / Topic</label>
@@ -1140,17 +1685,380 @@ export function MessagesAdmin({
                 <button
                   type="submit"
                   disabled={isBroadcasting || !broadcastTitle.trim() || !broadcastContent.trim()}
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+                  className={`px-5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-2 shadow-md disabled:opacity-50 ${broadcastIsScheduled
+                    ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                    : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                    }`}
                 >
                   {isBroadcasting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : broadcastIsScheduled ? (
+                    <Clock className="w-4 h-4" />
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
-                  <span>Send Broadcast</span>
+                  <span>{broadcastIsScheduled ? "Confirm Schedule" : "Send Broadcast"}</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          5. BULK SMS & MULTI-CHANNEL ALERTS MODAL
+          ───────────────────────────────────────────────────────────── */}
+      {isBulkSMSOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-gradient-to-r from-teal-900 to-slate-900 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Bulk SMS & Multi-Channel Alert</h3>
+                  <p className="text-xs text-slate-300">Deliver text messages directly to US mobile numbers</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBulkSMSOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkSubmit} className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Audience Target */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">Target Audience</label>
+                  <span className="text-[11px] font-semibold text-emerald-700">
+                    {isEstimatingAudience
+                      ? "Estimating..."
+                      : bulkChannel === "in_app"
+                      ? `💬 ${bulkAudienceStats.eliteUsers} Elite Members (In-App)`
+                      : bulkChannel === "both"
+                      ? `📱 ${bulkAudienceStats.usersWithPhone} SMS (All Tiers) • 💬 ${bulkAudienceStats.eliteUsers} Elite In-App`
+                      : `📱 ${bulkAudienceStats.usersWithPhone} Phones (All Tiers) • 👥 ${bulkAudienceStats.totalUsers} Total Accounts`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "all", label: "All Members" },
+                    { id: "student", label: "Students Only" },
+                    { id: "parent", label: "Parents Only" },
+                  ].map((target) => (
+                    <button
+                      key={target.id}
+                      type="button"
+                      onClick={() => setBulkTarget(target.id as any)}
+                      className={`p-2 rounded-xl text-xs font-bold border transition-all text-center ${bulkTarget === target.id
+                        ? "bg-[#111827] text-white border-[#111827] shadow-sm"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      {target.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Delivery Channel */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Delivery Channel</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "sms", label: "📱 SMS (All Tiers)" },
+                    { id: "in_app", label: "💬 In-App (Elite)" },
+                    { id: "both", label: "⚡ SMS + In-App" },
+                  ].map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => setBulkChannel(ch.id as any)}
+                      className={`p-2 rounded-xl text-xs font-bold border transition-all ${bulkChannel === ch.id
+                        ? "bg-teal-700 text-white border-teal-700 shadow-sm"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      {ch.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium pt-0.5">
+                  {bulkChannel === "sms"
+                    ? "✓ SMS texts will be sent to all selected students/parents across all tiers (Starter, Scholar, Elite)."
+                    : bulkChannel === "in_app"
+                    ? "✓ In-App coaching messages will be delivered to active Elite students and parents."
+                    : "✓ SMS texts sent across all tiers + In-App coaching messages delivered to Elite students/parents."}
+                </p>
+              </div>
+
+              {/* Timing Selection */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Delivery Timing</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBulkIsScheduled(false)}
+                    className={`p-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${!bulkIsScheduled
+                      ? "bg-teal-700 text-white border-teal-700 shadow-sm"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send Immediately</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkIsScheduled(true)}
+                    className={`p-2 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 ${bulkIsScheduled
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                      }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Schedule for Later</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Scheduled Date/Time if scheduled */}
+              {bulkIsScheduled && (
+                <div className="p-3 bg-indigo-50/60 rounded-2xl border border-indigo-200/80 space-y-2 animate-in fade-in">
+                  <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <CalendarClock className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Scheduled Delivery Time</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      value={bulkScheduleDate}
+                      onChange={(e) => setBulkScheduleDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full px-3 py-2 rounded-xl border border-indigo-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                    <input
+                      type="time"
+                      value={bulkScheduleTime}
+                      onChange={(e) => setBulkScheduleTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-indigo-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Optional Title */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Title / Subject (Optional)</label>
+                <input
+                  type="text"
+                  value={bulkTitle}
+                  onChange={(e) => setBulkTitle(e.target.value)}
+                  placeholder="e.g., Important Scholarship Notice"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              {/* Content with character counter and SMS segment indicator */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">SMS / Alert Message</label>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {bulkContent.length} chars ({Math.ceil(Math.max(1, bulkContent.length) / 160)} SMS segment)
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  value={bulkContent}
+                  onChange={(e) => setBulkContent(e.target.value)}
+                  placeholder="Type message to deliver via SMS text and/or in-app notification..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                  required
+                />
+              </div>
+
+              {/* Twilio Compliance & Delivery Note */}
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-2.5 text-[11px] text-slate-600">
+                <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                <p>
+                  SMS messages will automatically include standard US carrier compliance formatting (
+                  <span className="font-mono text-[10px]">Reply STOP to unsubscribe</span>). Only US phone numbers formatted with valid area codes will be messaged.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkSMSOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingBulk || !bulkContent.trim()}
+                  className={`px-5 py-2 rounded-xl text-white text-xs font-bold flex items-center gap-2 shadow-md disabled:opacity-50 ${bulkIsScheduled
+                    ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                    : "bg-teal-600 hover:bg-teal-700 shadow-teal-600/20"
+                    }`}
+                >
+                  {isSendingBulk ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : bulkIsScheduled ? (
+                    <Clock className="w-4 h-4" />
+                  ) : (
+                    <Smartphone className="w-4 h-4" />
+                  )}
+                  <span>{bulkIsScheduled ? "Schedule Bulk Delivery" : "Send Bulk Delivery"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          6. SCHEDULED MESSAGES QUEUE MODAL
+          ───────────────────────────────────────────────────────────── */}
+      {isQueueOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
+            <div className="bg-[#111827] p-5 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                  <CalendarClock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Scheduled Messages Queue</h3>
+                  <p className="text-xs text-slate-300">
+                    {scheduledQueue.length} pending automated deliveries
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsQueueOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
+              {isLoadingQueue ? (
+                <div className="py-12 text-center text-slate-400 flex flex-col items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                  <p className="text-xs font-semibold">Loading scheduled queue...</p>
+                </div>
+              ) : scheduledQueue.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 space-y-2">
+                  <Clock className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="text-sm font-bold text-slate-700">No Pending Scheduled Messages</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    You can schedule direct 1-on-1 guidance or mass announcements using the Schedule buttons.
+                  </p>
+                </div>
+              ) : (
+                scheduledQueue.map((item) => {
+                  const schedDate = new Date(item.scheduled_for);
+                  const isPast = schedDate.getTime() <= Date.now();
+                  const dateStr = schedDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+                  const timeStr = schedDate.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  });
+
+                  const channelLabel =
+                    item.delivery_channel === "sms"
+                      ? "📱 SMS"
+                      : item.delivery_channel === "both"
+                        ? "⚡ In-App + SMS"
+                        : "💬 In-App";
+
+                  const targetLabel = item.target_user_id
+                    ? `1-on-1: ${item.target_user_name || "Student"}`
+                    : `Broadcast: ${item.target_role === "student" ? "Students Only" : item.target_role === "parent" ? "Parents Only" : "All Users"}`;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white transition-all space-y-2.5 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-indigo-100 text-indigo-800 text-[10px] font-extrabold uppercase tracking-wide">
+                            {targetLabel}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-200 text-slate-700 text-[10px] font-bold">
+                            {channelLabel}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                            {item.message_type || "guidance"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-xs font-bold text-slate-700">
+                          <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>{dateStr} at {timeStr}</span>
+                          {isPast && (
+                            <span className="text-[10px] text-amber-600 font-semibold">(Due soon)</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs sm:text-sm text-slate-800 leading-relaxed line-clamp-3 bg-white p-3 rounded-xl border border-slate-100">
+                        {item.content}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Created {new Date(item.created_at || Date.now()).toLocaleDateString()}
+                        </span>
+
+                        <button
+                          onClick={() => handleCancelScheduled(item.id)}
+                          disabled={cancellingId === item.id}
+                          className="px-3 py-1 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200/80 transition-all flex items-center gap-1 disabled:opacity-50"
+                        >
+                          {cancellingId === item.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3 h-3" />
+                          )}
+                          <span>Cancel Delivery</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+              <button
+                onClick={loadScheduledQueue}
+                disabled={isLoadingQueue}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-100 flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingQueue ? "animate-spin text-indigo-600" : ""}`} />
+                <span>Refresh Queue</span>
+              </button>
+
+              <button
+                onClick={() => setIsQueueOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
