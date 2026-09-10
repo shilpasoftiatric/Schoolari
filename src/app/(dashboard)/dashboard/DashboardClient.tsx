@@ -273,6 +273,7 @@ function DashboardSection({
                       {d.name}
                     </span>
                     <span
+                      suppressHydrationWarning
                       className={cn(
                         "text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 ml-2 border",
                         isOverdue
@@ -716,7 +717,7 @@ export function DashboardClient({
           return {
             id: t.id,
             name: t.title,
-            date: dueDate ? dueDate.toLocaleDateString() : "",
+            date: dueDate ? dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
             rawDate: t.due_date,
             urgent: isPast,
             isOverdue: isPast,

@@ -13,10 +13,10 @@ export default function CareerSkeleton() {
       <Skeleton className="h-20 w-full rounded-2xl" />
 
       {/* Tabs Bar Skeleton (Recommended Jobs, Wishlist, Career Resources) */}
-      <div className="flex flex-wrap p-1 bg-slate-100 rounded-xl w-fit gap-1">
-        <Skeleton className="h-10 w-44 rounded-lg" />
-        <Skeleton className="h-10 w-28 rounded-lg" />
-        <Skeleton className="h-10 w-36 rounded-lg" />
+      <div className="grid grid-cols-3 sm:flex sm:items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-slate-100 rounded-2xl w-full sm:w-fit">
+        <Skeleton className="h-9 sm:h-10 w-full sm:w-44 rounded-xl" />
+        <Skeleton className="h-9 sm:h-10 w-full sm:w-28 rounded-xl" />
+        <Skeleton className="h-9 sm:h-10 w-full sm:w-36 rounded-xl" />
       </div>
 
       {/* Search Input and Button */}

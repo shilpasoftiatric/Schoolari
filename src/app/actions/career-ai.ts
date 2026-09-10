@@ -261,17 +261,17 @@ export async function getCareerAiLimitsAction() {
 }
 
 export async function generateCoverLetterDraftAction(
-  jobTitle: string, 
-  company: string, 
-  jobDescription: string, 
-  q1: string, 
-  q2: string, 
+  jobTitle: string,
+  company: string,
+  jobDescription: string,
+  q1: string,
+  q2: string,
   q3: string,
   selectedResumeId?: string
 ) {
   const { enforceAiLimit } = await import("@/lib/ai-limits");
   await enforceAiLimit("cover_letter");
-  
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -279,7 +279,7 @@ export async function generateCoverLetterDraftAction(
 
   const { getResumesAction } = await import("@/app/actions/resume");
   const resumePayload = await getResumesAction();
-  
+
   let targetResumeData: any = null;
   if (resumePayload?.resumes && resumePayload.resumes.length > 0) {
     if (selectedResumeId) {

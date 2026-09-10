@@ -299,7 +299,7 @@ export async function POST(req: Request) {
       return {
         id: t.id,
         name: t.title,
-        date: dueDate ? dueDate.toLocaleDateString() : "",
+        date: dueDate ? dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "",
         rawDate: t.due_date,
         urgent: isPast,
         isOverdue: isPast,

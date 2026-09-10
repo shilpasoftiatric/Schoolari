@@ -130,11 +130,11 @@ export default async function EssaysDashboardPage() {
             </div>
           </div>
 
-          {isLimitedEssayPlan && (
+          {essayLimitReached && (
             <div className="bg-violet-50/80 border border-violet-100 text-violet-900 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs sm:text-sm font-medium">
               <span>
                 Monthly Essay Documents: <strong>{essayUsed} of {essayLimit}</strong> created this month.{" "}
-                {essayLimitReached ? `Monthly limit reached. Resets on ${resetDate}.` : `Resets on ${resetDate}.`}
+                Monthly limit reached. Resets on {resetDate}.
               </span>
               <Link href="/profile" className="font-bold underline ml-3 hover:text-violet-950">Upgrade Plan</Link>
             </div>
@@ -221,11 +221,17 @@ export default async function EssaysDashboardPage() {
             </div>
           </div>
 
-          {isLimitedCoverPlan && (
+          {coverLetterLimitReached && (
             <div className="bg-indigo-50/80 border border-indigo-100 text-indigo-900 px-4 py-2.5 rounded-xl flex items-center justify-between text-xs sm:text-sm font-medium">
               <span>
-                Monthly Cover Letters: <strong>{coverLetterUsed} of {coverLetterLimit}</strong> created this month.{" "}
-                {coverLetterLimitReached ? `Monthly limit reached. Resets on ${resetDate}.` : `Resets on ${resetDate}.`}
+                {coverLetterLimit === 0 ? (
+                  <>AI Cover Letters are included on <strong>Scholar</strong> and <strong>Elite</strong> plans.</>
+                ) : (
+                  <>
+                    Monthly Cover Letters: <strong>{coverLetterUsed} of {coverLetterLimit}</strong> created this month.{" "}
+                    Monthly limit reached. Resets on {resetDate}.
+                  </>
+                )}
               </span>
               <Link href="/profile" className="font-bold underline ml-3 hover:text-indigo-950">Upgrade Plan</Link>
             </div>

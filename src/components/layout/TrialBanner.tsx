@@ -5,8 +5,8 @@ import { ManageTrialButton } from "./ManageTrialButton";
 export default async function TrialBanner() {
   const subscription = await getSubscriptionInfo();
   
-  console.log("=== DEBUG TRIAL BANNER ===");
-  console.log("Subscription Info:", subscription);
+  // console.log("=== DEBUG TRIAL BANNER ===");
+  // console.log("Subscription Info:", subscription);
 
   if (!subscription || subscription.status !== "trialing" || !subscription.renewalDate) {
     console.log("Returning null from TrialBanner because:", {

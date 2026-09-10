@@ -48,19 +48,19 @@ function logTokenUsageAndCost({
   const totalCost = inputCost + outputCost;
   const totalTokens = inputTokens + outputTokens;
 
-  console.log(`
-┌───────────────────────────────────────────────────────────────┐
-│ 🤖 ${label.padEnd(59)}│
-├───────────────────────────────────────────────────────────────┤
-│ Provider:       ${provider.toUpperCase()} (${model})`.padEnd(64) + `│
-│ Input Tokens:   ${inputTokens.toLocaleString()} tokens`.padEnd(64) + `│
-│ Output Tokens:  ${outputTokens.toLocaleString()} tokens`.padEnd(64) + `│
-│ Total Tokens:   ${totalTokens.toLocaleString()} tokens`.padEnd(64) + `│
-├───────────────────────────────────────────────────────────────┤
-│ Input Cost:     $${inputCost.toFixed(6)} USD`.padEnd(64) + `│
-│ Output Cost:    $${outputCost.toFixed(6)} USD`.padEnd(64) + `│
-│ 💰 TOTAL COST:  $${totalCost.toFixed(6)} USD (~$${totalCost.toFixed(4)})`.padEnd(64) + `│
-└───────────────────────────────────────────────────────────────┘`);
+//   console.log(`
+// ┌───────────────────────────────────────────────────────────────┐
+// │ 🤖 ${label.padEnd(59)}│
+// ├───────────────────────────────────────────────────────────────┤
+// │ Provider:       ${provider.toUpperCase()} (${model})`.padEnd(64) + `│
+// │ Input Tokens:   ${inputTokens.toLocaleString()} tokens`.padEnd(64) + `│
+// │ Output Tokens:  ${outputTokens.toLocaleString()} tokens`.padEnd(64) + `│
+// │ Total Tokens:   ${totalTokens.toLocaleString()} tokens`.padEnd(64) + `│
+// ├───────────────────────────────────────────────────────────────┤
+// │ Input Cost:     $${inputCost.toFixed(6)} USD`.padEnd(64) + `│
+// │ Output Cost:    $${outputCost.toFixed(6)} USD`.padEnd(64) + `│
+// │ 💰 TOTAL COST:  $${totalCost.toFixed(6)} USD (~$${totalCost.toFixed(4)})`.padEnd(64) + `│
+// └───────────────────────────────────────────────────────────────┘`);
 
   return totalCost;
 }
