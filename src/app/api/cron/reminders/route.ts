@@ -12,8 +12,12 @@ import { processDueScheduledMessages } from "@/app/actions/admin-messages";
 /**
  * GET /api/cron/reminders
  * 
- * Vercel Cron Job endpoint to send SMS reminders to users who have not completed onboarding.
- * Triggered periodically (e.g. daily) based on vercel.json configuration.
+ * Background Cron Job endpoint to process:
+ * 1. Upcoming scholarship & task deadline reminders (SMS + Email)
+ * 2. 5-day pre-interview preparation checklists (SMS + Email)
+ * 3. 7-day video inactivity alerts
+ * 4. Day 5 & Day 7 trial lifecycle notifications (SMS + Email)
+ * 5. Due scheduled broadcast & direct admin messages
  */
 export async function GET(req: Request) {
   try {
@@ -25,20 +29,7 @@ export async function GET(req: Request) {
 
     const supabase = await createAdminClient();
 
-    // 2. Fetch profiles that haven't finished onboarding but have a student phone
-    // Note: To prevent spamming every day, ideally we'd add a 'last_reminded_at' column to profiles.
-    // For this MVP, we just find all incomplete profiles.
-    const { data: incompleteProfiles, error } = await supabase
-      .from("profiles")
-      .select("id, student_first_name, student_phone, created_at")
-      .eq("onboarding_complete", false)
-      .not("student_phone", "is", null);
-
-    if (error) {
-      throw new Error(`Failed to fetch profiles: ${error.message}`);
-    }
-
-    // 3. Send SMS via Twilio for incomplete onboarding profiles
+    // Initialize Twilio client for reminders
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
@@ -47,32 +38,7 @@ export async function GET(req: Request) {
     let sentCount = 0;
     let failCount = 0;
 
-    if (incompleteProfiles && incompleteProfiles.length > 0 && client && twilioPhone) {
-      for (const profile of incompleteProfiles) {
-        try {
-          const phone = formatPhoneE164(profile.student_phone);
-          if (!phone) continue;
-
-          // Skip if created within the last 24 hours to give them time to finish
-          const createdDate = new Date(profile.created_at);
-          const hoursSinceCreation = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60);
-          if (hoursSinceCreation < 24) continue;
-
-          await client.messages.create({
-            body: `Hi ${profile.student_first_name || "Student"}, a quick reminder from Schoolari! Please log in to complete your onboarding profile so we can start finding your scholarships. Reply STOP to unsubscribe.`,
-            from: twilioPhone,
-            to: phone,
-          });
-
-          sentCount++;
-        } catch (smsError) {
-          console.error(`Failed to send reminder to ${profile.id}:`, smsError);
-          failCount++;
-        }
-      }
-    }
-
-    // 4. Fetch upcoming deadlines (due in the next 3 days, strictly in the future) that haven't been reminded
+    // 1. Fetch upcoming deadlines (due in the next 3 days, strictly in the future) that haven't been reminded
     const now = new Date();
     const threeDaysFromNow = new Date();
     threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);

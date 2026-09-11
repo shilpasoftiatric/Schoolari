@@ -12,21 +12,21 @@ import { matchResumeToJobAction, saveJobToTrackerAction, generateCoverLetterDraf
 import { getResumesAction } from "@/app/actions/resume";
 import { useRouter } from "next/navigation";
 
-export function JobDetailPanel({ 
-  job, 
-  isOpen, 
-  onClose, 
-  isTracked, 
+export function JobDetailPanel({
+  job,
+  isOpen,
+  onClose,
+  isTracked,
   onSave,
   initialResumes = null,
   initialAiLimits = null,
   isWishlisted = false,
   onToggleWishlist,
-}: { 
-  job: any; 
-  isOpen: boolean; 
-  onClose: () => void; 
-  isTracked: boolean; 
+}: {
+  job: any;
+  isOpen: boolean;
+  onClose: () => void;
+  isTracked: boolean;
   onSave: () => void;
   initialResumes?: any;
   initialAiLimits?: any;
@@ -64,7 +64,7 @@ export function JobDetailPanel({
               }
             }
           })
-          .catch(() => {})
+          .catch(() => { })
           .finally(() => setIsLoadingResumes(false));
       } else {
         setIsLoadingResumes(false);
@@ -75,7 +75,7 @@ export function JobDetailPanel({
           .then((limits) => {
             if (limits) setLimitInfo(limits);
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }
   }, [isOpen, resumes.length, limitInfo]);
@@ -124,11 +124,11 @@ export function JobDetailPanel({
     setIsWriting(true);
     try {
       const res = await generateCoverLetterDraftAction(
-        job.job_title, 
-        job.employer_name, 
-        job.job_description, 
-        coverLetterAnswers.q1, 
-        coverLetterAnswers.q2, 
+        job.job_title,
+        job.employer_name,
+        job.job_description,
+        coverLetterAnswers.q1,
+        coverLetterAnswers.q2,
         coverLetterAnswers.q3,
         selectedResumeId
       );
@@ -177,7 +177,7 @@ export function JobDetailPanel({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[95vw] sm:w-[94vw] md:w-[92vw] lg:w-[88vw] xl:w-[84vw] max-w-6xl sm:max-w-6xl md:max-w-6xl lg:max-w-6xl xl:max-w-6xl h-auto max-h-[92dvh] sm:max-h-[88vh] flex flex-col p-0 overflow-hidden bg-slate-50 rounded-2xl sm:rounded-3xl border-slate-200 shadow-2xl">
+      <DialogContent className="w-[95vw] sm:w-[94vw] md:w-[92vw] lg:w-[88vw] xl:w-[84vw] max-w-6xl sm:max-w-6xl md:max-w-6xl lg:max-w-6xl xl:max-w-6xl h-auto max-h-[96dvh] sm:max-h-[92vh] flex flex-col p-0 overflow-hidden bg-slate-50 rounded-2xl sm:rounded-3xl border-slate-200 shadow-2xl">
         {/* Header */}
         <div className="bg-white p-4 sm:px-6 sm:py-5 border-b border-slate-200 flex-shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -223,11 +223,10 @@ export function JobDetailPanel({
                   type="button"
                   onClick={onToggleWishlist}
                   title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
-                  className={`p-2.5 rounded-xl border transition-all flex items-center justify-center shrink-0 ${
-                    isWishlisted
-                      ? "bg-rose-50 text-rose-500 border-rose-200 shadow-xs"
-                      : "bg-white text-slate-400 border-slate-200 hover:text-rose-500 hover:bg-rose-50 hover:border-rose-200"
-                  }`}
+                  className={`p-2.5 rounded-xl border transition-all flex items-center justify-center shrink-0 ${isWishlisted
+                    ? "bg-rose-50 text-rose-500 border-rose-200 shadow-xs"
+                    : "bg-white text-slate-400 border-slate-200 hover:text-rose-500 hover:bg-rose-50 hover:border-rose-200"
+                    }`}
                 >
                   <Heart className="w-5 h-5" fill={isWishlisted ? "currentColor" : "none"} />
                 </button>
@@ -251,7 +250,7 @@ export function JobDetailPanel({
                 <div className="prose prose-sm max-w-none text-slate-600 whitespace-pre-wrap relative z-10">
                   {job.job_description}
                 </div>
-                
+
                 <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col items-center justify-center text-center relative z-10 bg-slate-50/50 rounded-xl p-4">
                   <p className="text-sm text-slate-500 mb-3">
                     This is a preview provided by our job partners. To view the full job description and requirements, please continue to the original posting.
@@ -274,6 +273,86 @@ export function JobDetailPanel({
                   </div>
                 </div>
               )}
+
+              {/* Interview Prep & Likely Questions */}
+              <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm overflow-hidden relative">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-md sm:text-lg font-bold text-slate-800 flex items-center">
+                    <CalendarCheck2 className="w-5 h-5 mr-2 text-purple-600" />
+                    Interview Prep & Likely Questions
+                  </h3>
+                  <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-bold">
+                    Claude AI
+                  </Badge>
+                </div>
+
+                {!interviewQuestions ? (
+                  <div className="text-center py-4 space-y-3 bg-purple-50/30 rounded-xl p-4 border border-purple-100/50">
+                    <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+                      Prepare with 5–7 tailored behavioral and role-specific interview questions generated by Claude AI based on this role.
+                    </p>
+                    <Button
+                      onClick={handleGetInterviewPrep}
+                      disabled={isLoadingQuestions}
+                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm shadow-xs px-6 py-2"
+                    >
+                      {isLoadingQuestions ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating Questions...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-1.5" />
+                          Generate Practice Questions
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4 animate-in fade-in duration-300">
+                    {interviewQuestions.general_advice && (
+                      <div className="p-3.5 bg-purple-50/70 border border-purple-100 rounded-xl text-xs sm:text-sm text-purple-900 font-medium">
+                        💡 <strong>Pro Strategy:</strong> {interviewQuestions.general_advice}
+                      </div>
+                    )}
+
+                    <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                      {interviewQuestions.questions?.map((q: any, i: number) => (
+                        <div key={i} className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              Question {i + 1}
+                            </span>
+                            <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                              {q.type || "Interview Question"}
+                            </span>
+                          </div>
+                          <p className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                            {q.question}
+                          </p>
+                          {q.tip && (
+                            <p className="text-[11px] sm:text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100 leading-relaxed flex items-start gap-2">
+                              <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                              <span>{q.tip}</span>
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      onClick={handleGetInterviewPrep}
+                      disabled={isLoadingQuestions}
+                      className="w-full text-xs sm:text-sm font-bold text-purple-700 border-purple-200 hover:bg-purple-50"
+                    >
+                      {isLoadingQuestions ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
+                      Regenerate Questions
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Right Column: AI & Application Tools */}
@@ -432,88 +511,8 @@ export function JobDetailPanel({
                   </div>
                 )}
               </div>
-
-              {/* Interview Prep & Likely Questions */}
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm overflow-hidden relative">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-md font-bold text-slate-800 flex items-center">
-                    <CalendarCheck2 className="w-5 h-5 mr-2 text-purple-600" />
-                    Interview Prep
-                  </h3>
-                  <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-bold">
-                    Claude AI
-                  </Badge>
-                </div>
-
-                {!interviewQuestions ? (
-                  <div className="text-center py-2 space-y-3">
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      Prepare with 5–7 tailored behavioral and role-specific interview questions generated by Claude AI.
-                    </p>
-                    <Button
-                      onClick={handleGetInterviewPrep}
-                      disabled={isLoadingQuestions}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs"
-                    >
-                      {isLoadingQuestions ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Generating Questions...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 mr-1.5" />
-                          Generate Practice Questions
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4 animate-in fade-in duration-300">
-                    {interviewQuestions.general_advice && (
-                      <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-xl text-xs text-purple-900 font-medium">
-                        💡 <strong>Pro Strategy:</strong> {interviewQuestions.general_advice}
-                      </div>
-                    )}
-
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                      {interviewQuestions.questions?.map((q: any, i: number) => (
-                        <div key={i} className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">
-                              Q{i + 1}
-                            </span>
-                            <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                              {q.type || "Interview Question"}
-                            </span>
-                          </div>
-                          <p className="text-xs font-bold text-slate-900 leading-snug">
-                            {q.question}
-                          </p>
-                          {q.tip && (
-                            <p className="text-[11px] text-slate-600 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed flex items-start gap-1.5">
-                              <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                              <span>{q.tip}</span>
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      onClick={handleGetInterviewPrep}
-                      disabled={isLoadingQuestions}
-                      className="w-full text-xs font-bold text-purple-700 border-purple-200 hover:bg-purple-50"
-                    >
-                      {isLoadingQuestions ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
-                      Regenerate Questions
-                    </Button>
-                  </div>
-                )}
-              </div>
-
             </div>
+
           </div>
         </div>
       </DialogContent>
