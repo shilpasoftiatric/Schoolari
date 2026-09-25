@@ -154,7 +154,8 @@ export async function markVideoInProgress(videoId: string) {
     await supabase.from("student_video_progress").insert([{
       user_id: masterId,
       video_id: videoId,
-      status: "in_progress"
+      status: "in_progress",
+      last_watched_at: new Date().toISOString()
     }]);
     revalidatePath("/income");
     revalidatePath(`/income/watch/${videoId}`);
@@ -176,13 +177,22 @@ export async function saveVideoPlaybackState(videoId: string, seconds: number, p
     .eq("video_id", videoId)
     .single();
 
+  const nowIso = new Date().toISOString();
+
   if (existing) {
-    // Only update if not already completed (or we can just update it anyway)
+    // Only update position/percentage if not already completed, but always touch last_watched_at
     if (existing.status !== "completed") {
       await supabase.from("student_video_progress").update({
         last_position_seconds: seconds,
         progress_percentage: percentage,
-        status: "in_progress"
+        status: "in_progress",
+        last_watched_at: nowIso,
+        updated_at: nowIso
+      }).eq("id", existing.id);
+    } else {
+      await supabase.from("student_video_progress").update({
+        last_watched_at: nowIso,
+        updated_at: nowIso
       }).eq("id", existing.id);
     }
   } else {
@@ -191,7 +201,9 @@ export async function saveVideoPlaybackState(videoId: string, seconds: number, p
       video_id: videoId,
       status: "in_progress",
       last_position_seconds: seconds,
-      progress_percentage: percentage
+      progress_percentage: percentage,
+      last_watched_at: nowIso,
+      updated_at: nowIso
     }]);
   }
 }
@@ -211,11 +223,15 @@ export async function markVideoComplete(videoId: string) {
     .eq("video_id", videoId)
     .single();
 
+  const nowIso = new Date().toISOString();
+
   if (existing) {
     await supabase.from("student_video_progress").update({
       status: "completed",
       progress_percentage: 100,
-      completed_at: new Date().toISOString()
+      completed_at: nowIso,
+      last_watched_at: nowIso,
+      updated_at: nowIso
     }).eq("id", existing.id);
   } else {
     await supabase.from("student_video_progress").insert([{
@@ -223,7 +239,9 @@ export async function markVideoComplete(videoId: string) {
       video_id: videoId,
       status: "completed",
       progress_percentage: 100,
-      completed_at: new Date().toISOString()
+      completed_at: nowIso,
+      last_watched_at: nowIso,
+      updated_at: nowIso
     }]);
   }
 

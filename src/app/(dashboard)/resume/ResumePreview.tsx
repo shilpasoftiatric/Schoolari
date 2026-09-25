@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
@@ -68,6 +68,11 @@ export function ResumePreview({
   isSavingVault
 }: ResumePreviewProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const totalBulletsCount =
     (resume.experience?.reduce((acc, e) => acc + (e.bullets?.length || 0), 0) || 0) +
@@ -78,23 +83,47 @@ export function ResumePreview({
     (resume.experience?.length || 0) + (resume.extracurriculars?.length || 0) > 6;
 
   const handlePrintPdf = () => {
-    const typeText = resume.resume_type === "academic" ? "Academic" : resume.resume_type === "professional" ? "Professional" : "Resume";
+    const typeText =
+      resume.resume_type === "academic"
+        ? "Academic"
+        : resume.resume_type === "professional"
+        ? "Professional"
+        : "";
     const firstName = resume.header?.first_name || "Student";
     const lastName = resume.header?.last_name || "";
-    const fileName = lastName ? `${firstName} ${lastName} - ${typeText} Resume` : `${firstName} - ${typeText} Resume`;
-    
+    const fileName = [firstName, lastName, typeText, "Resume"]
+      .filter(Boolean)
+      .join(" ");
     const originalTitle = document.title;
     document.title = fileName;
-    window.print();
-    setTimeout(() => {
+
+    const cleanupTitle = () => {
       document.title = originalTitle;
-    }, 100);
+      window.removeEventListener("afterprint", cleanupTitle);
+    };
+    window.addEventListener("afterprint", cleanupTitle);
+
+    window.print();
+
+    // Fallback in case browser doesn't dispatch afterprint event
+    setTimeout(() => {
+      cleanupTitle();
+    }, 3000);
   };
 
   const handleCopyPlaintext = () => {
     const text = generatePlaintextResume(resume);
     navigator.clipboard.writeText(text);
     toast.success("Plaintext resume copied to clipboard!");
+  };
+
+  const escapeXml = (unsafe: string = ""): string => {
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
   };
 
   const handleDownloadDocs = () => {
@@ -109,7 +138,10 @@ export function ResumePreview({
       </table>
     `;
 
-    const links = [header.city_state, header.phone, header.email, header.linkedin_url, header.portfolio_url].filter(Boolean).join(" &nbsp;&bull;&nbsp; ");
+    const links = [header.city_state, header.phone, header.email, header.linkedin_url, header.portfolio_url]
+      .filter(Boolean)
+      .map(item => escapeXml(item))
+      .join(" &nbsp;&bull;&nbsp; ");
 
     let htmlContent = `
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -127,29 +159,29 @@ export function ResumePreview({
   </style>
 </head>
 <body>
-  <h1>${header.first_name || "Student"} ${header.last_name || "Name"}</h1>
+  <h1>${escapeXml(header.first_name || "Student")} ${escapeXml(header.last_name || "Name")}</h1>
   <div class="header-links">
     ${links}
   </div>
 `;
 
     if (header.summary) {
-      htmlContent += `<h2>Summary</h2><p>${header.summary}</p>`;
+      htmlContent += `<h2>Summary</h2><p>${escapeXml(header.summary)}</p>`;
     }
 
     if (education && education.length > 0) {
       htmlContent += `<h2>Education</h2>`;
       education.forEach(edu => {
         htmlContent += row(
-          `<b>${edu.institution}</b> &ndash; ${edu.location}`,
-          `Expected: ${edu.graduation_year}`
+          `<b>${escapeXml(edu.institution)}</b> &ndash; ${escapeXml(edu.location)}`,
+          `Expected: ${escapeXml(edu.graduation_year)}`
         );
         htmlContent += row(
-          `<i>${edu.grade_level_or_degree}</i>`,
-          `GPA: ${edu.gpa_unweighted || "N/A"}${edu.gpa_weighted ? ` / ${edu.gpa_weighted} Weighted` : ""}`
+          `<i>${escapeXml(edu.grade_level_or_degree)}</i>`,
+          `GPA: ${escapeXml(edu.gpa_unweighted) || "N/A"}${edu.gpa_weighted ? ` / ${escapeXml(edu.gpa_weighted)} Weighted` : ""}`
         );
         if (edu.honors_coursework) {
-          htmlContent += `<p style="margin-top:2px;"><b>Honors Coursework:</b> ${edu.honors_coursework}</p>`;
+          htmlContent += `<p style="margin-top:2px;"><b>Honors Coursework:</b> ${escapeXml(edu.honors_coursework)}</p>`;
         }
       });
     }
@@ -158,11 +190,11 @@ export function ResumePreview({
       htmlContent += `<h2>Professional & Leadership Experience</h2>`;
       experience.forEach(exp => {
         htmlContent += row(
-          `<b>${exp.title}</b> &mdash; <i>${exp.organization}</i>`,
-          `${exp.start_date} &ndash; ${exp.is_current ? "Present" : exp.end_date} | ${exp.location}`
+          `<b>${escapeXml(exp.title)}</b> &mdash; <i>${escapeXml(exp.organization)}</i>`,
+          `${escapeXml(exp.start_date)} &ndash; ${exp.is_current ? "Present" : escapeXml(exp.end_date)} | ${escapeXml(exp.location)}`
         );
         if (exp.bullets && exp.bullets.length > 0) {
-          htmlContent += `<ul>${exp.bullets.map(b => `<li>${b}</li>`).join("")}</ul>`;
+          htmlContent += `<ul>${exp.bullets.map(b => `<li>${escapeXml(b)}</li>`).join("")}</ul>`;
         }
       });
     }
@@ -171,11 +203,11 @@ export function ResumePreview({
       htmlContent += `<h2>Extracurricular Activities & Community Service</h2>`;
       extracurriculars.forEach(ext => {
         htmlContent += row(
-          `<b>${ext.role}</b> &mdash; <i>${ext.activity}</i>`,
-          `${ext.start_date} &ndash; ${ext.end_date}${ext.hours_per_week ? ` (${ext.hours_per_week} hrs/wk)` : ""}`
+          `<b>${escapeXml(ext.role)}</b> &mdash; <i>${escapeXml(ext.activity)}</i>`,
+          `${escapeXml(ext.start_date)} &ndash; ${escapeXml(ext.end_date)}${ext.hours_per_week ? ` (${escapeXml(String(ext.hours_per_week))} hrs/wk)` : ""}`
         );
         if (ext.bullets && ext.bullets.length > 0) {
-          htmlContent += `<ul>${ext.bullets.map(b => `<li>${b}</li>`).join("")}</ul>`;
+          htmlContent += `<ul>${ext.bullets.map(b => `<li>${escapeXml(b)}</li>`).join("")}</ul>`;
         }
       });
     }
@@ -184,20 +216,20 @@ export function ResumePreview({
       htmlContent += `<h2>Honors & Awards</h2>`;
       awards.forEach(aw => {
         htmlContent += row(
-          `<b>${aw.title}</b> (${aw.issuer})`,
-          `${aw.year} &ndash; ${aw.level} Level`
+          `<b>${escapeXml(aw.title)}</b> (${escapeXml(aw.issuer)})`,
+          `${escapeXml(aw.year)} &ndash; ${escapeXml(aw.level)} Level`
         );
         if (aw.description) {
-          htmlContent += `<p style="margin-top:2px;"><i>${aw.description}</i></p>`;
+          htmlContent += `<p style="margin-top:2px;"><i>${escapeXml(aw.description)}</i></p>`;
         }
       });
     }
 
     const allSkills = [];
-    if (skills?.technical?.length) allSkills.push(`<b>Technical:</b> ${skills.technical.join(", ")}`);
-    if (skills?.soft?.length) allSkills.push(`<b>Interpersonal:</b> ${skills.soft.join(", ")}`);
-    if (skills?.languages?.length) allSkills.push(`<b>Languages:</b> ${skills.languages.join(", ")}`);
-    if (skills?.certifications?.length) allSkills.push(`<b>Certifications:</b> ${skills.certifications.join(", ")}`);
+    if (skills?.technical?.length) allSkills.push(`<b>Technical:</b> ${skills.technical.map(s => escapeXml(s)).join(", ")}`);
+    if (skills?.soft?.length) allSkills.push(`<b>Interpersonal:</b> ${skills.soft.map(s => escapeXml(s)).join(", ")}`);
+    if (skills?.languages?.length) allSkills.push(`<b>Languages:</b> ${skills.languages.map(s => escapeXml(s)).join(", ")}`);
+    if (skills?.certifications?.length) allSkills.push(`<b>Certifications:</b> ${skills.certifications.map(s => escapeXml(s)).join(", ")}`);
 
     if (allSkills.length > 0) {
       htmlContent += `<h2>Skills, Languages & Certifications</h2><ul style="margin-top:4px;">`;
@@ -391,32 +423,38 @@ export function ResumePreview({
       {/* Step 4: Resume Type Badge (Hidden when printing) */}
       <div className="print:hidden flex items-center justify-between bg-white/80 border border-slate-200/80 rounded-2xl gap-4 px-4 py-2.5 max-w-[850px] mx-auto w-full shadow-2xs">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-black text-slate-700">Resume Type:</span>
-          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-xl bg-violet-50 text-violet-700 text-xs font-bold border border-violet-200/80">
+          <span className="text-xs font-black text-slate-700">Resume Mode:</span>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-extrabold border ${
+            resume.resume_type === "academic"
+              ? "bg-violet-50 text-violet-800 border-violet-200 shadow-2xs"
+              : "bg-indigo-50 text-indigo-800 border-indigo-200 shadow-2xs"
+          }`}>
             {resume.resume_type === "academic"
-              ? "Academic Resume"
+              ? "🎓 Academic / College Prep"
               : resume.resume_type === "professional"
-                ? "Professional Resume"
-                : "Academic & Professional Resume"}
+                ? "💼 Industry / Internship"
+                : "✨ Comprehensive Student Resume"}
           </span>
         </div>
-        {/* <span className="text-[10px] font-bold text-slate-500">
+        <span className="text-[11px] font-bold text-slate-500 hidden sm:inline">
           {resume.resume_type === "academic"
-            ? "Optimized for College & Scholarship Applications"
-            : resume.resume_type === "professional"
-              ? "Optimized for Jobs & Internships"
-              : "Comprehensive 1-Page Student Architecture"}
-        </span> */}
+            ? "Optimized for College Admissions, Honors, & Common App"
+            : "Optimized for ATS Scanners, STAR Bullets, & Industry Roles"}
+        </span>
       </div>
 
       {/* 
         Printable Resume Document Paper 
         Uses standard 8.5 x 11 inch proportions, clean typography, ATS readable
       */}
+      {/* 
+        Printable Resume Document Paper (Screen Preview)
+        Uses standard 8.5 x 11 inch proportions, clean typography, ATS readable
+      */}
       <FullscreenPortal isFullscreen={isFullscreen} onClose={() => setIsFullscreen(false)}>
         <div
-          id="print-resume-area"
-          className={`bg-white text-slate-900 rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] p-5 sm:p-8 lg:p-12 print:border-none print:shadow-none print:w-full print:max-w-none print:min-h-0 print:m-0 print:rounded-none max-w-[850px] w-full mx-auto min-h-[956px] flex flex-col transition-all relative group ${
+          id="screen-resume-area"
+          className={`bg-white text-slate-900 rounded-3xl border border-slate-200/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] p-5 sm:p-8 lg:p-12 max-w-[850px] w-full mx-auto min-h-[956px] flex flex-col transition-all relative group ${
             theme === "classic" ? "font-serif text-slate-950" :
             theme === "college" ? "font-serif text-slate-900" :
             theme === "modern" ? "font-sans text-slate-900" :
@@ -434,278 +472,343 @@ export function ResumePreview({
               <Maximize2 className="w-5 h-5" />
             </button>
           )}
-          <div className="space-y-6">
-            {/* Header Section */}
-            <header
-              className={`space-y-1.5 ${
-                theme === "classic" ? "text-center border-b-2 border-slate-900 pb-4" :
-                theme === "college" ? "text-left border-b-4 border-slate-800 pb-3" :
-                theme === "modern" ? "text-left pb-4" :
-                theme === "internship" ? "text-left border-b border-slate-300 pb-3" :
-                "text-center pb-4 border-b border-slate-300"
-              }`}
-            >
-              <h1
-                className={`tracking-tight ${
-                  theme === "classic" ? "text-3xl sm:text-4xl uppercase font-black" :
-                  theme === "college" ? "text-4xl font-serif font-semibold text-slate-900" :
-                  theme === "modern" ? "text-4xl text-slate-950 font-extrabold" :
-                  theme === "internship" ? "text-3xl text-slate-900 font-black" :
-                  "text-2xl uppercase tracking-[0.2em] font-medium text-slate-800"
-                }`}
-              >
-                {resume.header.first_name || "STUDENT"}{" "}
-                {resume.header.last_name || "NAME"}
-              </h1>
-              <div
-                className={`flex flex-wrap items-center gap-2 text-xs text-slate-600 ${["modern", "college", "internship"].includes(theme) ? "justify-start" : "justify-center"
-                  }`}
-              >
-                {resume.header.city_state && <span>{resume.header.city_state}</span>}
-                {resume.header.phone && (
-                  <>
-                    <span>•</span>
-                    <span>{resume.header.phone}</span>
-                  </>
-                )}
-                {resume.header.email && (
-                  <>
-                    <span>•</span>
-                    <span>{resume.header.email}</span>
-                  </>
-                )}
-                {resume.header.linkedin_url && (
-                  <>
-                    <span>•</span>
-                    <span>{resume.header.linkedin_url}</span>
-                  </>
-                )}
-              </div>
-              {resume.header.summary && (
-                <p
-                  className={`text-xs text-slate-700 pt-2 ${["classic", "college"].includes(theme) ? "italic" : ""
-                    }`}
-                >
-                  {resume.header.summary}
-                </p>
-              )}
-            </header>
-
-            {/* Education Section */}
-            {resume.education && resume.education.length > 0 && (
-              <section className="space-y-2">
-                <h2
-                  className={`text-xs uppercase tracking-widest ${
-                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
-                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
-                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
-                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
-                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
-                  }`}
-                >
-                  Education
-                </h2>
-                <div className="space-y-3">
-                  {resume.education.map((edu) => (
-                    <div key={edu.id} className="text-xs space-y-0.5">
-                      <div className="flex items-center justify-between font-bold">
-                        <span className="text-slate-900">{edu.institution}</span>
-                        <span className="text-slate-600">
-                          {edu.location} | Expected: {edu.graduation_year}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-700">
-                        <span>{edu.grade_level_or_degree}</span>
-                        <span>
-                          {edu.gpa_unweighted && `GPA: ${edu.gpa_unweighted}/4.0 Unweighted`}
-                          {edu.gpa_weighted && ` (${edu.gpa_weighted}/5.0+ Weighted)`}
-                        </span>
-                      </div>
-                      {edu.honors_coursework && (
-                        <div className="text-[11px] text-slate-600 italic">
-                          Honors / AP / IB Coursework: {edu.honors_coursework}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Experience Section */}
-            {resume.experience && resume.experience.length > 0 && (
-              <section className="space-y-2">
-                <h2
-                  className={`text-xs uppercase tracking-widest ${
-                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
-                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
-                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
-                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
-                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
-                  }`}
-                >
-                  Professional & Leadership Experience
-                </h2>
-                <div className="space-y-4">
-                  {resume.experience.map((exp) => (
-                    <div key={exp.id} className="text-xs space-y-1">
-                      <div className="flex items-center justify-between font-bold">
-                        <span className="text-slate-900">
-                          {exp.title} —{" "}
-                          <span className="font-semibold text-slate-700">
-                            {exp.organization}
-                          </span>
-                        </span>
-                        <span className="text-slate-600">
-                          {exp.location} | {exp.start_date} – {exp.end_date}
-                        </span>
-                      </div>
-                      <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1">
-                        {exp.bullets.map((b, idx) => (
-                          <li key={idx} className="leading-relaxed">
-                            {b}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Extracurriculars & Volunteer Work */}
-            {resume.extracurriculars && resume.extracurriculars.length > 0 && (
-              <section className="space-y-2">
-                <h2
-                  className={`text-xs uppercase tracking-widest ${
-                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
-                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
-                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
-                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
-                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
-                  }`}
-                >
-                  Extracurricular Activities & Community Service
-                </h2>
-                <div className="space-y-4">
-                  {resume.extracurriculars.map((ext) => (
-                    <div key={ext.id} className="text-xs space-y-1">
-                      <div className="flex items-center justify-between font-bold">
-                        <span className="text-slate-900">
-                          {ext.role} —{" "}
-                          <span className="font-semibold text-slate-700">
-                            {ext.activity}
-                          </span>
-                        </span>
-                        <span className="text-slate-600">
-                          {ext.start_date} – {ext.end_date}
-                          {ext.hours_per_week ? ` (${ext.hours_per_week})` : ""}
-                        </span>
-                      </div>
-                      {ext.bullets && ext.bullets.length > 0 && (
-                        <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1">
-                          {ext.bullets.map((b, idx) => (
-                            <li key={idx} className="leading-relaxed">
-                              {b}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Honors & Awards */}
-            {resume.awards && resume.awards.length > 0 && (
-              <section className="space-y-2">
-                <h2
-                  className={`text-xs uppercase tracking-widest ${
-                    theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
-                    theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
-                    theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
-                    theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
-                    "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
-                  }`}
-                >
-                  Honors & Awards
-                </h2>
-                <div className="space-y-1.5 text-xs">
-                  {resume.awards.map((awd) => (
-                    <div
-                      key={awd.id}
-                      className="flex items-center justify-between text-slate-800"
-                    >
-                      <div>
-                        <span className="font-bold">{awd.title}</span>
-                        <span className="text-slate-600">
-                          {" "}
-                          — {awd.issuer} ({awd.level} Recognition)
-                        </span>
-                      </div>
-                      <span className="text-slate-500 font-medium">{awd.year}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Skills, Languages & Certifications */}
-            <section className="space-y-2">
-              <h2
-                className={`text-xs uppercase tracking-widest ${
-                  theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
-                  theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
-                  theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
-                  theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
-                  "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
-                }`}
-              >
-                Skills, Languages & Certifications
-              </h2>
-              <div className="space-y-1 text-xs text-slate-700">
-                {resume.skills?.technical && resume.skills.technical.length > 0 && (
-                  <div>
-                    <span className="font-bold text-slate-900">
-                      Technical / Hard Skills:{" "}
-                    </span>
-                    <span>{resume.skills.technical.join(", ")}</span>
-                  </div>
-                )}
-                {resume.skills?.soft && resume.skills.soft.length > 0 && (
-                  <div>
-                    <span className="font-bold text-slate-900">
-                      Leadership & Interpersonal:{" "}
-                    </span>
-                    <span>{resume.skills.soft.join(", ")}</span>
-                  </div>
-                )}
-                {resume.skills?.languages && resume.skills.languages.length > 0 && (
-                  <div>
-                    <span className="font-bold text-slate-900">
-                      Languages Spoken:{" "}
-                    </span>
-                    <span>{resume.skills.languages.join(", ")}</span>
-                  </div>
-                )}
-                {resume.skills?.certifications &&
-                  resume.skills.certifications.length > 0 && (
-                    <div>
-                      <span className="font-bold text-slate-900">
-                        Certifications:{" "}
-                      </span>
-                      <span>{resume.skills.certifications.join(", ")}</span>
-                    </div>
-                  )}
-              </div>
-            </section>
-          </div>
+          <ResumeContentBody resume={resume} theme={theme} />
         </div>
       </FullscreenPortal>
+
+      {/* Dedicated Clean Print Portal mounted directly to body to bypass all layout overflow/fixed containers */}
+      {mounted &&
+        createPortal(
+          <div
+            id="dedicated-print-mount"
+            className={`hidden print:block bg-white text-slate-900 p-0 m-0 w-full ${
+              theme === "classic"
+                ? "font-serif text-slate-950"
+                : theme === "college"
+                ? "font-serif text-slate-900"
+                : theme === "modern"
+                ? "font-sans text-slate-900"
+                : theme === "internship"
+                ? "font-sans text-slate-800"
+                : "font-sans text-slate-900"
+            }`}
+          >
+            {/* Suppress browser header (date, title) and footer (URL, page) via 0mm margin */}
+            <style dangerouslySetInnerHTML={{ __html: `
+              @page {
+                size: letter portrait;
+                margin: 0mm;
+              }
+            ` }} />
+            <table className="print-page-table w-full border-none border-collapse p-0 m-0">
+              <thead>
+                <tr>
+                  <td className="print-page-header-spacer h-[0.5in] p-0 m-0 border-none"></td>
+                </tr>
+              </thead>
+              <tfoot>
+                <tr>
+                  <td className="print-page-footer-spacer h-[0.5in] p-0 m-0 border-none"></td>
+                </tr>
+              </tfoot>
+              <tbody>
+                <tr>
+                  <td className="print-page-content px-[0.5in] py-0 m-0 border-none align-top">
+                    <ResumeContentBody resume={resume} theme={theme} />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
+
+const ResumeContentBody = React.memo(function ResumeContentBody({ resume, theme }: { resume: ResumeDocument; theme: ResumeTemplateTheme }) {
+  return (
+    <div className="space-y-6">
+      {/* Header Section */}
+      <header
+        className={`space-y-1.5 break-inside-avoid print:break-inside-avoid ${
+          theme === "classic" ? "text-center border-b-2 border-slate-900 pb-4" :
+          theme === "college" ? "text-left border-b-4 border-slate-800 pb-3" :
+          theme === "modern" ? "text-left pb-4" :
+          theme === "internship" ? "text-left border-b border-slate-300 pb-3" :
+          "text-center pb-4 border-b border-slate-300"
+        }`}
+      >
+        <h1
+          className={`tracking-tight ${
+            theme === "classic" ? "text-3xl sm:text-4xl uppercase font-black" :
+            theme === "college" ? "text-4xl font-serif font-semibold text-slate-900" :
+            theme === "modern" ? "text-4xl text-slate-950 font-extrabold" :
+            theme === "internship" ? "text-3xl text-slate-900 font-black" :
+            "text-2xl uppercase tracking-[0.2em] font-medium text-slate-800"
+          }`}
+        >
+          {resume.header.first_name || "STUDENT"}{" "}
+          {resume.header.last_name || "NAME"}
+        </h1>
+        <div
+          className={`flex flex-wrap items-center gap-2 text-xs text-slate-600 ${["modern", "college", "internship"].includes(theme) ? "justify-start" : "justify-center"
+            }`}
+        >
+          {resume.header.city_state && <span>{resume.header.city_state}</span>}
+          {resume.header.phone && (
+            <>
+              <span>•</span>
+              <span>{resume.header.phone}</span>
+            </>
+          )}
+          {resume.header.email && (
+            <>
+              <span>•</span>
+              <span>{resume.header.email}</span>
+            </>
+          )}
+          {resume.header.linkedin_url && (
+            <>
+              <span>•</span>
+              <span>{resume.header.linkedin_url}</span>
+            </>
+          )}
+        </div>
+        {resume.header.summary && (
+          <p
+            className={`text-xs text-slate-700 pt-2 ${["classic", "college"].includes(theme) ? "italic" : ""
+              }`}
+          >
+            {resume.header.summary}
+          </p>
+        )}
+        {resume.resume_type === "academic" && resume.header.college_or_career_goals && (
+          <div className="pt-1.5 text-xs text-slate-700">
+            <span className="font-bold text-slate-900">Academic & College Goals: </span>
+            <span className="italic">{resume.header.college_or_career_goals}</span>
+          </div>
+        )}
+        {resume.resume_type === "professional" && resume.header.target_job_or_internship && (
+          <div className="pt-1 text-xs text-slate-700">
+            <span className="font-bold text-slate-900">Target Role: </span>
+            <span className="font-medium text-indigo-900">{resume.header.target_job_or_internship}</span>
+          </div>
+        )}
+      </header>
+
+      {/* Education Section */}
+      {resume.education && resume.education.length > 0 && (
+        <section className="space-y-2">
+          <h2
+            className={`text-xs uppercase tracking-widest break-after-avoid print:break-after-avoid ${
+              theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+              theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+              theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+              theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+              "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+            }`}
+          >
+            Education
+          </h2>
+          <div className="space-y-3">
+            {resume.education.map((edu) => (
+              <div key={edu.id} className="text-xs space-y-0.5 break-inside-avoid print:break-inside-avoid">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-900">{edu.institution}</span>
+                  <span className="text-slate-600">
+                    {edu.location} | Expected: {edu.graduation_year}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-700">
+                  <span>{edu.grade_level_or_degree}</span>
+                  <span>
+                    {edu.gpa_unweighted && `GPA: ${edu.gpa_unweighted}/4.0 Unweighted`}
+                    {edu.gpa_weighted && ` (${edu.gpa_weighted}/5.0+ Weighted)`}
+                  </span>
+                </div>
+                {edu.honors_coursework && (
+                  <div className="text-[11px] text-slate-600 italic">
+                    Honors / AP / IB Coursework: {edu.honors_coursework}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Experience Section */}
+      {resume.experience && resume.experience.length > 0 && (
+        <section className="space-y-2">
+          <h2
+            className={`text-xs uppercase tracking-widest break-after-avoid print:break-after-avoid ${
+              theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+              theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+              theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+              theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+              "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+            }`}
+          >
+            Professional & Leadership Experience
+          </h2>
+          <div className="space-y-4">
+            {resume.experience.map((exp) => (
+              <div key={exp.id} className="text-xs space-y-1 break-inside-avoid print:break-inside-avoid">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-900">
+                    {exp.title} —{" "}
+                    <span className="font-semibold text-slate-700">
+                      {exp.organization}
+                    </span>
+                  </span>
+                  <span className="text-slate-600">
+                    {exp.location} | {exp.start_date} – {exp.end_date}
+                  </span>
+                </div>
+                <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1">
+                  {exp.bullets.map((b, idx) => (
+                    <li key={idx} className="leading-relaxed">
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Extracurriculars & Volunteer Work */}
+      {resume.extracurriculars && resume.extracurriculars.length > 0 && (
+        <section className="space-y-2">
+          <h2
+            className={`text-xs uppercase tracking-widest break-after-avoid print:break-after-avoid ${
+              theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+              theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+              theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+              theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+              "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+            }`}
+          >
+            Extracurricular Activities & Community Service
+          </h2>
+          <div className="space-y-4">
+            {resume.extracurriculars.map((ext) => (
+              <div key={ext.id} className="text-xs space-y-1 break-inside-avoid print:break-inside-avoid">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-900">
+                    {ext.role} —{" "}
+                    <span className="font-semibold text-slate-700">
+                      {ext.activity}
+                    </span>
+                  </span>
+                  <span className="text-slate-600">
+                    {ext.start_date} – {ext.end_date}
+                    {ext.hours_per_week ? ` (${ext.hours_per_week})` : ""}
+                  </span>
+                </div>
+                {ext.bullets && ext.bullets.length > 0 && (
+                  <ul className="list-disc list-inside space-y-0.5 text-slate-700 pl-1">
+                    {ext.bullets.map((b, idx) => (
+                      <li key={idx} className="leading-relaxed">
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Honors & Awards */}
+      {resume.awards && resume.awards.length > 0 && (
+        <section className="space-y-2">
+          <h2
+            className={`text-xs uppercase tracking-widest break-after-avoid print:break-after-avoid ${
+              theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+              theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+              theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+              theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+              "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+            }`}
+          >
+            Honors & Awards
+          </h2>
+          <div className="space-y-1.5 text-xs">
+            {resume.awards.map((awd) => (
+              <div
+                key={awd.id}
+                className="flex items-center justify-between text-slate-800 break-inside-avoid print:break-inside-avoid"
+              >
+                <div>
+                  <span className="font-bold">{awd.title}</span>
+                  <span className="text-slate-600">
+                    {" "}
+                    — {awd.issuer} ({awd.level} Recognition)
+                  </span>
+                </div>
+                <span className="text-slate-500 font-medium">{awd.year}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Skills, Languages & Certifications */}
+      <section className="space-y-2 break-inside-avoid print:break-inside-avoid">
+        <h2
+          className={`text-xs uppercase tracking-widest break-after-avoid print:break-after-avoid ${
+            theme === "classic" ? "font-extrabold border-b-2 border-slate-900 pb-1 text-slate-900" :
+            theme === "college" ? "font-bold font-serif italic border-b border-slate-300 pb-0.5 text-slate-800" :
+            theme === "modern" ? "font-extrabold text-violet-700 pb-0.5 border-b-2 border-violet-100" :
+            theme === "internship" ? "font-black text-slate-900 pb-0.5 border-b border-slate-300" :
+            "font-semibold tracking-[0.15em] border-t border-b border-slate-200 py-1 text-slate-700 text-center w-full block mb-2"
+          }`}
+        >
+          Skills, Languages & Certifications
+        </h2>
+        <div className="space-y-1 text-xs text-slate-700">
+          {resume.skills?.technical && resume.skills.technical.length > 0 && (
+            <div>
+              <span className="font-bold text-slate-900">
+                Technical / Hard Skills:{" "}
+              </span>
+              <span>{resume.skills.technical.join(", ")}</span>
+            </div>
+          )}
+          {resume.skills?.soft && resume.skills.soft.length > 0 && (
+            <div>
+              <span className="font-bold text-slate-900">
+                Leadership & Interpersonal:{" "}
+              </span>
+              <span>{resume.skills.soft.join(", ")}</span>
+            </div>
+          )}
+          {resume.skills?.languages && resume.skills.languages.length > 0 && (
+            <div>
+              <span className="font-bold text-slate-900">
+                Languages Spoken:{" "}
+              </span>
+              <span>{resume.skills.languages.join(", ")}</span>
+            </div>
+          )}
+          {resume.skills?.certifications &&
+            resume.skills.certifications.length > 0 && (
+              <div>
+                <span className="font-bold text-slate-900">
+                  Certifications:{" "}
+                </span>
+                <span>{resume.skills.certifications.join(", ")}</span>
+              </div>
+            )}
+        </div>
+      </section>
+    </div>
+  );
+});
 
 function generatePlaintextResume(resume: ResumeDocument): string {
   let content = "";

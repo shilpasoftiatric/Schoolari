@@ -54,4 +54,23 @@ const AccordionContent = React.forwardRef<
 ))
 AccordionContent.displayName = AccordionPrimitive.Content.displayName
 
-export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }
+const AccordionChevronTrigger = React.forwardRef<
+  React.ElementRef<typeof AccordionPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
+>(({ className, ...props }, ref) => (
+  <AccordionPrimitive.Header className="flex shrink-0">
+    <AccordionPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        "p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all [&[data-state=open]>svg]:rotate-180 cursor-pointer outline-none",
+        className
+      )}
+      {...props}
+    >
+      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+    </AccordionPrimitive.Trigger>
+  </AccordionPrimitive.Header>
+))
+AccordionChevronTrigger.displayName = "AccordionChevronTrigger"
+
+export { Accordion, AccordionItem, AccordionTrigger, AccordionChevronTrigger, AccordionContent }

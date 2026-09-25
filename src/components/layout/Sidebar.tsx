@@ -114,6 +114,17 @@ export default function Sidebar({ siteName = "Schoolari", progressData, plan }: 
     setSelectedHref(pathname);
   }, [pathname]);
 
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      "data-sidebar-collapsed",
+      isSidebarCollapsed ? "true" : "false"
+    );
+    document.documentElement.style.setProperty(
+      "--sidebar-width",
+      isSidebarCollapsed ? "5rem" : "16rem"
+    );
+  }, [isSidebarCollapsed]);
+
   const openUpgradeModal = (item: NavItem) => {
     const required = item.feature ? getMinPlanForFeature(item.feature) : "scholar";
     setUpgradeModal({ open: true, featureName: item.label, requiredPlan: required });

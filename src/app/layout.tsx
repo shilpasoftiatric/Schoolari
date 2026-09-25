@@ -25,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable}`}>
-      <body className="font-sans antialiased overflow-x-hidden w-full max-w-full m-0 p-0">
+      <body className="font-sans antialiased overflow-x-clip w-full max-w-full m-0 p-0">
         {children}
         <Toaster richColors position="top-right" theme="light" />
       </body>

@@ -2,6 +2,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath, updateTag } from "next/cache";
 import { canAccessAdmin, hasPermission, isStaffRole, type Permission, type StaffRole } from "@/lib/rbac";
+import { sendInviteEmail } from "@/lib/email";
 
 // Get the current caller's staff role (or null if not staff)
 export async function getCallerRole(): Promise<StaffRole | null> {
@@ -225,20 +226,31 @@ export async function toggleScholarshipStatus(id: string, isActive: boolean) {
   }
 }
 
-export async function createUserMember(email: string, firstName: string, phone: string, role: "admin" | "user" = "user", password?: string) {
+export async function createUserMember(
+  email: string,
+  firstName: string,
+  phone: string,
+  accountType: "student" | "parent" = "student",
+  lastName?: string
+) {
   try {
     await verifyAdmin();
     const adminClient = await createAdminClient();
 
-    // Create user in Supabase auth
-    const finalPassword = password || "User@12345"; // Default temporary password if not provided
+    // Create user in Supabase auth with an unguessable placeholder password
+    const finalPassword = `Init_${crypto.randomUUID()}!Aa9`;
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
       password: finalPassword,
       email_confirm: true,
       user_metadata: {
         first_name: firstName,
+        last_name: lastName || "",
+        name: fullName || firstName,
         phone: phone,
+        account_type: accountType,
+        created_by_admin: true,
       }
     });
 
@@ -253,17 +265,31 @@ export async function createUserMember(email: string, firstName: string, phone: 
       return { success: false, error: "Failed to create user authentication." };
     }
 
-    // Insert or update profile
+    // Insert or update profile based on account type
+    const isParent = accountType === "parent";
+    const profilePayload: Record<string, any> = {
+      id: authData.user.id,
+      role: "user",
+      account_type: accountType,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (isParent) {
+      profilePayload.parent_first_name = firstName;
+      profilePayload.parent_last_name = lastName || "";
+      profilePayload.parent_phone = phone;
+      profilePayload.parent_email = email;
+    } else {
+      profilePayload.student_first_name = firstName;
+      profilePayload.student_last_name = lastName || "";
+      profilePayload.student_phone = phone;
+      profilePayload.student_email = email;
+    }
+
     const { error: profileError } = await adminClient
       .from("profiles")
-      .upsert({
-        id: authData.user.id,
-        student_first_name: firstName,
-        student_phone: phone,
-        role: role,
-        is_active: true,
-        updated_at: new Date().toISOString()
-      });
+      .upsert(profilePayload);
 
     if (profileError) {
       await adminClient.auth.admin.deleteUser(authData.user.id);
@@ -274,6 +300,97 @@ export async function createUserMember(email: string, firstName: string, phone: 
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "An unexpected error occurred." };
+  }
+}
+
+export async function sendMemberInvite(userId: string) {
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
+
+    // Fetch user profile
+    const { data: profile, error: profileErr } = await adminClient
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (profileErr || !profile) {
+      return { success: false, error: "Member profile not found." };
+    }
+
+    const email = profile.student_email || profile.parent_email || (profile as any).email;
+    if (!email) {
+      return { success: false, error: "Member has no valid email address." };
+    }
+
+    const isParent = profile.account_type === "parent";
+    const firstName = isParent
+      ? (profile.parent_first_name || profile.first_name || "Member")
+      : (profile.student_first_name || profile.first_name || "Member");
+
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const redirectTo = `${origin}/members/update-password`;
+
+    // Generate invite or recovery link pointing directly to /members/update-password
+    let inviteUrl = `${origin}/members/update-password`;
+
+    const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
+      type: 'recovery',
+      email: email,
+      options: {
+        redirectTo,
+      }
+    });
+
+    const recProps = (recoveryData as any)?.properties;
+    if (!recoveryError && recProps?.action_link) {
+      const actionUrl = new URL(recProps.action_link);
+      const token = actionUrl.searchParams.get("token");
+      const type = actionUrl.searchParams.get("type") || "recovery";
+      inviteUrl = `${origin}/members/update-password?token=${token}&type=${type}`;
+    } else {
+      // Fallback to invite link if recovery generation failed
+      const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
+        type: 'invite',
+        email: email,
+        options: {
+          redirectTo,
+        }
+      });
+
+      const invProps = (inviteData as any)?.properties;
+      if (inviteError && !invProps?.action_link) {
+        return { success: false, error: inviteError.message || "Failed to generate invite link." };
+      }
+
+      if (invProps?.action_link) {
+        const actionUrl = new URL(invProps.action_link);
+        const token = actionUrl.searchParams.get("token");
+        const type = actionUrl.searchParams.get("type") || "invite";
+        inviteUrl = `${origin}/members/update-password?token=${token}&type=${type}`;
+      }
+    }
+
+    // Send email using custom Gmail API / Schoolari setup
+    const emailResult = await sendInviteEmail(
+      email,
+      firstName,
+      "Schoolari Team",
+      inviteUrl,
+      isParent ? "parent" : "student"
+    );
+
+    if (!emailResult.success) {
+      return {
+        success: false,
+        error: emailResult.error || "Failed to deliver invite email. Please check email configuration."
+      };
+    }
+
+    return { success: true, message: `Invite email sent to ${email}` };
+  } catch (err: any) {
+    return { success: false, error: err.message || "An unexpected error occurred while sending invite." };
   }
 }
 
@@ -292,14 +409,109 @@ export async function updateUserBasicInfo(userId: string, data: {
   await requirePermission("manage_users");
   const adminClient = await createAdminClient();
 
-  const { first_name, phone, ...validData } = data;
+  const { data: targetProfile, error: profileErr } = await adminClient
+    .from("profiles")
+    .select("*")
+    .eq("id", userId)
+    .single();
+
+  if (profileErr || !targetProfile) {
+    throw new Error("Target profile not found");
+  }
+
+  const isParent = targetProfile.account_type === "parent";
+
+  const updatePayload: any = {
+    student_first_name: data.student_first_name || "",
+    student_last_name: data.student_last_name || "",
+    student_email: data.student_email || "",
+    student_phone: data.student_phone || "",
+    parent_first_name: data.parent_first_name || "",
+    parent_last_name: data.parent_last_name || "",
+    parent_email: data.parent_email || "",
+    parent_phone: data.parent_phone || "",
+  };
 
   const { error } = await adminClient
     .from("profiles")
-    .update(validData)
+    .update(updatePayload)
     .eq("id", userId);
 
   if (error) throw new Error(error.message);
+
+  // Sync Auth metadata for user
+  const effectiveFirstName = isParent ? (data.parent_first_name || data.first_name) : (data.student_first_name || data.first_name);
+  const effectiveLastName = isParent ? data.parent_last_name : data.student_last_name;
+  const effectivePhone = isParent ? (data.parent_phone || data.phone) : (data.student_phone || data.phone);
+
+  await adminClient.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      first_name: effectiveFirstName,
+      last_name: effectiveLastName,
+      full_name: `${effectiveFirstName || ""} ${effectiveLastName || ""}`.trim(),
+      phone: effectivePhone,
+    },
+  }).catch(() => {});
+
+  // Sync with linked student or linked parent
+  if (isParent) {
+    let studentId: string | null = targetProfile.linked_student_id;
+    if (!studentId && targetProfile.parent_email) {
+      const { data: studentMatch } = await adminClient
+        .from("profiles")
+        .select("id")
+        .ilike("parent_email", targetProfile.parent_email.toLowerCase().trim())
+        .neq("account_type", "parent")
+        .maybeSingle();
+      studentId = studentMatch?.id || null;
+    }
+
+    if (studentId) {
+      await adminClient
+        .from("profiles")
+        .update({
+          student_first_name: data.student_first_name || "",
+          student_last_name: data.student_last_name || "",
+          student_email: data.student_email || "",
+          student_phone: data.student_phone || "",
+          parent_first_name: data.parent_first_name || "",
+          parent_last_name: data.parent_last_name || "",
+          parent_email: data.parent_email || "",
+          parent_phone: data.parent_phone || "",
+        })
+        .eq("id", studentId);
+    }
+  } else {
+    let { data: linkedParent } = await adminClient
+      .from("profiles")
+      .select("id")
+      .eq("linked_student_id", userId)
+      .eq("account_type", "parent")
+      .maybeSingle();
+
+    if (!linkedParent && targetProfile.parent_email) {
+      const { data: fallbackParent } = await adminClient
+        .from("profiles")
+        .select("id")
+        .ilike("parent_email", targetProfile.parent_email.toLowerCase().trim())
+        .eq("account_type", "parent")
+        .maybeSingle();
+      linkedParent = fallbackParent;
+    }
+
+    if (linkedParent?.id) {
+      await adminClient
+        .from("profiles")
+        .update({
+          parent_first_name: data.parent_first_name || "",
+          parent_last_name: data.parent_last_name || "",
+          parent_email: data.parent_email || "",
+          parent_phone: data.parent_phone || "",
+        })
+        .eq("id", linkedParent.id);
+    }
+  }
+
   revalidatePath("/admin/users");
   return { success: true };
 }
@@ -329,6 +541,35 @@ export async function deleteUserAccount(userId: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/admin/users");
   return { success: true };
+}
+
+export async function bulkDeleteUsers(userIds: string[]) {
+  await requirePermission("manage_users");
+  const adminClient = await createAdminClient();
+
+  // Auto-include linked parents for any student IDs in the selection
+  const { data: linkedParents } = await adminClient
+    .from("profiles")
+    .select("id")
+    .in("linked_student_id", userIds)
+    .eq("account_type", "parent");
+
+  const allIdsToDelete = new Set<string>(userIds);
+  (linkedParents || []).forEach((p: { id: string }) => allIdsToDelete.add(p.id));
+
+  const results: { deleted: number; failed: string[] } = { deleted: 0, failed: [] };
+
+  for (const id of allIdsToDelete) {
+    const { error } = await adminClient.auth.admin.deleteUser(id);
+    if (error) {
+      results.failed.push(id);
+    } else {
+      results.deleted++;
+    }
+  }
+
+  revalidatePath("/admin/users");
+  return results;
 }
 
 export async function updateSiteSettings(data: { site_name: string; support_email: string; support_phone: string }) {
@@ -712,4 +953,136 @@ export async function uploadEarnVideoFile(formData: FormData) {
   const { data: { publicUrl } } = adminClient.storage.from("earn-videos").getPublicUrl(storagePath);
 
   return { storagePath, publicUrl };
+}
+
+export async function getUserFreshDetails(userId: string) {
+  try {
+    await verifyAdmin();
+    const adminClient = await createAdminClient();
+
+    const { data: profile, error } = await adminClient
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error || !profile) {
+      return { success: false, error: error?.message || "User not found" };
+    }
+
+    // If user is a student or standard member, check if parent is linked
+    const isParent = profile.account_type === "parent";
+    if (!isParent) {
+      let { data: linkedParent } = await adminClient
+        .from("profiles")
+        .select("*")
+        .eq("linked_student_id", userId)
+        .maybeSingle();
+
+      if (!linkedParent && profile.student_email) {
+        const { data: fallbackParent } = await adminClient
+          .from("profiles")
+          .select("*")
+          .eq("student_email", profile.student_email)
+          .eq("account_type", "parent")
+          .maybeSingle();
+        linkedParent = fallbackParent;
+      }
+
+      if (linkedParent) {
+        profile.parent_first_name = profile.parent_first_name || linkedParent.parent_first_name || "";
+        profile.parent_last_name = profile.parent_last_name || linkedParent.parent_last_name || "";
+        profile.parent_email = profile.parent_email || linkedParent.parent_email || "";
+        profile.parent_phone = profile.parent_phone || linkedParent.parent_phone || "";
+
+        if ((linkedParent.subscription_status === "active" || linkedParent.subscription_status === "trialing") && !profile.subscription_status) {
+          profile.stripe_customer_id = linkedParent.stripe_customer_id;
+          profile.stripe_subscription_id = linkedParent.stripe_subscription_id;
+          profile.stripe_price_id = linkedParent.stripe_price_id;
+          profile.subscription_status = linkedParent.subscription_status;
+        }
+      }
+    } else {
+      let student = null;
+      if (profile.linked_student_id) {
+        const { data: st } = await adminClient
+          .from("profiles")
+          .select("*")
+          .eq("id", profile.linked_student_id)
+          .maybeSingle();
+        student = st;
+      }
+
+      const { data: authUserObj } = await adminClient.auth.admin.getUserById(userId);
+      const userMeta = authUserObj?.user?.user_metadata || {};
+
+      if (!student && userMeta.linked_student_id) {
+        const { data: st } = await adminClient
+          .from("profiles")
+          .select("*")
+          .eq("id", userMeta.linked_student_id)
+          .maybeSingle();
+        student = st;
+      }
+
+      if (!student) {
+        const parentEmail = (profile.parent_email || authUserObj?.user?.email || "").toLowerCase().trim();
+        if (parentEmail) {
+          const { data: st } = await adminClient
+            .from("profiles")
+            .select("*")
+            .ilike("parent_email", parentEmail)
+            .neq("account_type", "parent")
+            .maybeSingle();
+          student = st;
+        }
+      }
+
+      if (student) {
+        profile.parent_first_name = profile.parent_first_name || student.parent_first_name || userMeta.parent_first_name || userMeta.first_name || "";
+        profile.parent_last_name = profile.parent_last_name || student.parent_last_name || userMeta.parent_last_name || userMeta.last_name || "";
+        profile.parent_phone = profile.parent_phone || student.parent_phone || userMeta.parent_phone || userMeta.phone || "";
+        profile.parent_email = profile.parent_email || student.parent_email || authUserObj?.user?.email || "";
+        profile.first_name = profile.first_name || profile.parent_first_name;
+        profile.phone = profile.phone || profile.parent_phone;
+        profile.linked_student_id = profile.linked_student_id || student.id;
+        (profile as any).linked_student = student;
+
+        if ((student.subscription_status === "active" || student.subscription_status === "trialing") && !profile.subscription_status) {
+          profile.stripe_customer_id = student.stripe_customer_id;
+          profile.stripe_subscription_id = student.stripe_subscription_id;
+          profile.stripe_price_id = student.stripe_price_id;
+          profile.subscription_status = student.subscription_status;
+        }
+      } else {
+        profile.parent_first_name = profile.parent_first_name || profile.first_name || userMeta.parent_first_name || userMeta.first_name || "";
+        profile.parent_last_name = profile.parent_last_name || userMeta.parent_last_name || userMeta.last_name || "";
+        profile.parent_phone = profile.parent_phone || profile.phone || userMeta.parent_phone || userMeta.phone || "";
+        profile.parent_email = profile.parent_email || authUserObj?.user?.email || "";
+        profile.first_name = profile.first_name || profile.parent_first_name;
+        profile.phone = profile.phone || profile.parent_phone;
+      }
+    }
+
+    const { data: aiUsage } = await adminClient
+      .from("ai_usage")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const { data: authUser } = await adminClient.auth.admin.getUserById(userId);
+
+    return {
+      success: true,
+      user: {
+        ...profile,
+        email: authUser?.user?.email || profile.student_email || profile.parent_email,
+        last_login_date: profile.last_login_date || authUser?.user?.last_sign_in_at || null,
+        created_at: profile.created_at || authUser?.user?.created_at || null,
+        usage: aiUsage || null,
+      },
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to fetch user details" };
+  }
 }

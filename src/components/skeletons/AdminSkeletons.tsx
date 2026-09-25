@@ -1,71 +1,73 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
 
 export function AdminDashboardSkeleton() {
   return (
-    <div className="space-y-8 max-w-6xl mx-auto">
-      {/* Header Skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="space-y-2">
-          <Skeleton className="h-9 w-64" />
-          <Skeleton className="h-4 w-40" />
-        </div>
-        <Skeleton className="h-10 w-24 rounded-xl" />
-      </div>
+    <div className="max-w-screen-2xl mx-auto space-y-6">
+      {/* Hero Skeleton */}
+      <Skeleton className="w-full h-[180px] rounded-2xl" />
 
-      {/* Stats Grid Skeleton */}
-      <div className="space-y-4">
-        <Skeleton className="h-4 w-20" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-start gap-4">
-              <Skeleton className="w-12 h-12 rounded-xl shrink-0" />
-              <div className="space-y-1.5 flex-1">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-6 w-10" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Quick Actions & Recent Skeletons */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-1 space-y-4">
-          <Skeleton className="h-4 w-28" />
+      {/* Two-column skeleton */}
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* Left main */}
+        <div className="flex-1 min-w-0 space-y-6">
+          {/* Stats */}
           <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3">
-                <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
-                <div className="space-y-1.5 flex-1">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-3 w-32" />
+            <Skeleton className="h-4 w-24" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-start justify-between gap-3">
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-2.5 w-20" />
+                    <Skeleton className="h-7 w-14" />
+                  </div>
+                  <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-50 space-y-1.5">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3 w-52" />
+            </div>
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="p-4 rounded-xl border border-slate-100 flex items-center gap-3">
+                  <Skeleton className="w-9 h-9 rounded-xl shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-        
-        <div className="md:col-span-2 space-y-4">
-          <Skeleton className="h-4 w-36" />
-          <Card className="rounded-2xl border border-slate-100 shadow-sm">
-            <CardContent className="p-0">
-              <div className="divide-y divide-slate-50">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="p-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <Skeleton className="w-8 h-8 rounded-full" />
-                      <div className="space-y-1">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                    </div>
-                    <Skeleton className="h-5 w-16 rounded-full" />
+
+        {/* Right sidebar */}
+        <div className="xl:w-80 2xl:w-[340px] shrink-0 space-y-4">
+          {/* Activity panel */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-50">
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <div className="divide-y divide-slate-50">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-start gap-3 px-5 py-3.5">
+                  <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-3.5 w-36" />
+                    <Skeleton className="h-3 w-28" />
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  <Skeleton className="h-3 w-10 shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Motivation card */}
+          <Skeleton className="w-full aspect-[4/3] rounded-2xl" />
         </div>
       </div>
     </div>

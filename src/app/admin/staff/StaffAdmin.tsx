@@ -25,15 +25,25 @@ import {
   X,
   Loader2,
   KeyRound,
+  MoreVertical,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PhoneInput } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { UserDetailsModal } from "@/app/admin/users/UserDetailsModal";
 import {
   createStaffAccount,
   updateStaffMember,
   disableStaffAccount,
   deleteStaffMember,
 } from "@/app/actions/admin-staff";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 import { STAFF_ROLES, ROLE_LABELS, type StaffRole } from "@/lib/rbac";
 import { formatPhoneUS } from "@/lib/phone";
@@ -102,6 +112,7 @@ export function StaffAdmin({
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [detailsStaff, setDetailsStaff] = useState<StaffMember | null>(null);
 
   // Create form state
   const [newEmail, setNewEmail] = useState("");
@@ -222,22 +233,30 @@ export function StaffAdmin({
   };
 
   // Handle disable/enable toggle
-  const handleToggleStatus = (staff: StaffMember) => {
+  const handleToggleStatus = async (staff: StaffMember) => {
     const isCurrentlyActive = staff.is_active;
-    const actionName = isCurrentlyActive ? "disable" : "enable";
+    const actionName = isCurrentlyActive ? "Disable" : "Enable";
+    const staffName = staff.name || staff.first_name || staff.email;
 
     if (staff.id === currentUserId && isCurrentlyActive) {
       toast.error("You cannot disable your own active account.");
       return;
     }
 
-    if (
-      !confirm(
-        `Are you sure you want to ${actionName} account access for ${staff.name || staff.email}?`
-      )
-    ) {
-      return;
-    }
+    const confirmResult = await Swal.fire({
+      title: `${actionName} ${staffName}?`,
+      text: isCurrentlyActive
+        ? `Are you sure you want to disable account access for ${staffName}? They will not be able to log in.`
+        : `Are you sure you want to enable account access for ${staffName}?`,
+      icon: isCurrentlyActive ? "warning" : "question",
+      showCancelButton: true,
+      confirmButtonText: `Yes, ${actionName} Account`,
+      cancelButtonText: "Cancel",
+      confirmButtonColor: isCurrentlyActive ? "#d97706" : "#10b981",
+      cancelButtonColor: "#94a3b8",
+    });
+
+    if (!confirmResult.isConfirmed) return;
 
     startTransition(async () => {
       try {
@@ -252,24 +271,31 @@ export function StaffAdmin({
   };
 
   // Handle delete staff
-  const handleDelete = (staff: StaffMember) => {
+  const handleDelete = async (staff: StaffMember) => {
+    const staffName = staff.name || staff.first_name || staff.email;
+
     if (staff.id === currentUserId) {
       toast.error("You cannot delete your own account.");
       return;
     }
 
-    if (
-      !confirm(
-        `⚠️ WARNING: Are you sure you want to permanently delete ${staff.name} (${staff.email})? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
+    const confirmResult = await Swal.fire({
+      title: `Delete ${staffName}?`,
+      text: `Are you sure you want to permanently delete ${staffName} (${staff.email}) and all associated staff access? This action cannot be undone.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Delete Staff",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#94a3b8",
+    });
+
+    if (!confirmResult.isConfirmed) return;
 
     startTransition(async () => {
       try {
         await deleteStaffMember(staff.id);
-        toast.success(`Staff member "${staff.name}" deleted successfully.`);
+        toast.success(`Staff member "${staffName}" deleted successfully.`);
       } catch (error: any) {
         toast.error(error.message || "Failed to delete account");
       }
@@ -408,16 +434,16 @@ export function StaffAdmin({
                 <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">
                   Staff Member
                 </th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">
+                <th className="px-4 py-4 font-semibold text-xs uppercase tracking-wider w-[180px]">
                   Role & Access
                 </th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider">
+                <th className="px-4 py-4 font-semibold text-xs uppercase tracking-wider w-[120px]">
                   Status
                 </th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider hidden md:table-cell">
+                <th className="px-4 py-4 font-semibold text-xs uppercase tracking-wider w-[150px] hidden md:table-cell">
                   Joined Date
                 </th>
-                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-right">
+                <th className="px-6 py-4 font-semibold text-xs uppercase tracking-wider text-right w-[80px]">
                   Actions
                 </th>
               </tr>
@@ -508,17 +534,15 @@ export function StaffAdmin({
                       </td>
 
                       {/* Role & Access */}
-                      <td className="px-6 py-4">
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1">
-                          <span className={`inline-flex items-center gap-1.5 ${roleStyle} px-2.5 py-0.5 rounded-full border text-xs font-semibold max-w-fit`}>
-                            <RoleIcon className="w-3.5 h-3.5" />
-                            {ROLE_LABELS[staff.role] || staff.role?.replace("_", " ")}
-                          </span>
-                        </div>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 ${roleStyle} px-2.5 py-0.5 rounded-full border text-xs font-semibold max-w-fit`}>
+                          <RoleIcon className="w-3.5 h-3.5" />
+                          {ROLE_LABELS[staff.role] || staff.role?.replace("_", " ")}
+                        </span>
                       </td>
 
                       {/* Status */}
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 whitespace-nowrap">
                         {staff.is_active ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -533,16 +557,27 @@ export function StaffAdmin({
                       </td>
 
                       {/* Joined Date */}
-                      <td className="px-6 py-4 text-xs text-slate-500 hidden md:table-cell">
+                      <td className="px-4 py-4 text-xs text-slate-500 hidden md:table-cell whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{new Date(staff.created_at).toLocaleDateString()}</span>
+                          <span>
+                            {new Date(staff.created_at).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
                         </div>
                         {staff.last_sign_in_at && (
                           <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
                             <Clock className="w-3 h-3 text-slate-400" />
                             <span>
-                              Active {new Date(staff.last_sign_in_at).toLocaleDateString()}
+                              Active{" "}
+                              {new Date(staff.last_sign_in_at).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
                             </span>
                           </div>
                         )}
@@ -550,66 +585,86 @@ export function StaffAdmin({
 
                       {/* Actions */}
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Edit Details */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEdit(staff)}
-                            disabled={isPending}
-                            className="h-8 px-2.5 rounded-lg text-slate-700 hover:text-violet-700 hover:bg-violet-50 font-medium text-xs gap-1.5"
-                            title="Edit staff details"
-                          >
-                            <Pencil className="w-3.5 h-3.5 text-violet-600" />
-                            <span>Edit</span>
-                          </Button>
+                        <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 data-[state=open]:bg-slate-100 data-[state=open]:text-slate-900 rounded-lg transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-500 shrink-0"
+                              title="Actions"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="w-48 bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 space-y-0.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-slate-700 text-left"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDetailsStaff(staff);
+                                }}
+                                className="flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:bg-indigo-50/80 rounded-lg cursor-pointer transition-colors"
+                              >
+                                <Eye className="w-4 h-4 text-indigo-500 shrink-0" />
+                                <span>View Details</span>
+                              </DropdownMenuItem>
 
-                          {/* Enable/Disable Toggle */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleStatus(staff)}
-                            disabled={isPending || isCurrent}
-                            className={`h-8 px-2.5 rounded-lg font-medium text-xs gap-1.5 ${staff.is_active
-                                ? "text-slate-600 hover:text-amber-700 hover:bg-amber-50"
-                                : "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
-                              }`}
-                            title={
-                              isCurrent
-                                ? "Cannot disable your own account"
-                                : staff.is_active
-                                  ? "Disable account access"
-                                  : "Enable account access"
-                            }
-                          >
-                            {staff.is_active ? (
-                              <>
-                                <UserX className="w-3.5 h-3.5 text-amber-600" />
-                                <span className="hidden sm:inline">Disable</span>
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-                                <span className="hidden sm:inline">Enable</span>
-                              </>
-                            )}
-                          </Button>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEdit(staff);
+                                }}
+                                className="flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:text-violet-600 hover:bg-violet-50/80 rounded-lg cursor-pointer transition-colors"
+                              >
+                                <Pencil className="w-4 h-4 text-violet-500 shrink-0" />
+                                <span>Edit</span>
+                              </DropdownMenuItem>
 
-                          {/* Delete Account */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(staff)}
-                            disabled={isPending || isCurrent}
-                            className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                            title={
-                              isCurrent
-                                ? "Cannot delete your own account"
-                                : "Delete staff member"
-                            }
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                              <DropdownMenuItem
+                                disabled={isPending || isCurrent}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStatus(staff);
+                                }}
+                                className={`flex items-center gap-2 px-2.5 py-2 text-xs font-semibold rounded-lg cursor-pointer transition-colors ${
+                                  staff.is_active
+                                    ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                    : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                } ${isCurrent ? "opacity-50 cursor-not-allowed" : ""}`}
+                              >
+                                {staff.is_active ? (
+                                  <>
+                                    <UserX className="w-4 h-4 text-amber-500 shrink-0" />
+                                    <span>Disable</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                                    <span>Enable</span>
+                                  </>
+                                )}
+                              </DropdownMenuItem>
+
+                              {!isCurrent && (
+                                <>
+                                  <div className="h-px bg-slate-100 my-1 -mx-1" />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    disabled={isPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(staff);
+                                    }}
+                                    className="flex items-center gap-2 px-2.5 py-2 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-red-500 shrink-0" />
+                                    <span>Delete</span>
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>
@@ -906,6 +961,20 @@ export function StaffAdmin({
             </form>
           </div>
         </div>
+      )}
+      {/* ============================================================ */}
+      {/*  STAFF DETAILS MODAL                                         */}
+      {/* ============================================================ */}
+      {detailsStaff && (
+        <UserDetailsModal
+          user={detailsStaff}
+          isOpen={!!detailsStaff}
+          onClose={() => setDetailsStaff(null)}
+          onManage={() => {
+            handleOpenEdit(detailsStaff);
+            setDetailsStaff(null);
+          }}
+        />
       )}
     </div>
   );

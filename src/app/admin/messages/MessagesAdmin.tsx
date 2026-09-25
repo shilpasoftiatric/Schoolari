@@ -1168,8 +1168,6 @@ export function MessagesAdmin({
                       ) : (
                         <>
                           <span>{activeConversation.email}</span>
-                          <span>•</span>
-                          <span>GPA: {activeConversation.gpa}</span>
                         </>
                       )}
                     </p>

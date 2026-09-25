@@ -17,12 +17,34 @@ export default function UpdatePasswordPage() {
   const supabase = createClient();
 
   useEffect(() => {
-    // If the invite link used implicit flow, manually extract and set the session
+    // 1. Direct custom OTP token verification if present in query params
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const type = params.get("type");
+
+    if (token) {
+      const otpType: any = type === "invite" ? "invite" : type === "signup" ? "signup" : "recovery";
+      supabase.auth.verifyOtp({ token_hash: token, type: otpType }).then(({ error: verifyErr }) => {
+        if (verifyErr) {
+          const altType: any = otpType === "recovery" ? "invite" : "recovery";
+          supabase.auth.verifyOtp({ token_hash: token, type: altType }).then(({ error: altErr }) => {
+            if (altErr) {
+              console.warn("OTP verification error:", altErr);
+              setError("The setup link is invalid or has expired. Please ask your administrator to send a new invite.");
+            }
+          });
+        }
+        window.history.replaceState(null, "", window.location.pathname);
+      });
+      return;
+    }
+
+    // 2. If the invite link used implicit flow, manually extract and set the session
     const hash = window.location.hash;
     if (hash && hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1));
-      const access_token = params.get("access_token");
-      const refresh_token = params.get("refresh_token");
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const access_token = hashParams.get("access_token");
+      const refresh_token = hashParams.get("refresh_token");
       if (access_token && refresh_token) {
         supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
           if (error) console.error("Error setting session:", error);
@@ -40,20 +62,43 @@ export default function UpdatePasswordPage() {
       return;
     }
 
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.updateUser({ password });
+    const { data: updateData, error } = await supabase.auth.updateUser({ password });
 
     if (error) {
       setError(error.message);
       setLoading(false);
-    } else {
-      // Heal the invited user's profile (fix account_type, links) and get the
-      // correct redirect path (bypasses pricing if the inviter already paid).
-      const { redirectTo } = await healInvitedUserProfile();
-      router.push(redirectTo);
+      return;
     }
+
+    // Explicitly authenticate with the new password to establish a long-lived persistent session
+    let userEmail = updateData?.user?.email;
+    if (!userEmail) {
+      const { data: { user } } = await supabase.auth.getUser();
+      userEmail = user?.email;
+    }
+
+    if (userEmail) {
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: password,
+      });
+      if (signInErr) {
+        console.warn("Auto sign-in warning after password update:", signInErr.message);
+      }
+    }
+
+    // Heal the invited user's profile (fix account_type, links) and get the
+    // correct redirect path (redirects to /pricing if unpaid, or dashboard/onboarding if paid).
+    const { redirectTo } = await healInvitedUserProfile();
+    router.push(redirectTo || "/pricing");
   };
 
   return (

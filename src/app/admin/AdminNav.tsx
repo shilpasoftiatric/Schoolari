@@ -97,15 +97,21 @@ export function AdminNav({ role, isCollapsed = false, onNavigate }: AdminNavProp
   // Filter nav items based on what this role is allowed to see
   const visibleItems = ALL_NAV_ITEMS.filter((item) => {
     const requiredPermission = NAV_PERMISSIONS[item.href];
-    if (!requiredPermission) return true; // No permission needed → always show
+    if (!requiredPermission) return true;
     return hasPermission(role, requiredPermission);
   });
 
   return (
-    <nav className={cn("flex-1 space-y-1 overflow-y-auto", isCollapsed ? "px-2 py-3" : "px-3 py-3")}>
+    <nav
+      className={cn(
+        "flex-1 overflow-y-auto",
+        isCollapsed ? "px-2 py-2 space-y-1" : "px-3 py-2 space-y-0.5"
+      )}
+    >
       {visibleItems.map((item) => {
         const Icon = item.icon;
-        const isActive = selectedHref === item.href || selectedHref.startsWith(item.href + "/");
+        const isActive =
+          selectedHref === item.href || selectedHref.startsWith(item.href + "/");
         const isMessages = item.href === "/admin/messages";
 
         return (
@@ -118,30 +124,50 @@ export function AdminNav({ role, isCollapsed = false, onNavigate }: AdminNavProp
               onNavigate?.();
             }}
             className={cn(
-              "flex items-center rounded-xl text-sm font-semibold transition-all relative group",
-              isCollapsed ? "w-10 h-10 justify-center p-0 mx-auto" : "gap-3 px-3 py-2.5",
+              "flex items-center rounded-xl text-[13px] font-medium transition-all duration-150 relative group",
+              isCollapsed
+                ? "w-10 h-10 justify-center p-0 mx-auto"
+                : "gap-3 px-3 py-2.5",
               isActive
-                ? "text-slate-900 bg-slate-100 font-bold"
-                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                ? // Active state: subtle blue-violet glow with left accent border
+                  "bg-gradient-to-r from-blue-500/15 to-violet-500/10 text-white border border-white/10 shadow-sm"
+                : // Inactive state: muted, hover brightens
+                  "text-slate-400 hover:text-white hover:bg-white/8 border border-transparent"
             )}
           >
-            <Icon className={cn("w-5 h-5 shrink-0", isActive ? "text-slate-900" : "text-slate-400 group-hover:text-slate-700")} />
-            {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+            {/* Active left accent bar */}
+            {isActive && !isCollapsed && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-400 rounded-full" />
+            )}
 
-            {/* Notification Badge / Dot for Unread Messages */}
+            <Icon
+              className={cn(
+                "shrink-0 transition-colors",
+                isCollapsed ? "w-4.5 h-4.5" : "w-4 h-4",
+                isActive
+                  ? "text-blue-400"
+                  : "text-slate-500 group-hover:text-slate-300"
+              )}
+            />
+
+            {!isCollapsed && (
+              <span className="flex-1 truncate">{item.label}</span>
+            )}
+
+            {/* Unread badge — Messages item */}
             {isMessages && !isActive && unreadCount > 0 && (
               isCollapsed ? (
-                <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-xs" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 ml-auto">
-                  <span className="relative flex h-2 w-2">
+                  <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 shadow-2xs shadow-rose-500/50" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
                   </span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-extrabold leading-none shadow-2xs">
+                  <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-extrabold leading-none">
                     {unreadCount}
                   </span>
                 </span>

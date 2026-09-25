@@ -227,8 +227,21 @@ export async function healInvitedUserProfile(): Promise<{ redirectTo: string }> 
     return { redirectTo: "/onboarding" };
   }
 
-  // --- CASE 3: Fresh signup (not an invite) → normal flow ---
-  return { redirectTo: "/dashboard" };
+  // --- CASE 3: Fresh signup / Admin invited member without existing active subscription ---
+  const { data: currentProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("subscription_status, onboarding_complete")
+    .eq("id", user.id)
+    .single();
+
+  if (currentProfile?.subscription_status === "active" || currentProfile?.subscription_status === "trialing") {
+    if (currentProfile.onboarding_complete) {
+      return { redirectTo: "/dashboard" };
+    }
+    return { redirectTo: "/onboarding" };
+  }
+
+  return { redirectTo: "/pricing" };
 }
 
 export async function sendPasswordResetLink(formData: FormData) {

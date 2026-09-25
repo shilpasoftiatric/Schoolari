@@ -153,79 +153,155 @@ nextjs-portal {
 /* ==========================================================================
    US STUDENT RESUME BUILDER — ENTERPRISE PRINT & PDF FORMATTING
    ========================================================================== */
+@page {
+  size: letter portrait;
+  margin: 0mm; /* Suppresses browser header (date, title) and footer (URL, page numbers) */
+}
+
 @media print {
-
-  /* 1. Standard US Letter (8.5 x 11 inches) Portrait with 0 page margin.
-        Setting margin to 0 automatically prevents Chrome, Edge, and Safari from
-        printing default browser headers & footers (URL, Date, Page title/numbers). */
-  @page {
-    size: letter portrait;
-    margin: 0mm;
-  }
-
-  /* 2. Hide ALL website UI, navigation bars, topbars, sidebars, modals, and toolbars */
-  body * {
-    visibility: hidden !important;
-  }
-
-  /* 3. Make ONLY the printable resume sheet and its children visible */
-  #print-resume-area,
-  #print-resume-area * {
-    visibility: visible !important;
-  }
-
-  /* 4. Reset layout wrappers so browsers NEVER render vertical scrollbar tracks */
+  /* 1. Global Reset */
   html,
-  body,
-  div,
-  main,
-  section,
-  .fixed,
-  .overflow-hidden,
-  .overflow-y-auto,
-  .overflow-x-hidden {
+  body {
     overflow: visible !important;
     height: auto !important;
-    max-height: none !important;
-    position: static !important;
-    background: white !important;
-    color: black !important;
-    box-shadow: none !important;
+    min-height: auto !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
-  /* 5. Position the resume area at top-left (0,0) with standard US Letter 0.5in-0.6in margins */
-  #print-resume-area {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+  /* 2. When dedicated print mount is active, completely isolate it from dashboard layout */
+  body:has(#dedicated-print-mount) > *:not(#dedicated-print-mount) {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #dedicated-print-mount {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
     width: 100% !important;
     max-width: 100% !important;
-    min-height: auto !important;
+    box-sizing: border-box !important;
     margin: 0 !important;
-    padding: 0.5in 0.6in !important;
-    border: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    background: white !important;
-    color: black !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10.5pt;
+    line-height: 1.35;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  /* 6. Prevent awkward page breaks inside headers, sections, or bullet items */
-  #print-resume-area header,
-  #print-resume-area section,
-  #print-resume-area h1,
-  #print-resume-area h2,
-  #print-resume-area h3,
-  #print-resume-area li {
-    break-inside: avoid;
-    page-break-inside: avoid;
+  #dedicated-print-mount * {
+    visibility: visible !important;
   }
 
-  /* 7. Strip shadows and extra styling in print */
-  #print-resume-area * {
-    text-shadow: none !important;
+  /* Paged Media table spacers: guarantees 0.5in top/bottom/side margins on EVERY page */
+  .print-page-table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .print-page-table thead {
+    display: table-header-group !important;
+  }
+
+  .print-page-table tfoot {
+    display: table-footer-group !important;
+  }
+
+  .print-page-table tbody {
+    display: table-row-group !important;
+  }
+
+  .print-page-header-spacer {
+    height: 0.5in !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-page-footer-spacer {
+    height: 0.5in !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-page-content {
+    padding-left: 0.5in !important;
+    padding-right: 0.5in !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border: none !important;
+    vertical-align: top !important;
+  }
+
+  /* 3. Fallback for screen layout printing */
+  .fixed,
+  .overflow-hidden,
+  .overflow-y-auto,
+  .overflow-x-hidden,
+  #main-content-viewport,
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    position: static !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* 4. Multi-Page Break Rules */
+  header {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* SECTIONS MUST BREAK ACROSS PAGES so Page 1 does not sit half-empty! */
+  section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  /* Section headers must never be left orphaned at the bottom of a page */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Keep each individual entry (job, education, award, club) intact so it does not split mid-item */
+  .break-inside-avoid,
+  section > div > div {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  li {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Prevent awkward typography slices across page boundaries */
+  p,
+  li {
+    orphans: 2;
+    widows: 2;
   }
 }
 
@@ -284,4 +360,23 @@ div:where(.swal2-container) button:where(.swal2-styled) {
 .no-scrollbar {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+/* AI Loader overlay dynamic sidebar alignment with hardware-accelerated 300ms CSS transition */
+.ai-loader-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: left 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (min-width: 1024px) {
+  .ai-loader-overlay {
+    left: 16rem; /* w-64 */
+  }
+
+  html[data-sidebar-collapsed="true"] .ai-loader-overlay {
+    left: 5rem; /* w-20 */
+  }
 }

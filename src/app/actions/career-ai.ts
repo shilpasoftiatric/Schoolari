@@ -194,28 +194,61 @@ Return JSON array of best matching job IDs:`;
   }
 }
 
-export async function matchResumeToJobAction(jobDescription: string) {
+export async function matchResumeToJobAction(
+  jobDescription: string,
+  selectedResumeId?: string,
+  jobTitle?: string,
+  employerName?: string
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) throw new Error("Unauthorized");
 
-  const resume = await getResume();
+  const { getResumesAction } = await import("@/app/actions/resume");
+  const resumePayload = await getResumesAction();
 
-  const systemPrompt = `You are an ATS (Applicant Tracking System) simulator and AI career coach.
-Given a job description and a student's resume JSON, provide a JSON response evaluating the match.
+  let targetResume: any = null;
+  if (selectedResumeId && resumePayload?.resumes?.length) {
+    targetResume = resumePayload.resumes.find(r => r.id === selectedResumeId) || resumePayload.resumes[0];
+  } else if (resumePayload?.active_resume_id && resumePayload?.resumes?.length) {
+    targetResume = resumePayload.resumes.find(r => r.id === resumePayload.active_resume_id) || resumePayload.resumes[0];
+  } else if (resumePayload?.resumes?.length) {
+    targetResume = resumePayload.resumes[0];
+  }
+
+  if (!targetResume) {
+    const fallbackResume = await getResume();
+    targetResume = fallbackResume?.content || {};
+  }
+
+  const systemPrompt = `You are an expert ATS (Applicant Tracking System) simulator and US student career coach.
+Given a job opening and a US student's resume document, evaluate their suitability and qualifications against the role.
+Consider US education standards (high school / college student experience, GPAs, coursework, leadership, internships, extracurriculars, hard & soft skills, and certifications).
+
+Analyze how well their background matches the required and preferred qualifications.
+Provide an honest, constructive evaluation.
+If the student possesses relevant skills, coursework, or leadership, acknowledge them in "matching_skills".
+Identify genuine missing or recommended qualifications in "missing_skills".
+Provide an actionable, encouraging recommendation in "advice".
+
 Required JSON structure:
 {
   "score": "Strong Match" | "Good Match" | "Needs Work",
-  "matching_skills": ["skill 1", "skill 2"],
-  "missing_skills": ["missing 1", "missing 2"],
-  "advice": "Short advice sentence"
+  "match_percentage": 82,
+  "matching_skills": ["Skill / Strength 1", "Skill / Strength 2"],
+  "missing_skills": ["Missing / Recommended Skill 1", "Missing / Recommended Skill 2"],
+  "advice": "1-2 sentences of strategic career advice on how to tailor their resume or interview talking points for this employer."
 }`;
 
-  const userPrompt = `Job Description: ${jobDescription}
+  const userPrompt = `Job Title: ${jobTitle || "Student Opportunity"}
+Employer: ${employerName || "Employer"}
 
-Resume Data:
-${JSON.stringify(resume?.content || {}, null, 2)}`;
+Job Description:
+${(jobDescription || "").substring(0, 3500)}
+
+Student Resume Data:
+${JSON.stringify(targetResume, null, 2)}`;
 
   try {
     const aiResponse = await callAI({
@@ -634,12 +667,32 @@ export async function saveJobToTrackerAction(jobData: any, status: string = "Not
 /**
  * Surface 5-7 tailored interview questions powered by Claude AI for a scheduled job interview
  */
-export async function getJobInterviewQuestionsAction(jobTitle: string, company: string, jobDescription: string) {
+export async function getJobInterviewQuestionsAction(
+  jobTitle: string,
+  company: string,
+  jobDescription: string,
+  selectedResumeId?: string
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  const resume = await getResume();
+  const { getResumesAction } = await import("@/app/actions/resume");
+  const resumePayload = await getResumesAction();
+
+  let targetResume: any = null;
+  if (selectedResumeId && resumePayload?.resumes?.length) {
+    targetResume = resumePayload.resumes.find(r => r.id === selectedResumeId) || resumePayload.resumes[0];
+  } else if (resumePayload?.active_resume_id && resumePayload?.resumes?.length) {
+    targetResume = resumePayload.resumes.find(r => r.id === resumePayload.active_resume_id) || resumePayload.resumes[0];
+  } else if (resumePayload?.resumes?.length) {
+    targetResume = resumePayload.resumes[0];
+  }
+
+  if (!targetResume) {
+    const fallbackResume = await getResume();
+    targetResume = fallbackResume?.content || {};
+  }
 
   const systemPrompt = `You are an elite corporate recruiter and career coach preparing a high school / college student for a job interview.
 Given a job title, employer name, job description, and the student's background, generate 5 to 7 highly tailored, likely interview questions.
@@ -666,7 +719,7 @@ Job Description:
 ${(jobDescription || "").substring(0, 3000)}
 
 Student Resume Data:
-${JSON.stringify(resume?.content || {}, null, 2)}`;
+${JSON.stringify(targetResume, null, 2)}`;
 
   try {
     const aiResponse = await callAI({
@@ -857,5 +910,194 @@ export async function removeWishlistJobAction(jobId: string) {
 
   revalidatePath("/jobs");
   return { success: true };
+}
+
+/**
+ * Evaluate a student's STAR method interview answer using Claude AI
+ */
+export async function evaluateStarInterviewAnswerAction(params: {
+  jobTitle: string;
+  company: string;
+  question: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { jobTitle, company, question, situation, task, action, result } = params;
+
+  if (!situation.trim() || !task.trim() || !action.trim() || !result.trim()) {
+    throw new Error("All four STAR components (Situation, Task, Action, Result) are required for evaluation.");
+  }
+
+  const systemPrompt = `You are a Senior US Corporate Recruiter and Harvard Career Services Interview Coach evaluating a high school or college student applying for an internship or job.
+Evaluate the student's answer using the STAR method (Situation, Task, Action, Result).
+Strictly score based on US hiring standards:
+- Situation: Was it concise and relevant? (Did not spend too much time setting up).
+- Task: Was their personal responsibility clear?
+- Action: Did they use strong action verbs? Did they emphasize what *they* personally did rather than just "the team"?
+- Result: Is there a quantifiable outcome (numbers, percentages, hours saved, awards, grades, or tangible lessons learned)?
+
+Return a JSON object with this exact structure:
+{
+  "score": 85, // integer 0 to 100
+  "rating": "Strong Answer", // "Strong Answer" (80-100), "Solid Effort" (65-79), or "Needs Refinement" (0-64)
+  "strengths": [
+    "1-2 bullet points highlighting what they did exceptionally well"
+  ],
+  "improvements": [
+    "1-2 actionable tips on what to improve (e.g. adding metrics, trimming fluff, stronger action verbs)"
+  ],
+  "polished_answer": "An eloquent, confident 45 to 60-second spoken delivery combining their S, T, A, and R into a natural monologue that rolls off the tongue in a live interview."
+}`;
+
+  const userPrompt = `Target Role: ${jobTitle} at ${company}
+Interview Question: "${question}"
+
+Student's STAR Draft:
+• S (Situation): ${situation}
+• T (Task): ${task}
+• A (Action): ${action}
+• R (Result): ${result}`;
+
+  try {
+    const rawAiResponse = await callAI({
+      systemPrompt,
+      userPrompt,
+      provider: "claude",
+      jsonMode: true
+    });
+
+    const cleaned = rawAiResponse.replace(/```(?:json)?/gi, "").trim();
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    const jsonStr = firstBrace !== -1 && lastBrace !== -1 ? cleaned.substring(firstBrace, lastBrace + 1) : cleaned;
+    const parsed = JSON.parse(jsonStr);
+
+    return {
+      success: true,
+      evaluation: {
+        score: Math.min(100, Math.max(0, Number(parsed.score) || 75)),
+        rating: (parsed.rating || (parsed.score >= 80 ? "Strong Answer" : parsed.score >= 65 ? "Solid Effort" : "Needs Refinement")) as "Strong Answer" | "Solid Effort" | "Needs Refinement",
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : ["Clear articulation of role responsibility."],
+        improvements: Array.isArray(parsed.improvements) ? parsed.improvements : ["Add specific measurable outcomes to the Result section."],
+        polished_answer: parsed.polished_answer || `${situation} ${task} ${action} ${result}`
+      }
+    };
+  } catch (error) {
+    console.error("[evaluateStarInterviewAnswerAction] Error:", error);
+    throw new Error("Failed to evaluate interview answer with AI.");
+  }
+}
+
+/**
+ * Persist or update interview prep (starred questions & STAR practice entries) in tracker_items notes
+ */
+export async function saveInterviewPracticeToTrackerAction(params: {
+  jobId: string;
+  jobData?: any;
+  starredQuestions?: string[];
+  practiceEntries?: any[];
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { masterId } = await getStudentDashboardData(user.id);
+  const { jobId, jobData, starredQuestions, practiceEntries } = params;
+
+  // Find existing tracker item
+  const { data: existing } = await supabase
+    .from("tracker_items")
+    .select("id, notes, title, status")
+    .eq("user_id", masterId)
+    .eq("reference_type", "job")
+    .eq("reference_id", String(jobId))
+    .maybeSingle();
+
+  let existingNotes: any = {};
+  if (existing?.notes) {
+    try {
+      existingNotes = JSON.parse(existing.notes);
+    } catch {
+      existingNotes = { raw: existing.notes };
+    }
+  }
+
+  const updatedNotes = {
+    ...existingNotes,
+    interview_prep: {
+      starred_questions: starredQuestions !== undefined ? starredQuestions : (existingNotes.interview_prep?.starred_questions || []),
+      practice_entries: practiceEntries !== undefined ? practiceEntries : (existingNotes.interview_prep?.practice_entries || []),
+      last_updated_at: new Date().toISOString()
+    }
+  };
+
+  if (existing) {
+    const { error: updateError } = await supabase
+      .from("tracker_items")
+      .update({
+        notes: JSON.stringify(updatedNotes),
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id);
+
+    if (updateError) throw new Error(updateError.message);
+  } else if (jobData) {
+    // If not in tracker, automatically create a tracker item to save the prep notes
+    const { error: insertError } = await supabase
+      .from("tracker_items")
+      .insert({
+        user_id: masterId,
+        reference_type: "job",
+        reference_id: String(jobId),
+        title: `${jobData.job_title || 'Opportunity'} at ${jobData.employer_name || 'Company'}`,
+        status: "not_started",
+        notes: JSON.stringify({
+          url: jobData.job_apply_link,
+          location: jobData.job_city ? `${jobData.job_city}, ${jobData.job_state}` : "Remote",
+          description: jobData.job_description,
+          ...updatedNotes
+        })
+      });
+
+    if (insertError) throw new Error(insertError.message);
+  }
+
+  revalidatePath("/jobs");
+  revalidatePath("/tracker");
+  return { success: true };
+}
+
+/**
+ * Retrieve saved interview prep data for a specific job
+ */
+export async function getJobInterviewPrepAction(jobId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { masterId } = await getStudentDashboardData(user.id);
+
+  const { data: item } = await supabase
+    .from("tracker_items")
+    .select("notes")
+    .eq("user_id", masterId)
+    .eq("reference_type", "job")
+    .eq("reference_id", String(jobId))
+    .maybeSingle();
+
+  if (!item?.notes) return null;
+
+  try {
+    const parsed = JSON.parse(item.notes);
+    return parsed.interview_prep || null;
+  } catch {
+    return null;
+  }
 }
 

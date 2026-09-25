@@ -208,7 +208,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // 5. Earn While You Learn 7-Day Inactivity Reminder
+    // 5. Earn While You Learn 7-Day Inactivity Reminder (Idempotent: Sent ONCE per inactivity period)
     const { data: videoProgress, error: videoError } = await supabase
       .from("student_video_progress")
       .select("user_id, last_watched_at")
@@ -218,46 +218,79 @@ export async function GET(req: Request) {
       // Group by user to find their most recent watch time
       const userLastWatched = new Map<string, string>();
       for (const p of videoProgress) {
-        if (!userLastWatched.has(p.user_id)) {
+        if (!userLastWatched.has(p.user_id) && p.last_watched_at) {
           userLastWatched.set(p.user_id, p.last_watched_at);
         }
       }
 
-      // Check for exactly 7 days of inactivity (between 7 and 8 days)
+      // Track emails and phones already notified in this execution batch to avoid duplicates
+      const sentVideoPhonesThisRun = new Set<string>();
+      const sentVideoEmailsThisRun = new Set<string>();
+
       const nowMs = new Date().getTime();
       for (const [userId, lastWatched] of userLastWatched.entries()) {
-        const daysSince = (nowMs - new Date(lastWatched).getTime()) / (1000 * 60 * 60 * 24);
+        const lastWatchedDate = new Date(lastWatched);
+        const daysSince = (nowMs - lastWatchedDate.getTime()) / (1000 * 60 * 60 * 24);
         
-        if (daysSince >= 7 && daysSince < 8) {
-          // Fetch profile to get contact info
-          const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+        // Trigger once when inactive for 7 or more days
+        if (daysSince >= 7) {
+          // Fetch profile to get contact info and check if already reminded for this inactivity period
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .maybeSingle();
+
           if (profile) {
             const pAny = profile as any;
-            const msgText = `Schoolari: It's been a week since your last Earn While You Learn video! Check out the next video in your path and unlock more income opportunities. Reply STOP to unsubscribe.`;
-            const msgHtml = `<p>Hi ${pAny?.student_first_name || 'there'},</p><p>It's been a week since your last <strong>Earn While You Learn</strong> video! Check out the next video in your path and unlock more income opportunities.</p><p>Log in to your Dashboard to continue.</p>`;
+            const lastRemindedAt = pAny?.earn_video_reminder_sent_at ? new Date(pAny.earn_video_reminder_sent_at) : null;
 
-            // Try SMS
+            // Idempotency: Skip if we already sent a reminder on or after their last watched date
+            if (lastRemindedAt && lastRemindedAt.getTime() >= lastWatchedDate.getTime()) {
+              continue;
+            }
+
+            const name = pAny?.student_first_name || pAny?.first_name || 'there';
+            const msgText = `Schoolari: It's been a week since your last Earn While You Learn video! Check out the next video in your path and unlock more income opportunities. Reply STOP to unsubscribe.`;
+            const msgHtml = `<p>Hi ${name},</p><p>It's been a week since your last <strong>Earn While You Learn</strong> video! Check out the next video in your path and unlock more income opportunities.</p><p>Log in to your Dashboard to continue.</p>`;
+
+            // Try SMS (student phone first, then parent)
             if (client && twilioPhone) {
-              const rawPhones = [pAny?.student_phone, pAny?.parent_phone, pAny?.phone].filter(Boolean) as string[];
+              const rawPhones = [pAny?.student_phone || pAny?.phone, pAny?.parent_phone].filter(Boolean) as string[];
               const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
               for (const phone of uniquePhones) {
+                if (sentVideoPhonesThisRun.has(phone)) {
+                  continue;
+                }
                 try {
                   await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
+                  sentVideoPhonesThisRun.add(phone);
                   sentCount++;
                 } catch (e) { failCount++; }
               }
             }
 
-            // Try Email
-            const rawEmails = [pAny?.student_email, pAny?.parent_email, pAny?.email].filter(Boolean) as string[];
+            // Try Email (student email first, then parent)
+            const rawEmails = [pAny?.student_email || pAny?.email, pAny?.parent_email].filter(Boolean) as string[];
             const uniqueEmails = Array.from(new Set(rawEmails.map((e) => e.trim().toLowerCase())));
             for (const email of uniqueEmails) {
+              if (sentVideoEmailsThisRun.has(email)) {
+                continue;
+              }
               try {
                 await sendAlertEmail(email, `Ready for your next video?`, msgHtml);
+                sentVideoEmailsThisRun.add(email);
+                sentCount++;
               } catch (e) {
                 console.error(`Failed to send inactivity email to ${email}:`, e);
               }
             }
+
+            // Mark as reminded so this notification NEVER repeats for this watch period
+            await supabase
+              .from("profiles")
+              .update({ earn_video_reminder_sent_at: new Date().toISOString() } as any)
+              .eq("id", userId);
           }
         }
       }

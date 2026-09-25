@@ -244,10 +244,10 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
               <tr>
                 <th className="px-5 py-4">Scholarship Name</th>
                 <th className="px-5 py-4">Category</th>
-                <th className="px-5 py-4">Deadline</th>
-                <th className="px-5 py-4">Award</th>
-                <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4 text-center">Actions</th>
+                <th className="px-5 py-4 whitespace-nowrap">Deadline</th>
+                <th className="px-5 py-4 whitespace-nowrap">Award</th>
+                <th className="px-5 py-4 whitespace-nowrap">Status</th>
+                <th className="px-5 py-4 text-center whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -274,17 +274,17 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      <span className="px-2 py-1 text-[11px] font-bold rounded-md bg-blue-50 text-blue-700">
+                      <span className="px-2 py-1 text-[11px] font-bold rounded-md bg-blue-50 text-blue-700 whitespace-nowrap">
                         {item.category}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3 whitespace-nowrap font-medium text-slate-700">
                       {new Date(item.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </td>
-                    <td className="px-5 py-3 font-medium text-slate-700">
+                    <td className="px-5 py-3 font-medium text-slate-700 whitespace-nowrap">
                       {item.award_amount}
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <span className={`px-2 py-1 text-[11px] font-bold rounded-md border ${item.is_active
                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -292,7 +292,7 @@ export function ScholarshipsTable({ initialScholarships }: { initialScholarships
                         {item.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3 whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => {

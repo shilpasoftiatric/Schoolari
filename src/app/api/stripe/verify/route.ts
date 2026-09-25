@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
@@ -63,6 +64,9 @@ export async function GET(req: NextRequest) {
 
         // 2. Mirror to linked family members
         await mirrorStripeSubscription(userId, stripePayload);
+
+        revalidatePath("/admin/users");
+        revalidatePath("/dashboard");
       }
 
       // Redirect successfully to onboarding using a standard redirect

@@ -3,6 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { formatPhoneE164 } from "@/lib/phone";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { syncOnboardingContacts, syncContact, CONSTANT_CONTACT_PARENT_LIST, CONSTANT_CONTACT_STUDENT_LIST } from "@/lib/constant-contact";
 import { sendWelcomeSMS } from "@/lib/twilio";
 import { sendInviteEmail, sendWelcomeEmail, sendTrialWelcomeEmail } from "@/lib/email";
@@ -294,6 +295,8 @@ export async function saveOnboardingStep(step: number, data: any) {
     }
   }
 
+  revalidatePath("/admin/users");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 

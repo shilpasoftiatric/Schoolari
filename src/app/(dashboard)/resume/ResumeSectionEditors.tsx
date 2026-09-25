@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, memo } from "react";
 import {
   ResumeDocument,
   AwardLevel
@@ -37,7 +37,7 @@ export interface SectionEditorProps {
   isLimitReached?: boolean;
 }
 
-export function ContactEditor({ resume, onChange, isLimitReached }: SectionEditorProps) {
+export const ContactEditor = memo(function ContactEditor({ resume, onChange, isLimitReached }: SectionEditorProps) {
   const [generatingSummary, setGeneratingSummary] = useState(false);
 
   const updateHeader = (key: keyof ResumeDocument["header"], value: string) => {
@@ -170,17 +170,23 @@ export function ContactEditor({ resume, onChange, isLimitReached }: SectionEdito
         resume.resume_type === "both" ||
         !resume.resume_type) && (
           <div className="space-y-2 pt-2 border-t border-slate-100">
-            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
-              Target Job or Internship Type (Professional Resume)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-extrabold text-indigo-700 uppercase tracking-wider block">
+                🎯 Target Industry Role or Internship Title
+              </label>
+              <span className="text-[10px] font-bold text-slate-400">Internship Mode Priority</span>
+            </div>
             <Input
               value={resume.header.target_job_or_internship || ""}
               onChange={(e) =>
                 updateHeader("target_job_or_internship", e.target.value)
               }
-              placeholder="e.g. Summer AI Research Intern / Entry-Level Software Engineering Role"
+              placeholder="e.g. Summer Software Engineering Intern / Financial Analyst Intern"
               className={inputCls}
             />
+            <p className="text-[11px] text-slate-500">
+              Helps ATS algorithms align your resume with specific job descriptions and industry standards.
+            </p>
           </div>
         )}
 
@@ -188,25 +194,31 @@ export function ContactEditor({ resume, onChange, isLimitReached }: SectionEdito
         resume.resume_type === "both" ||
         !resume.resume_type) && (
           <div className="space-y-2 pt-2 border-t border-slate-100">
-            <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
-              College or Career Goals in 1–2 Sentences (Academic Resume)
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-extrabold text-violet-700 uppercase tracking-wider block">
+                🎓 College & Academic Goals (Common App / Scholarships)
+              </label>
+              <span className="text-[10px] font-bold text-slate-400">Academic Mode Priority</span>
+            </div>
             <textarea
               value={resume.header.college_or_career_goals || ""}
               onChange={(e) =>
                 updateHeader("college_or_career_goals", e.target.value)
               }
-              placeholder="e.g. Seeking admission to a competitive 4-year undergraduate computer science program with an emphasis on artificial intelligence..."
+              placeholder="e.g. Seeking admission to a competitive undergraduate Computer Science & Engineering program with research aspirations in machine learning and distributed systems..."
               rows={2}
               className="w-full h-[10rem] rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 focus:bg-white p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-slate-800 font-medium shadow-2xs transition-all"
             />
+            <p className="text-[11px] text-slate-500">
+              Tailored for US university admissions officers, scholarship committees, and Common App supplement attachments.
+            </p>
           </div>
         )}
     </div>
   );
-}
+});
 
-export function EducationEditor({ resume, onChange }: SectionEditorProps) {
+export const EducationEditor = memo(function EducationEditor({ resume, onChange }: SectionEditorProps) {
   const addEducation = () => {
     const newEdu = {
       id: "edu-" + Date.now(),
@@ -334,6 +346,7 @@ export function EducationEditor({ resume, onChange }: SectionEditorProps) {
                   placeholder="3.9"
                   className={inputCls}
                 />
+                <span className="text-[10px] text-slate-400 mt-1 font-medium">Standard 4.0 US Scale</span>
               </div>
               <div className="flex flex-col justify-end h-full">
                 <label className={labelCls}>Weighted GPA (5.0+ Scale)</label>
@@ -343,17 +356,21 @@ export function EducationEditor({ resume, onChange }: SectionEditorProps) {
                   placeholder="4.4"
                   className={inputCls}
                 />
+                <span className="text-[10px] text-slate-400 mt-1 font-medium">AP / IB / Honors weighted</span>
               </div>
               <div className="sm:col-span-2 flex flex-col justify-end h-full">
                 <label className={labelCls}>
-                  AP / IB / Dual Enrollment / Honors Coursework
+                  AP / IB / Dual Enrollment / Honors Coursework & Standardized Tests
                 </label>
                 <Input
                   value={edu.honors_coursework || ""}
                   onChange={(e) => updateEdu(edu.id, "honors_coursework", e.target.value)}
-                  placeholder="e.g. AP Calculus AB, AP Physics 1, Honors English"
+                  placeholder="e.g. AP Calculus AB, AP Physics 1, SAT: 1510 (Math 780, ERW 730), ACT: 34"
                   className={inputCls}
                 />
+                <span className="text-[10px] text-slate-400 mt-1 font-medium">
+                  Include AP exams, IB Diploma subjects, and optional SAT (200–1600) or ACT (1–36) scores for college apps.
+                </span>
               </div>
             </div>
           </div>
@@ -366,9 +383,9 @@ export function EducationEditor({ resume, onChange }: SectionEditorProps) {
       </div>
     </div>
   );
-}
+});
 
-export function ExperienceEditor({
+export const ExperienceEditor = memo(function ExperienceEditor({
   resume,
   onChange,
   onOpenStarModal,
@@ -600,9 +617,9 @@ export function ExperienceEditor({
       </div>
     </div>
   );
-}
+});
 
-export function ExtracurricularsEditor({
+export const ExtracurricularsEditor = memo(function ExtracurricularsEditor({
   resume,
   onChange,
   onOpenStarModal,
@@ -823,9 +840,9 @@ export function ExtracurricularsEditor({
       </div>
     </div>
   );
-}
+});
 
-export function AwardsEditor({ resume, onChange }: SectionEditorProps) {
+export const AwardsEditor = memo(function AwardsEditor({ resume, onChange }: SectionEditorProps) {
   const addAward = () => {
     const newAward = {
       id: "awd-" + Date.now(),
@@ -959,12 +976,13 @@ export function AwardsEditor({ resume, onChange }: SectionEditorProps) {
       </div>
     </div>
   );
-}
+});
 
-export function SkillsEditor({ resume, onChange }: SectionEditorProps) {
+export const SkillsEditor = memo(function SkillsEditor({ resume, onChange }: SectionEditorProps) {
   const [techInput, setTechInput] = useState("");
   const [softInput, setSoftInput] = useState("");
   const [langInput, setLangInput] = useState("");
+  const [certInput, setCertInput] = useState("");
 
   const addSkill = (category: keyof ResumeDocument["skills"], item: string) => {
     if (!item.trim()) return;
@@ -1165,8 +1183,60 @@ export function SkillsEditor({ resume, onChange }: SectionEditorProps) {
           </Button>
         </div>
       </div>
+
+      {/* Certifications & Credentials */}
+      <div className="p-5 sm:p-6 rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-white hover:shadow-sm transition-all duration-200 space-y-3">
+        <label className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">
+          Certifications & Credentials
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {(resume.skills.certifications || []).map((cert, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 text-xs font-bold border border-amber-200/80 shadow-2xs"
+            >
+              {cert}
+              <button
+                type="button"
+                onClick={() => removeSkill("certifications", idx)}
+                className="hover:text-red-500 hover:bg-amber-100 p-0.5 rounded-md transition-colors"
+                title="Remove certification"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-2 pt-1">
+          <Input
+            value={certInput}
+            onChange={(e) => setCertInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addSkill("certifications", certInput);
+                setCertInput("");
+              }
+            }}
+            placeholder="e.g. AWS Certified Cloud Practitioner, CPR/AED, OSHA-10 (Press Enter to add)"
+            className={inputCls}
+          />
+          <Button
+            type="button"
+            onClick={() => {
+              addSkill("certifications", certInput);
+              setCertInput("");
+            }}
+            variant="outline"
+            size="sm"
+            className="h-10.5 px-4 rounded-xl text-xs font-bold text-amber-800 border-amber-200/80 bg-amber-50/80 hover:bg-amber-100/80 transition-all shadow-2xs"
+          >
+            Add
+          </Button>
+        </div>
+      </div>
     </div>
   );
-}
+});
 
 

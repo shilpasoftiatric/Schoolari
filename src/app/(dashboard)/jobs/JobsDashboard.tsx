@@ -73,6 +73,7 @@ export function JobsDashboard({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<"all" | "fws" | "internship" | "remote" | "parttime">("all");
 
   const activeSearchRef = useRef<string>("");
   const jobsRef = useRef<any[] | null>(jobs);
@@ -118,6 +119,7 @@ export function JobsDashboard({
   const handleClearSearch = async () => {
     setSearchQuery("");
     activeSearchRef.current = "";
+    setSelectedFilter("all");
     setIsSearching(true);
     try {
       const results = await getPersonalizedJobsAction();
@@ -128,6 +130,33 @@ export function JobsDashboard({
       console.error("Failed to restore default jobs:", error);
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleFilterSelect = async (filterKey: "all" | "fws" | "internship" | "remote" | "parttime") => {
+    if (selectedFilter === filterKey && filterKey !== "all") {
+      // Toggle off back to all
+      setSelectedFilter("all");
+      handleClearSearch();
+      return;
+    }
+
+    setSelectedFilter(filterKey);
+
+    if (filterKey === "all") {
+      handleClearSearch();
+    } else if (filterKey === "fws") {
+      setSearchQuery("Federal Work Study");
+      handleSearch(undefined, "work study");
+    } else if (filterKey === "internship") {
+      setSearchQuery("Internship");
+      handleSearch(undefined, "internship");
+    } else if (filterKey === "remote") {
+      setSearchQuery("Remote");
+      handleSearch(undefined, "remote");
+    } else if (filterKey === "parttime") {
+      setSearchQuery("Part-Time");
+      handleSearch(undefined, "part time");
     }
   };
 
@@ -352,26 +381,43 @@ export function JobsDashboard({
 
   // Reusable Job Card Renderer for both Recommended Jobs and Wishlist tabs
   const renderJobCard = (job: any, idx: number) => {
-    const actionStatus = tracked[job.job_id];
+    const jobIdStr = String(job.job_id);
+    const actionStatus = tracked[jobIdStr] || tracked[job.job_id];
     const isWon = actionStatus === "Won";
     const isInterview = actionStatus === "Interview Scheduled" || actionStatus === "Interviewing";
     const isApplied = actionStatus === "In Progress" || actionStatus === "Submitted" || isInterview || isWon;
     const isWillApply = actionStatus === "Not Started";
-    const processing = processingId === job.job_id;
-    const isLiked = Boolean(likedJobs[job.job_id]);
+    const processing = processingId === job.job_id || processingId === jobIdStr;
+    const isLiked = Boolean(likedJobs[jobIdStr]);
 
     const empType = job.job_employment_type === "INTERN" ? "Internship" : job.job_employment_type === "PARTTIME" ? "Part-Time" : (job.job_employment_type || "Internship");
     const isRemote = job.workplace_type === "Remote" || (job.job_city && job.job_city.toLowerCase().includes("remote"));
     const isHybrid = job.workplace_type === "Hybrid";
 
+    const titleLower = (job.job_title || "").toLowerCase();
+    const descLower = (job.job_description || "").toLowerCase();
+    const isFws =
+      job.is_fws ||
+      job.job_employment_type === "Work-Study" ||
+      titleLower.includes("work study") ||
+      titleLower.includes("work-study") ||
+      titleLower.includes("federal work study") ||
+      titleLower.includes("fws") ||
+      titleLower.includes("student assistant") ||
+      descLower.includes("work study") ||
+      descLower.includes("federal work study") ||
+      descLower.includes("fws eligible");
+
     return (
       <div
-        key={job.job_id || idx}
+        key={job.job_id ? `job-${job.job_id}` : `job-idx-${idx}`}
         className={`group bg-white border rounded-3xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 relative overflow-hidden flex flex-col h-full cursor-pointer ${isWon
             ? "border-amber-300 bg-amber-50/20"
             : isInterview
               ? "border-purple-300 bg-purple-50/15"
-              : "border-slate-200"
+              : isFws
+                ? "border-teal-200/80 hover:border-teal-400"
+                : "border-slate-200"
           }`}
         onClick={() => setSelectedJob(job)}
       >
@@ -381,17 +427,27 @@ export function JobsDashboard({
         {/* Header Badges & Wishlist Heart */}
         <div className="flex items-start justify-between gap-2 mb-4 relative z-10">
           <div className="flex flex-wrap gap-1.5 items-center">
+            {/* FWS Eligible Badge */}
+            {isFws && (
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold tracking-wide border flex items-center gap-1 bg-gradient-to-r from-emerald-50 to-teal-50 text-emerald-800 border-emerald-300 shadow-2xs">
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />
+                FWS Eligible
+              </span>
+            )}
+
             {/* Employment Type Badge */}
-            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border flex items-center gap-1 ${empType === "Internship"
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : empType === "Part-Time"
-                  ? "bg-blue-50 text-blue-700 border-blue-200"
-                  : empType === "Co-Op"
-                    ? "bg-teal-50 text-teal-700 border-teal-200"
-                    : "bg-indigo-50 text-indigo-700 border-indigo-200"
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border flex items-center gap-1 ${isFws
+                ? "bg-teal-50 text-teal-800 border-teal-200"
+                : empType === "Internship"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : empType === "Part-Time"
+                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                    : empType === "Co-Op"
+                      ? "bg-teal-50 text-teal-700 border-teal-200"
+                      : "bg-indigo-50 text-indigo-700 border-indigo-200"
               }`}>
               <GraduationCap className="w-3 h-3" />
-              {empType}
+              {isFws ? "Work-Study" : empType}
             </span>
 
             {/* Workplace Modality Badge */}
@@ -654,7 +710,7 @@ export function JobsDashboard({
       {/* ── RECOMMENDED JOBS TAB ── */}
       {activeTab === "jobs" && (
         <>
-          <div className="mb-6">
+          <div className="mb-6 space-y-3">
             <form onSubmit={handleSearch} className="flex gap-2">
               <div className="relative flex-1">
                 <Input
@@ -680,6 +736,74 @@ export function JobsDashboard({
                 Search
               </Button>
             </form>
+
+            {/* Quick Category / US Student Architecture Filters */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+              <button
+                type="button"
+                onClick={() => handleFilterSelect("all")}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 border ${
+                  selectedFilter === "all"
+                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                All Opportunities
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFilterSelect("fws")}
+                className={`px-3 py-1.5 rounded-xl font-extrabold transition-all shrink-0 border flex items-center gap-1.5 ${
+                  selectedFilter === "fws"
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm shadow-emerald-200"
+                    : "bg-emerald-50/80 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                }`}
+                title="Filter for US Federal Work-Study (FAFSA-eligible student positions)"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-current" />
+                🎓 Federal Work-Study (FWS)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFilterSelect("internship")}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 border flex items-center gap-1 ${
+                  selectedFilter === "internship"
+                    ? "bg-violet-600 text-white border-violet-600 shadow-xs"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5 text-current" />
+                Internships
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFilterSelect("remote")}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 border flex items-center gap-1 ${
+                  selectedFilter === "remote"
+                    ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-current" />
+                Remote / Virtual
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFilterSelect("parttime")}
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 border flex items-center gap-1 ${
+                  selectedFilter === "parttime"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-current" />
+                Part-Time
+              </button>
+            </div>
           </div>
 
           {jobs.length === 0 ? (
@@ -913,13 +1037,14 @@ export function JobsDashboard({
           job={selectedJob}
           isOpen={!!selectedJob}
           onClose={() => setSelectedJob(null)}
-          isTracked={!!tracked[selectedJob.job_id]}
+          isTracked={!!tracked[selectedJob.job_id] || !!tracked[String(selectedJob.job_id)]}
           initialResumes={initialResumes}
           initialAiLimits={initialAiLimits}
-          isWishlisted={Boolean(likedJobs[selectedJob.job_id])}
+          isWishlisted={Boolean(likedJobs[String(selectedJob.job_id)])}
           onToggleWishlist={() => handleLikeJob({ stopPropagation: () => { } } as any, selectedJob)}
           onSave={() => {
-            setTracked((prev: any) => ({ ...prev, [selectedJob.job_id]: "Not Started" }));
+            const sid = String(selectedJob.job_id);
+            setTracked((prev: any) => ({ ...prev, [selectedJob.job_id]: "Not Started", [sid]: "Not Started" }));
           }}
         />
       )}

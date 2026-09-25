@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function getResume() {
@@ -9,15 +9,31 @@ export async function getResume() {
 
   if (!user) return null;
 
-  const { data, error } = await supabase
+  const { getStudentDashboardData } = await import("@/services/data-fetcher");
+  const { masterId } = await getStudentDashboardData(user.id);
+  const adminClient = await createAdminClient();
+
+  const { data, error } = await adminClient
     .from("resumes")
     .select("*")
-    .eq("user_id", user.id)
-    .single();
+    .eq("user_id", masterId)
+    .maybeSingle();
 
   if (error && error.code !== 'PGRST116') {
     // Ignore not found, throw on other errors
     throw new Error(error.message);
+  }
+
+  if (!data || !data.content) return null;
+
+  // Modern structured UserResumesPayload: { resumes: ResumeDocument[], active_resume_id: string }
+  if (data.content.resumes && Array.isArray(data.content.resumes)) {
+    const activeId = data.content.active_resume_id;
+    const activeDoc = data.content.resumes.find((r: any) => r.id === activeId) || data.content.resumes[0];
+    return {
+      ...data,
+      content: activeDoc || data.content
+    };
   }
 
   // Handle on-the-fly migration for old single-format resumes
@@ -91,9 +107,35 @@ export async function updateCareerInterests(interests: string[]) {
   return { success: true };
 }
 
-// In-memory cache for job search results
+// Bounded in-memory cache for job search results with LRU-style eviction
 const JOBS_CACHE: Record<string, { data: any[]; timestamp: number }> = {};
-const JOBS_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes cache duration (30 mins)
+const RAW_JOBS_CACHE: Record<string, { data: any[]; timestamp: number }> = {};
+const JOBS_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes cache duration
+const MAX_CACHE_ENTRIES = 50;
+
+function setBoundedCache(cache: Record<string, { data: any[]; timestamp: number }>, key: string, data: any[]) {
+  const now = Date.now();
+  // Evict expired entries
+  for (const k in cache) {
+    if (now - cache[k].timestamp > JOBS_CACHE_DURATION) {
+      delete cache[k];
+    }
+  }
+  // Enforce maximum size bound to prevent memory leaks
+  const keys = Object.keys(cache);
+  if (keys.length >= MAX_CACHE_ENTRIES) {
+    let oldestKey = keys[0];
+    let oldestTime = cache[oldestKey]?.timestamp || 0;
+    for (const k of keys) {
+      if (cache[k].timestamp < oldestTime) {
+        oldestTime = cache[k].timestamp;
+        oldestKey = k;
+      }
+    }
+    delete cache[oldestKey];
+  }
+  cache[key] = { data, timestamp: now };
+}
 
 export async function getJobsAndInternships() {
   const supabase = await createClient();
@@ -158,7 +200,7 @@ export async function getJobsAndInternships() {
 
     const result = filteredJobs.slice(0, 6);
 
-    JOBS_CACHE[cacheKey] = { data: result, timestamp: now };
+    setBoundedCache(JOBS_CACHE, cacheKey, result);
     return result;
 
   } catch (error: any) {
@@ -167,8 +209,83 @@ export async function getJobsAndInternships() {
   }
 }
 
-// In-memory cache for raw jobs
-const RAW_JOBS_CACHE: Record<string, { data: any[]; timestamp: number }> = {};
+function parseAdzunaJob(item: any, seenIds: Set<string>): any | null {
+  const idStr = item?.id ? item.id.toString() : "";
+  if (!idStr || seenIds.has(idStr)) return null;
+  seenIds.add(idStr);
+
+  const titleLower = (item.title || "").toLowerCase();
+  const descLower = (item.description || "").toLowerCase();
+  const locLower = (item.location?.display_name || "").toLowerCase();
+
+  const isRemote =
+    titleLower.includes("remote") ||
+    titleLower.includes("virtual") ||
+    titleLower.includes("work from home") ||
+    descLower.includes("remote") ||
+    descLower.includes("virtual") ||
+    locLower.includes("remote");
+
+  const isHybrid = titleLower.includes("hybrid") || descLower.includes("hybrid");
+  const workplaceType = isRemote ? "Remote" : (isHybrid ? "Hybrid" : "On-Site");
+
+  const isFws =
+    titleLower.includes("work study") ||
+    titleLower.includes("work-study") ||
+    titleLower.includes("federal work study") ||
+    titleLower.includes("fws") ||
+    titleLower.includes("student assistant") ||
+    titleLower.includes("student worker") ||
+    descLower.includes("work study") ||
+    descLower.includes("work-study") ||
+    descLower.includes("federal work-study") ||
+    descLower.includes("federal work study") ||
+    descLower.includes("fws eligible");
+
+  const isIntern =
+    titleLower.includes("intern") ||
+    descLower.includes("intern") ||
+    titleLower.includes("co-op") ||
+    item.contract_type === "internship" ||
+    item.contract_time === "internship";
+
+  const isPartTime =
+    item.contract_type === "part_time" ||
+    item.contract_time === "part_time" ||
+    titleLower.includes("part time") ||
+    titleLower.includes("part-time");
+
+  const isCoOp = titleLower.includes("co-op") || titleLower.includes("coop");
+
+  const employmentType = isFws
+    ? "Work-Study"
+    : isCoOp
+    ? "Co-Op"
+    : isIntern
+    ? "Internship"
+    : isPartTime
+    ? "Part-Time"
+    : "Full-Time";
+
+  return {
+    job_id: `00000000-0000-0000-0000-${idStr.padStart(12, "0")}`,
+    job_title: item.title,
+    employer_name: item.company?.display_name || "Company",
+    employer_logo: null,
+    job_city: isRemote
+      ? "Remote / Virtual"
+      : item.location?.area && item.location.area.length > 0
+      ? item.location.area[item.location.area.length - 1]
+      : "On-Site",
+    job_state: item.location?.area && item.location.area.length > 1 ? item.location.area[1] : "",
+    job_employment_type: employmentType,
+    workplace_type: workplaceType,
+    job_description: item.description || "No description provided.",
+    job_apply_link: item.redirect_url,
+    is_custom: false,
+    is_fws: isFws
+  };
+}
 
 export async function getRawJobsAndInternships(searchQuery?: string) {
   const supabase = await createClient();
@@ -212,7 +329,10 @@ export async function getRawJobsAndInternships(searchQuery?: string) {
     if (appId && appKey) {
       // Build targeted search queries based on student profile
       let searchQueries: string[] = [];
-      if (searchQuery) {
+      const isFwsSearch = searchQuery && (searchQuery.toLowerCase().includes("work study") || searchQuery.toLowerCase().includes("work-study") || searchQuery.toLowerCase().includes("fws"));
+      if (isFwsSearch) {
+        searchQueries = ["work study", "federal work study", "student assistant"];
+      } else if (searchQuery) {
         searchQueries = [searchQuery, `${searchQuery} internship`];
       } else if (interests.length > 0) {
         searchQueries = [
@@ -224,72 +344,28 @@ export async function getRawJobsAndInternships(searchQuery?: string) {
         searchQueries = ["student internship", "entry level part time", "internship"];
       }
 
-      for (const queryTerm of searchQueries) {
+      // Execute all targeted search queries concurrently to reduce round-trip latency from 7.5s+ to under 2s
+      const searchPromises = searchQueries.map(async (queryTerm) => {
         try {
           const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=${appId}&app_key=${appKey}&results_per_page=15&what=${encodeURIComponent(queryTerm)}&content-type=application/json`;
           const res = await fetch(adzunaUrl, { method: "GET" });
           if (res.ok) {
             const json = await res.json();
-            if (json.results && Array.isArray(json.results)) {
-              for (const item of json.results) {
-                const idStr = item.id.toString();
-                if (!seenIds.has(idStr)) {
-                  seenIds.add(idStr);
-                  
-                  const titleLower = (item.title || "").toLowerCase();
-                  const descLower = (item.description || "").toLowerCase();
-                  const locLower = (item.location?.display_name || "").toLowerCase();
-
-                  const isRemote = 
-                    titleLower.includes("remote") || 
-                    titleLower.includes("virtual") || 
-                    titleLower.includes("work from home") ||
-                    descLower.includes("remote") || 
-                    descLower.includes("virtual") || 
-                    locLower.includes("remote");
-
-                  const isHybrid = 
-                    titleLower.includes("hybrid") || 
-                    descLower.includes("hybrid");
-
-                  const workplaceType = isRemote ? "Remote" : (isHybrid ? "Hybrid" : "On-Site");
-
-                  const isIntern = 
-                    titleLower.includes("intern") || 
-                    descLower.includes("intern") ||
-                    titleLower.includes("co-op") ||
-                    item.contract_type === "internship" ||
-                    item.contract_time === "internship";
-
-                  const isPartTime = 
-                    item.contract_type === "part_time" || 
-                    item.contract_time === "part_time" || 
-                    titleLower.includes("part time") || 
-                    titleLower.includes("part-time");
-
-                  const isCoOp = titleLower.includes("co-op") || titleLower.includes("coop");
-
-                  const employmentType = isCoOp ? "Co-Op" : (isIntern ? "Internship" : (isPartTime ? "Part-Time" : "Full-Time"));
-
-                  filteredJobs.push({
-                    job_id: `00000000-0000-0000-0000-${idStr.padStart(12, '0')}`,
-                    job_title: item.title,
-                    employer_name: item.company?.display_name || "Company",
-                    employer_logo: null,
-                    job_city: isRemote ? "Remote / Virtual" : (item.location?.area && item.location.area.length > 0 ? item.location.area[item.location.area.length - 1] : "On-Site"),
-                    job_state: item.location?.area && item.location.area.length > 1 ? item.location.area[1] : "",
-                    job_employment_type: employmentType,
-                    workplace_type: workplaceType,
-                    job_description: item.description || "No description provided.",
-                    job_apply_link: item.redirect_url,
-                    is_custom: false
-                  });
-                }
-              }
-            }
+            return Array.isArray(json.results) ? json.results : [];
           }
         } catch (termErr) {
-          console.error("Adzuna term fetch error:", termErr);
+          console.error(`Adzuna fetch error for "${queryTerm}":`, termErr);
+        }
+        return [];
+      });
+
+      const queryResults = await Promise.allSettled(searchPromises);
+      for (const outcome of queryResults) {
+        if (outcome.status === "fulfilled" && Array.isArray(outcome.value)) {
+          for (const item of outcome.value) {
+            const parsed = parseAdzunaJob(item, seenIds);
+            if (parsed) filteredJobs.push(parsed);
+          }
         }
       }
 
@@ -302,34 +378,8 @@ export async function getRawJobsAndInternships(searchQuery?: string) {
             const json = await res.json();
             if (json.results && Array.isArray(json.results)) {
               for (const item of json.results) {
-                const idStr = item.id.toString();
-                if (!seenIds.has(idStr)) {
-                  seenIds.add(idStr);
-                  const titleLower = (item.title || "").toLowerCase();
-                  const descLower = (item.description || "").toLowerCase();
-                  const locLower = (item.location?.display_name || "").toLowerCase();
-                  const isRemote = titleLower.includes("remote") || titleLower.includes("virtual") || titleLower.includes("work from home") || descLower.includes("remote") || descLower.includes("virtual") || locLower.includes("remote");
-                  const isHybrid = titleLower.includes("hybrid") || descLower.includes("hybrid");
-                  const workplaceType = isRemote ? "Remote" : (isHybrid ? "Hybrid" : "On-Site");
-                  const isIntern = titleLower.includes("intern") || descLower.includes("intern") || titleLower.includes("co-op") || item.contract_type === "internship" || item.contract_time === "internship";
-                  const isPartTime = item.contract_type === "part_time" || item.contract_time === "part_time" || titleLower.includes("part time") || titleLower.includes("part-time");
-                  const isCoOp = titleLower.includes("co-op") || titleLower.includes("coop");
-                  const employmentType = isCoOp ? "Co-Op" : (isIntern ? "Internship" : (isPartTime ? "Part-Time" : "Full-Time"));
-
-                  filteredJobs.push({
-                    job_id: `00000000-0000-0000-0000-${idStr.padStart(12, '0')}`,
-                    job_title: item.title,
-                    employer_name: item.company?.display_name || "Company",
-                    employer_logo: null,
-                    job_city: isRemote ? "Remote / Virtual" : (item.location?.area && item.location.area.length > 0 ? item.location.area[item.location.area.length - 1] : "On-Site"),
-                    job_state: item.location?.area && item.location.area.length > 1 ? item.location.area[1] : "",
-                    job_employment_type: employmentType,
-                    workplace_type: workplaceType,
-                    job_description: item.description || "No description provided.",
-                    job_apply_link: item.redirect_url,
-                    is_custom: false
-                  });
-                }
+                const parsed = parseAdzunaJob(item, seenIds);
+                if (parsed) filteredJobs.push(parsed);
               }
             }
           }
@@ -365,6 +415,22 @@ export async function getRawJobsAndInternships(searchQuery?: string) {
         const isRemote = job.location?.toLowerCase().includes("remote") || job.title?.toLowerCase().includes("remote");
         const isHybrid = job.location?.toLowerCase().includes("hybrid") || job.title?.toLowerCase().includes("hybrid");
         const workplace = isRemote ? "Remote" : (isHybrid ? "Hybrid" : "On-Site");
+        const titleLower = (job.title || "").toLowerCase();
+        const descLower = (job.description || "").toLowerCase();
+        const empTypeLower = (job.employment_type || "").toLowerCase();
+        const isFws =
+          titleLower.includes("work study") ||
+          titleLower.includes("work-study") ||
+          titleLower.includes("federal work study") ||
+          titleLower.includes("fws") ||
+          titleLower.includes("student assistant") ||
+          titleLower.includes("student worker") ||
+          descLower.includes("work study") ||
+          descLower.includes("work-study") ||
+          descLower.includes("federal work study") ||
+          empTypeLower.includes("work study") ||
+          empTypeLower.includes("work-study");
+
         return {
           job_id: job.id,
           job_title: job.title,
@@ -372,18 +438,19 @@ export async function getRawJobsAndInternships(searchQuery?: string) {
           employer_logo: null,
           job_city: job.location || (isRemote ? "Remote / Virtual" : "On-Site"),
           job_state: "",
-          job_employment_type: job.employment_type || "Internship",
+          job_employment_type: isFws ? "Work-Study" : (job.employment_type || "Internship"),
           workplace_type: workplace,
           job_description: job.description,
           job_apply_link: job.apply_url,
-          is_custom: true
+          is_custom: true,
+          is_fws: isFws
         };
       });
       // Merge custom jobs at the top
       filteredJobs = [...formattedCustomJobs, ...filteredJobs];
     }
 
-    RAW_JOBS_CACHE[cacheKey] = { data: filteredJobs, timestamp: now };
+    setBoundedCache(RAW_JOBS_CACHE, cacheKey, filteredJobs);
     return filteredJobs;
   } catch (error: any) {
     console.error("Adzuna Fetch Error:", error);

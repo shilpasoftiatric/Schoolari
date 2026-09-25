@@ -8,45 +8,42 @@ interface AILoaderProps {
   message?: string;
 }
 
-export function AILoader({ isOpen, message = "Processing..." }: AILoaderProps) {
-  const [target, setTarget] = useState<HTMLElement | null>(null);
-  const [topOffset, setTopOffset] = useState<number>(0);
+export function AILoader({
+  isOpen,
+  message = "Processing...",
+}: AILoaderProps) {
+  const [mounted, setMounted] = useState(false);
+  const [topOffset, setTopOffset] = useState<number>(() => {
+    if (typeof window === "undefined") return 64;
+    const el = document.getElementById("main-content-viewport");
+    return el ? el.getBoundingClientRect().top : 64;
+  });
 
   useEffect(() => {
-    const el = document.getElementById("main-content-viewport") || document.body;
-    setTarget(el);
+    setMounted(true);
 
-    const updateOffset = () => {
-      if (el && el.id === "main-content-viewport") {
+    const updateTop = () => {
+      const el = document.getElementById("main-content-viewport");
+      if (el) {
         setTopOffset(el.getBoundingClientRect().top);
       }
     };
 
-    updateOffset();
-    window.addEventListener("resize", updateOffset);
-    return () => window.removeEventListener("resize", updateOffset);
+    updateTop();
+    window.addEventListener("resize", updateTop);
+    return () => window.removeEventListener("resize", updateTop);
   }, [isOpen]);
 
-  if (!isOpen || !target) return null;
-
-  const isMainViewport = target.id === "main-content-viewport";
+  if (!isOpen || !mounted) return null;
 
   const content = (
     <div
-      className={
-        isMainViewport
-          ? "fixed right-0 left-0 lg:left-64 z-20 flex flex-col items-center justify-center bg-white/75 backdrop-blur-md animate-in fade-in duration-300 select-none"
-          : "fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/75 backdrop-blur-md animate-in fade-in duration-300 select-none"
-      }
-      style={
-        isMainViewport
-          ? {
-              top: `${topOffset}px`,
-              bottom: "0px",
-              height: `calc(100vh - ${topOffset}px)`,
-            }
-          : undefined
-      }
+      className="fixed z-20 flex flex-col items-center justify-center bg-white/75 backdrop-blur-md animate-in fade-in duration-200 select-none left-0 lg:left-[var(--sidebar-width,16rem)] right-0 bottom-0 transition-[left] duration-300 ease-in-out"
+      style={{
+        top: `${topOffset}px`,
+        bottom: 0,
+        height: `calc(100vh - ${topOffset}px)`,
+      }}
     >
       <div className="flex flex-col items-center justify-center space-y-4 px-4 text-center">
         {/* The Loader Video */}

@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   trial_day5_email_sent            BOOLEAN DEFAULT false,
   trial_day7_email_sent            BOOLEAN DEFAULT false,
   trial_cancelled_email_sent       BOOLEAN DEFAULT false,
+  earn_video_reminder_sent_at      TIMESTAMPTZ DEFAULT NULL,
 
   -- AI Disclaimer Flags
   essay_disclaimer_accepted        BOOLEAN DEFAULT false,
@@ -138,6 +139,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trial_welcome_email_sent BO
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trial_day5_email_sent BOOLEAN DEFAULT false;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trial_day7_email_sent BOOLEAN DEFAULT false;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS trial_cancelled_email_sent BOOLEAN DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS earn_video_reminder_sent_at TIMESTAMPTZ DEFAULT NULL;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS essay_disclaimer_accepted BOOLEAN DEFAULT false;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS resume_disclaimer_accepted BOOLEAN DEFAULT false;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS scholarship_task_index INT DEFAULT 0;

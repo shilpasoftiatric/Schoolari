@@ -757,7 +757,7 @@ export function DashboardClient({
                 deadlines: getLiveSectionDeadlines("scholarship", data.scholarships?.deadlines),
               }}
               category="scholarship"
-              emptyTip='Start by searching for scholarships. When you find one you are interested in, click "I Will Apply" and select the date you plan to submit your application. Once you save it, your scholarship will automatically appear here and in your tracker so you can stay organized and never miss an important deadline.'
+              emptyTip='Start by searching for scholarships.'
               onRefresh={() => generateDashboard(false)}
               onMoveToTracker={handleOptimisticMoveToTracker}
             />
@@ -773,6 +773,7 @@ export function DashboardClient({
                   deadlines: getLiveSectionDeadlines("essay", data.essays?.deadlines),
                 }}
                 category="essay"
+                emptyTip='Start by working on your essays.'
                 onRefresh={() => generateDashboard(false)}
                 onMoveToTracker={handleOptimisticMoveToTracker}
               />
@@ -788,6 +789,7 @@ export function DashboardClient({
                 deadlines: getLiveSectionDeadlines("college", data.colleges?.deadlines),
               }}
               category="college"
+              emptyTip='Start by building your college list.'
               onRefresh={() => generateDashboard(false)}
               onMoveToTracker={handleOptimisticMoveToTracker}
             />

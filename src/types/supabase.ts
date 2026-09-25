@@ -118,6 +118,7 @@ export interface Database {
           trial_day5_email_sent: boolean | null;
           trial_day7_email_sent: boolean | null;
           trial_cancelled_email_sent: boolean | null;
+          earn_video_reminder_sent_at: string | null;
           ai_dashboard_data: any;
           current_streak: number;
           longest_streak: number;
@@ -525,6 +526,8 @@ export interface Database {
           completed_at?: string | null;
           last_position_seconds?: number;
           progress_percentage?: number;
+          created_at?: string;
+          updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["student_video_progress"]["Row"]>;
         Relationships: any[];

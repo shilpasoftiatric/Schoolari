@@ -104,7 +104,6 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
   }, [editingResumeId]);
 
   const [loading, setLoading] = useState(!payload);
-  const [resumeDropdownOpen, setResumeDropdownOpen] = useState(false);
 
   // Saving & prefilling states
   const [isSaving, setIsSaving] = useState(false);
@@ -244,15 +243,17 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
   const updateActiveResume = (updatedOrUpdater: ResumeDocument | ((prev: ResumeDocument) => ResumeDocument)) => {
     setPayload((prevPayload) => {
       if (!prevPayload) return null;
-      const active = prevPayload.resumes.find((r) => r.id === activeId);
+      const targetId = activeResume?.id || activeId || prevPayload.active_resume_id || prevPayload.resumes[0]?.id;
+      const active = prevPayload.resumes.find((r) => r.id === targetId) || prevPayload.resumes[0];
       if (!active) return prevPayload;
 
       const updated = typeof updatedOrUpdater === "function" ? updatedOrUpdater(active) : updatedOrUpdater;
 
       return {
         ...prevPayload,
+        active_resume_id: updated.id,
         resumes: prevPayload.resumes.map((r) =>
-          r.id === updated.id ? updated : r
+          r.id === active.id ? updated : r
         )
       };
     });
@@ -263,6 +264,20 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
     const lastName = r.header?.last_name || "";
     const typeText = r.resume_type === "academic" ? "Academic" : r.resume_type === "professional" ? "Professional" : "Resume";
     return lastName ? `${firstName} ${lastName} - ${typeText} Resume` : `${firstName} - ${typeText} Resume`;
+  };
+
+  const handleSwitchResumeMode = (newMode: "academic" | "professional") => {
+    if (!activeResume) return;
+    if (activeResume.resume_type === newMode) return;
+
+    const updated: ResumeDocument = {
+      ...activeResume,
+      resume_type: newMode,
+      title: formatResumeTitle({ ...activeResume, resume_type: newMode }),
+      is_unsaved: true,
+    };
+    updateActiveResume(updated);
+    toast.success(`Switched to ${newMode === "academic" ? "🎓 Academic" : "💼 Professional / Internship"} Mode`);
   };
 
   const handleSave = async () => {
@@ -582,14 +597,25 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
     setStarModalOpen(true);
   };
 
-  const sections = [
-    { id: "contact", label: "Contact", icon: User },
-    { id: "education", label: "Education", icon: GraduationCap },
-    { id: "experience", label: "Experience", icon: Briefcase },
-    { id: "extracurriculars", label: "Extracurriculars", icon: BookOpen },
-    { id: "awards", label: "Honors & Awards", icon: Trophy },
-    { id: "skills", label: "Skills & Certs", icon: Code }
-  ] as const;
+  const isAcademicMode = activeResume?.resume_type === "academic";
+
+  const sections = isAcademicMode
+    ? ([
+      { id: "contact", label: "Contact", icon: User },
+      { id: "education", label: "Education & GPA", icon: GraduationCap, badge: "Priority" },
+      { id: "awards", label: "Honors & Awards", icon: Trophy, badge: "Priority" },
+      { id: "extracurriculars", label: "Leadership & Activities", icon: BookOpen },
+      { id: "experience", label: "Work & Volunteering", icon: Briefcase },
+      { id: "skills", label: "Skills & Coursework", icon: Code }
+    ] as const)
+    : ([
+      { id: "contact", label: "Contact & Role", icon: User },
+      { id: "experience", label: "Experience (STAR)", icon: Briefcase, badge: "Priority" },
+      { id: "skills", label: "Technical Skills", icon: Code, badge: "Priority" },
+      { id: "education", label: "Education", icon: GraduationCap },
+      { id: "extracurriculars", label: "Projects & Activities", icon: BookOpen },
+      { id: "awards", label: "Honors & Awards", icon: Trophy }
+    ] as const);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50/60">
@@ -725,177 +751,119 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
         // EDITOR VIEW
         <>
           {/* Top Action Bar (Hidden when printing) */}
-          <div className="print:hidden bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs relative z-40">
-            {/* Main Header Row */}
-            <div className="px-3 sm:px-6 py-2.5 sm:py-3.5 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 border-b border-slate-100/80 relative z-30">
-              {/* Left group: Back Button, Selector, Create New */}
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-wrap">
+          <div className="print:hidden bg-white/95 backdrop-blur-xl border-b border-slate-200/80 shadow-2xs relative z-40">
+            {/* Main Header Container */}
+            <div className="px-3 sm:px-6 py-2.5 sm:py-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 relative z-30">
+
+              {/* Left group: Back & Create New */}
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => router.push(pathname)}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-950 text-xs font-bold transition-all border border-slate-200 shrink-0"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-950 text-xs font-bold transition-all border border-slate-200 shrink-0 shadow-2xs"
                   title="Back to Saved Resumes"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span className="hidden sm:inline">Back</span>
                 </button>
-                <div className="relative flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-                  {/* Custom Theme Dropdown Button */}
-                  <button
-                    type="button"
-                    onClick={() => setResumeDropdownOpen((prev) => !prev)}
-                    className="bg-slate-50/90 border border-slate-200/80 hover:border-violet-300 rounded-xl sm:rounded-2xl px-2.5 sm:px-3.5 py-1.5 transition-all inline-flex items-center justify-between gap-1.5 sm:gap-2 shadow-2xs hover:bg-white text-left group min-w-0 shrink-0"
-                  >
-                    <span className="text-xs sm:text-sm font-black text-slate-900 truncate max-w-[120px] sm:max-w-[200px] md:max-w-[260px]">
-                      {activeResume?.title || "My Resume"}
-                    </span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover:text-violet-600 transition-transform duration-200 shrink-0 ${resumeDropdownOpen ? "rotate-180 text-violet-600" : ""
-                        }`}
-                    />
-                  </button>
 
-                  {/* Fullscreen Backdrop to close dropdown when clicking outside */}
-                  {resumeDropdownOpen && (
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setResumeDropdownOpen(false)}
-                    />
-                  )}
-
-                  {/* Custom Popover Menu */}
-                  {resumeDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-[280px] sm:w-[340px] bg-white/95 backdrop-blur-xl border border-slate-200/80 rounded-3xl shadow-2xl z-[100] p-2 animate-in fade-in-0 zoom-in-95 duration-150">
-                      <div className="px-3 py-2 flex items-center justify-between border-b border-slate-100/80 mb-1">
-                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                          Your Saved Resumes
-                        </span>
-                        <span className="text-[10px] font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full">
-                          {payload.resumes.length} total
-                        </span>
-                      </div>
-
-                      <div className="max-h-[260px] overflow-y-auto space-y-1 pr-1">
-                        {payload.resumes.map((r) => {
-                          const isSelected = r.id === activeId;
-                          return (
-                            <button
-                              key={r.id}
-                              type="button"
-                              onClick={() => {
-                                handleEditResume(r.id);
-                                setResumeDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-3 py-2.5 rounded-2xl transition-all flex items-center justify-between gap-2.5 group/item ${isSelected
-                                ? "bg-violet-50/80 border border-violet-200/80 text-violet-950 font-black shadow-2xs"
-                                : "hover:bg-slate-50 border border-transparent text-slate-700 hover:text-slate-900 font-semibold"
-                                }`}
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs truncate">
-                                  {r.title}
-                                </div>
-                                <div className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-1.5">
-                                  <span>
-                                    {r.resume_type === "academic"
-                                      ? "🎓 Academic"
-                                      : r.resume_type === "professional"
-                                        ? "💼 Professional"
-                                        : "✨ Both"}
-                                  </span>
-                                </div>
-                              </div>
-                              {isSelected && (
-                                <div className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                                  <Check className="w-3 h-3" />
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="h-px bg-slate-100 my-1.5" />
-
-                      <button
-                        type="button"
-                        disabled={isLimitReached}
-                        onClick={() => {
-                          setResumeDropdownOpen(false);
-                          setTypeModalOpen(true);
-                        }}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-extrabold shadow-md shadow-violet-500/20 transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Create New Resume
-                      </button>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    disabled={isLimitReached}
-                    onClick={() => setTypeModalOpen(true)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl sm:rounded-2xl bg-violet-50/80 hover:bg-violet-100 text-violet-700 text-[11px] sm:text-xs font-bold border border-violet-200/80 transition-all shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                    title="Switch, Create or Choose Resume Type"
-                  >
-                    <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                    <span className="hidden sm:inline">Create New</span>
-                    <span className="sm:hidden">New</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  disabled={isLimitReached}
+                  onClick={() => setTypeModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl sm:rounded-2xl bg-violet-50/80 hover:bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200/80 transition-all shadow-2xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  title="Switch, Create or Choose Resume Type"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">New Resume</span>
+                  <span className="sm:hidden">New</span>
+                </button>
               </div>
 
-              {/* Right group: AI Tools & Save Button */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  type="button"
-                  onClick={() => handlePrefillFromProfile()}
-                  disabled={isPrefilling || isAiBlocked}
-                  size="sm"
-                  title="Automatically construct a tailored resume using the data saved in your Schoolari profile."
-                  className="h-8.5 sm:h-9.5 px-2.5 sm:px-3.5 rounded-xl text-[11px] sm:text-xs font-bold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm shadow-violet-500/20 transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none shrink-0"
-                >
-                  {isPrefilling ? (
-                    <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin mr-1 shrink-0" />
-                  ) : (
-                    <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 text-yellow-300 shrink-0" />
-                  )}
-                  <span>AI Prefill</span>
-                </Button>
+              {/* Right cluster: Mode Pill + AI Tools + Save */}
+              <div className="flex flex-wrap items-center justify-between md:justify-end gap-2.5 min-w-0">
 
-                <Button
-                  type="button"
-                  onClick={() => setAtsModalOpen(true)}
-                  disabled={isAiBlocked}
-                  variant="outline"
-                  size="sm"
-                  title="Analyze your resume against a specific job description to boost your ATS score."
-                  className="h-8.5 sm:h-9.5 px-2.5 sm:px-3.5 rounded-xl text-[11px] sm:text-xs font-bold text-indigo-700 border-indigo-200/80 bg-indigo-50/80 hover:bg-indigo-100/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none shrink-0"
-                >
-                  <Target className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 text-indigo-600 shrink-0" />
-                  <span>ATS Match</span>
-                </Button>
+                {/* Dual Mode Segmented Pill (Academic vs Internship) */}
+                <div className="flex items-center p-1 bg-slate-100/90 border border-slate-200/80 rounded-2xl shadow-2xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchResumeMode("academic")}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all ${isAcademicMode
+                      ? "bg-white text-violet-900 shadow-xs border border-slate-200/60"
+                      : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    title="Academic & College Admissions Mode"
+                  >
+                    <GraduationCap className={`w-4 h-4 ${isAcademicMode ? "text-violet-600" : "text-slate-400"}`} />
+                    <span>Academic Mode</span>
+                  </button>
 
-                <Button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  title="Save Changes"
-                  size="sm"
-                  className={`h-8.5 sm:h-9.5 px-3 rounded-xl shadow-xs text-xs font-bold gap-1.5 transition-all shrink-0 ${saveSuccess
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                    : "bg-slate-900 hover:bg-slate-800 text-white"
-                    }`}
-                >
-                  {isSaving ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : saveSuccess ? (
-                    <Check className="w-3.5 h-3.5" />
-                  ) : (
-                    <Save className="w-3.5 h-3.5" />
-                  )}
-                  <span>{saveSuccess ? "Saved" : "Save"}</span>
-                </Button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchResumeMode("professional")}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all ${!isAcademicMode
+                      ? "bg-white text-indigo-900 shadow-xs border border-slate-200/60"
+                      : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    title="Industry Internships & Jobs Mode"
+                  >
+                    <Briefcase className={`w-4 h-4 ${!isAcademicMode ? "text-indigo-600" : "text-slate-400"}`} />
+                    <span>Internship Mode</span>
+                  </button>
+                </div>
+
+                {/* AI Tools & Save Button Group */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    onClick={() => handlePrefillFromProfile()}
+                    disabled={isPrefilling || isAiBlocked}
+                    size="sm"
+                    title="Automatically construct a tailored resume using the data saved in your Schoolari profile."
+                    className="h-9 px-3.5 rounded-xl text-xs font-bold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-sm shadow-violet-500/20 transition-all hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none shrink-0"
+                  >
+                    {isPrefilling ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 shrink-0" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5 mr-1 text-yellow-300 shrink-0" />
+                    )}
+                    <span>AI Prefill</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={() => setAtsModalOpen(true)}
+                    disabled={isAiBlocked}
+                    variant="outline"
+                    size="sm"
+                    title="Analyze your resume against a specific job description to boost your ATS score."
+                    className="h-9 px-3.5 rounded-xl text-xs font-bold text-indigo-700 border-indigo-200/80 bg-indigo-50/80 hover:bg-indigo-100/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none shrink-0"
+                  >
+                    <Target className="w-3.5 h-3.5 mr-1 text-indigo-600 shrink-0" />
+                    <span>ATS Match</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    title="Save Changes"
+                    size="sm"
+                    className={`h-9 px-4 rounded-xl shadow-xs text-xs font-bold gap-1.5 transition-all shrink-0 ${saveSuccess
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : "bg-slate-900 hover:bg-slate-800 text-white"
+                      }`}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : saveSuccess ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <Save className="w-3.5 h-3.5" />
+                    )}
+                    <span>{saveSuccess ? "Saved" : "Save"}</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -935,7 +903,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
           </div>
 
           {/* Main Responsive 2-Column Layout */}
-          <div className="flex-1 grid grid-cols-1 xl:grid-cols-12 items-start gap-0 xl:gap-8 p-3 sm:p-6 xl:p-8 max-w-[1600px] mx-auto w-full relative z-10">
+          <div className="flex-1 grid grid-cols-1 xl:grid-cols-12 items-start gap-0 xl:gap-8 p-3 sm:p-6 xl:p-8 max-w-[1600px] mx-auto w-full relative z-10 print:block print:p-0 print:m-0 print:max-w-none">
             {/* LEFT COLUMN: Section Nav & Editors (Colspan 6 on xl+, full width on < xl) */}
             <div
               className={`print:hidden xl:col-span-6 flex flex-col gap-4 sm:gap-5 ${mobileTab === "preview" ? "hidden xl:flex" : "flex"
@@ -946,7 +914,7 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
                 ref={tabsContainerRef}
                 className="flex overflow-x-auto p-1.5 gap-1.5 rounded-2xl bg-slate-200/60 border border-slate-300/40 no-scrollbar"
               >
-                {sections.map((sec) => {
+                {sections.map((sec: any) => {
                   const Icon = sec.icon;
                   const isSelected = selectedSection === sec.id;
                   return (
@@ -959,7 +927,13 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
                         }`}
                     >
                       <Icon className={`w-4 h-4 ${isSelected ? "text-violet-600" : "text-slate-400"}`} />
-                      {sec.label}
+                      <span>{sec.label}</span>
+                      {sec.badge && (
+                        <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${isSelected ? "bg-violet-100 text-violet-800" : "bg-slate-300/60 text-slate-700"
+                          }`}>
+                          {sec.badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -1020,10 +994,11 @@ export function ResumeBuilderClient({ initialPayload = null, aiUsage }: { initia
 
             {/* RIGHT COLUMN: Live 1-Page ATS Preview (Colspan 6 on xl+, full width on < xl) */}
             <div
-              className={`xl:col-span-6 flex flex-col ${mobileTab === "edit" ? "hidden xl:flex" : "flex"
+              id="resume-right-column"
+              className={`xl:col-span-6 flex flex-col print-resume-column ${mobileTab === "edit" ? "hidden xl:flex" : "flex"
                 }`}
             >
-              <div className="xl:sticky xl:top-20">
+              <div className="xl:sticky xl:top-20 print:static">
                 <ResumePreview
                   resume={activeResume}
                   theme={activeResume.template_theme || "classic"}
