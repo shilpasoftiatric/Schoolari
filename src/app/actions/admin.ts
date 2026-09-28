@@ -2,7 +2,9 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath, updateTag } from "next/cache";
 import { canAccessAdmin, hasPermission, isStaffRole, type Permission, type StaffRole } from "@/lib/rbac";
-import { sendInviteEmail } from "@/lib/email";
+import { sendInviteEmail, sendAlertEmail } from "@/lib/email";
+import twilio from "twilio";
+import { formatPhoneE164 } from "@/lib/phone";
 
 // Get the current caller's staff role (or null if not staff)
 export async function getCallerRole(): Promise<StaffRole | null> {
@@ -815,6 +817,14 @@ export async function createEarnVideo(payload: VideoPayload) {
     }
 
     revalidatePath("/admin/income");
+
+    // Send one-time notification to members if newly published
+    if (payload.is_published && video?.id) {
+      sendNewEarnVideoAlert(video.id).catch((err) => {
+        console.error("Failed to send new video alert:", err);
+      });
+    }
+
     return { success: true, video };
   } catch (err: any) {
     return { success: false, error: err.message || "An unexpected error occurred while saving the video." };
@@ -868,6 +878,14 @@ export async function updateEarnVideo(id: string, payload: VideoPayload) {
     }
 
     revalidatePath("/admin/income");
+
+    // If published, trigger alert (sent strictly once per video via notification_sent_at)
+    if (payload.is_published) {
+      sendNewEarnVideoAlert(id).catch((err) => {
+        console.error("Failed to send new video alert on update:", err);
+      });
+    }
+
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || "An unexpected error occurred while updating the video." };
@@ -893,7 +911,143 @@ export async function toggleEarnVideoPublished(id: string, isPublished: boolean)
     .eq("id", id);
 
   if (error) throw new Error(error.message);
+
+  if (isPublished) {
+    sendNewEarnVideoAlert(id).catch((err) => {
+      console.error("Failed to send new video alert on publish:", err);
+    });
+  }
+
   revalidatePath("/admin/income");
+}
+
+/**
+ * Send notification (SMS + Email + In-App) to registered members when a new Earn While You Learn video is uploaded/published.
+ * Idempotent: checks notification_sent_at and runs strictly once per video.
+ */
+export async function sendNewEarnVideoAlert(videoId: string) {
+  try {
+    const adminClient = await createAdminClient();
+
+    // 1. Fetch video record
+    const { data: video, error: vErr } = await adminClient
+      .from("earn_videos")
+      .select("*")
+      .eq("id", videoId)
+      .maybeSingle();
+
+    if (vErr || !video || !video.is_published) return;
+
+    const vAny = video as any;
+    if (vAny.notification_sent_at) {
+      // Already sent once, do not send again
+      return;
+    }
+
+    // 2. Fetch all members / students (excluding staff)
+    const { data: users, error: uErr } = await adminClient
+      .from("profiles")
+      .select("id, role, account_type, student_first_name, parent_first_name, first_name, student_phone, parent_phone, phone, student_email, parent_email, email")
+      .not("role", "in", '("super_admin","admin","college_coach","essay_coach","content_manager","customer_support")');
+
+    if (uErr || !users || users.length === 0) return;
+
+    // 3. Mark video as notified immediately to prevent race conditions / duplicate sends
+    try {
+      await adminClient
+        .from("earn_videos")
+        .update({ notification_sent_at: new Date().toISOString() } as any)
+        .eq("id", videoId);
+    } catch (mErr) {
+      console.warn("[sendNewEarnVideoAlert] Failed to update notification_sent_at:", mErr);
+    }
+
+    // 4. Prepare Twilio and Email
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+    const client = accountSid && authToken ? twilio(accountSid, authToken) : null;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com";
+
+    const title = video.title.trim();
+    const smsBody = `Schoolari: A new Earn While You Learn video "${title}" is now available! Watch it to unlock new income opportunities: ${appUrl}/income. Reply STOP to unsubscribe.`;
+
+    const sentPhones = new Set<string>();
+    const sentEmails = new Set<string>();
+
+    for (const u of users as any[]) {
+      const name = u.student_first_name || u.first_name || u.parent_first_name || "there";
+      const emailSubject = `New Earn While You Learn Video: "${title}"`;
+      const emailHtml = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
+          <h2 style="color: #4f46e5; margin-bottom: 8px;">New Earn While You Learn Video!</h2>
+          <p>Hi ${name},</p>
+          <p>A new lesson has just been uploaded to your <strong>Earn While You Learn</strong> track:</p>
+          <div style="background-color: #f8fafc; border-left: 4px solid #4f46e5; padding: 16px; margin: 20px 0; border-radius: 6px;">
+            <h3 style="margin: 0 0 6px 0; color: #0f172a; font-size: 18px;">${title}</h3>
+            ${video.description ? `<p style="margin: 0; color: #64748b; font-size: 14px;">${video.description}</p>` : ""}
+          </div>
+          <p>Watch this video to complete your action items and unlock more student income opportunities.</p>
+          <p style="margin: 24px 0;">
+            <a href="${appUrl}/income" style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Watch Video Now</a>
+          </p>
+          <p style="color: #94a3b8; font-size: 12px; margin-top: 32px; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+            Schoolari · Earn While You Learn Track
+          </p>
+        </div>
+      `;
+
+      // SMS
+      if (client && twilioPhone) {
+        const rawPhones = [u.student_phone || u.phone, u.parent_phone].filter(Boolean) as string[];
+        const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
+        for (const phone of uniquePhones) {
+          if (!sentPhones.has(phone)) {
+            sentPhones.add(phone);
+            try {
+              await client.messages.create({ body: smsBody, from: twilioPhone, to: phone });
+            } catch (smsErr) {
+              console.warn(`[sendNewEarnVideoAlert] SMS error to ${phone}:`, smsErr);
+            }
+          }
+        }
+      }
+
+      // Email
+      const rawEmails = [u.student_email || u.email, u.parent_email].filter(Boolean) as string[];
+      const uniqueEmails = Array.from(new Set(rawEmails.map((e) => e.trim().toLowerCase())));
+      for (const email of uniqueEmails) {
+        if (!sentEmails.has(email)) {
+          sentEmails.add(email);
+          try {
+            await sendAlertEmail(email, emailSubject, emailHtml);
+          } catch (emailErr) {
+            console.warn(`[sendNewEarnVideoAlert] Email error to ${email}:`, emailErr);
+          }
+        }
+      }
+    }
+
+    // 5. In-App Notifications
+    const notifRows = (users as any[]).map((u) => ({
+      user_id: u.id,
+      title: "New Video Added",
+      message: `A new Earn While You Learn video "${title}" is now available.`,
+      link: "/income",
+      type: "income",
+      is_read: false,
+    }));
+
+    if (notifRows.length > 0) {
+      try {
+        await adminClient.from("notifications").insert(notifRows as any);
+      } catch (nErr) {
+        console.warn("[sendNewEarnVideoAlert] In-app notifications insert error:", nErr);
+      }
+    }
+  } catch (err) {
+    console.error("[sendNewEarnVideoAlert] Unexpected error:", err);
+  }
 }
 
 export async function reorderEarnVideo(id: string, direction: "up" | "down") {

@@ -20,44 +20,105 @@ import { mirrorStripeSubscription } from "@/lib/stripe-mirror";
  * Cancel a user's subscription immediately in Stripe + update DB
  */
 export async function cancelSubscription(stripeSubscriptionId: string, userId: string) {
-  await requirePermission("manage_payments");
-  const stripe = getStripe();
+  try {
+    await requirePermission("manage_payments");
+    const adminClient = await createAdminClient();
 
-  const deleted = await stripe.subscriptions.cancel(stripeSubscriptionId);
+    const isManualOrMock =
+      !stripeSubscriptionId ||
+      stripeSubscriptionId.startsWith("sub_admin_") ||
+      stripeSubscriptionId.startsWith("mock_");
 
-  const adminClient = await createAdminClient();
-  const updateFields = {
-    subscription_status: "canceled",
-    stripe_subscription_id: null,
-    stripe_price_id: null,
-    stripe_customer_id: null,
-    trial_cancelled_email_sent: true,
-  };
+    let stripeStatus: string | undefined = undefined;
 
-  await adminClient
-    .from("profiles")
-    .update(updateFields)
-    .eq("stripe_subscription_id", stripeSubscriptionId);
+    if (!isManualOrMock) {
+      try {
+        const stripe = getStripe();
+        const deleted = await stripe.subscriptions.cancel(stripeSubscriptionId);
+        stripeStatus = deleted.status;
+      } catch (stripeErr: any) {
+        // If Stripe returns 'resource_missing' (code: 'resource_missing' or status: 404),
+        // the subscription is not in Stripe (e.g. manual test record or already removed).
+        const isResourceMissing =
+          stripeErr?.code === "resource_missing" ||
+          stripeErr?.statusCode === 404 ||
+          stripeErr?.raw?.code === "resource_missing" ||
+          stripeErr?.message?.includes("No such subscription");
 
-  await mirrorStripeSubscription(userId, updateFields);
+        if (!isResourceMissing) {
+          console.error("Stripe subscription cancel error:", stripeErr);
+          return {
+            success: false,
+            error: stripeErr?.message || "Failed to cancel subscription in Stripe.",
+          };
+        }
+      }
+    }
 
-  revalidatePath("/admin/payments");
-  return { success: true, status: deleted.status };
+    const updateFields = {
+      subscription_status: "canceled",
+      trial_cancelled_email_sent: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (userId) {
+      await adminClient
+        .from("profiles")
+        .update(updateFields)
+        .eq("id", userId);
+    }
+
+    if (stripeSubscriptionId) {
+      await adminClient
+        .from("profiles")
+        .update(updateFields)
+        .eq("stripe_subscription_id", stripeSubscriptionId);
+    }
+
+    if (userId) {
+      await mirrorStripeSubscription(userId, updateFields);
+    }
+
+    revalidatePath("/admin/payments");
+    revalidatePath("/admin/users");
+
+    return {
+      success: true,
+      status: stripeStatus || "canceled",
+      message: isManualOrMock
+        ? "Subscription canceled successfully in database (manual account)."
+        : "Subscription canceled successfully.",
+    };
+  } catch (err: any) {
+    console.error("Error in cancelSubscription:", err);
+    return {
+      success: false,
+      error: err?.message || "An unexpected error occurred while canceling the subscription.",
+    };
+  }
 }
 
 /**
  * Issue a full or partial refund on a Stripe PaymentIntent
  */
 export async function issueRefund(paymentIntentId: string, amountCents?: number) {
-  await requirePermission("manage_payments");
-  const stripe = getStripe();
+  try {
+    await requirePermission("manage_payments");
+    const stripe = getStripe();
 
-  const refund = await stripe.refunds.create({
-    payment_intent: paymentIntentId,
-    ...(amountCents ? { amount: amountCents } : {}),
-  });
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      ...(amountCents ? { amount: amountCents } : {}),
+    });
 
-  return { success: true, refundId: refund.id, status: refund.status };
+    return { success: true, refundId: refund.id, status: refund.status };
+  } catch (err: any) {
+    console.error("Error in issueRefund:", err);
+    return {
+      success: false,
+      error: err?.message || "Failed to process refund in Stripe.",
+    };
+  }
 }
 
 /**
@@ -68,28 +129,95 @@ export async function changeSubscriptionPlan(
   newPriceId: string,
   userId: string
 ) {
-  await requirePermission("manage_payments");
-  const stripe = getStripe();
+  try {
+    await requirePermission("manage_payments");
+    const adminClient = await createAdminClient();
 
-  const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-  const subscriptionItemId = subscription.items.data[0].id;
+    const isManualOrMock =
+      !stripeSubscriptionId ||
+      stripeSubscriptionId.startsWith("sub_admin_") ||
+      stripeSubscriptionId.startsWith("mock_");
 
-  const updated = await stripe.subscriptions.update(stripeSubscriptionId, {
-    items: [{ id: subscriptionItemId, price: newPriceId }],
-    proration_behavior: "create_prorations",
-  });
+    if (isManualOrMock) {
+      await adminClient
+        .from("profiles")
+        .update({
+          stripe_price_id: newPriceId,
+          subscription_status: "active",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId);
 
-  const adminClient = await createAdminClient();
-  await adminClient
-    .from("profiles")
-    .update({
-      stripe_price_id: newPriceId,
-      subscription_status: updated.status,
-    })
-    .eq("id", userId);
+      revalidatePath("/admin/payments");
+      revalidatePath("/admin/users");
+      return { success: true, message: "Subscription plan updated in database." };
+    }
 
-  revalidatePath("/admin/payments");
-  return { success: true };
+    const stripe = getStripe();
+    let updatedStatus = "active";
+    try {
+      const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+      const subscriptionItemId = subscription.items.data[0]?.id;
+
+      if (!subscriptionItemId) {
+        throw new Error("No subscription line items found to update.");
+      }
+
+      const updated = await stripe.subscriptions.update(stripeSubscriptionId, {
+        items: [{ id: subscriptionItemId, price: newPriceId }],
+        proration_behavior: "create_prorations",
+      });
+      updatedStatus = updated.status;
+    } catch (stripeErr: any) {
+      const isMissing =
+        stripeErr?.code === "resource_missing" ||
+        stripeErr?.statusCode === 404 ||
+        stripeErr?.raw?.code === "resource_missing";
+
+      if (isMissing) {
+        // Fallback to update database plan directly
+        await adminClient
+          .from("profiles")
+          .update({
+            stripe_price_id: newPriceId,
+            subscription_status: "active",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", userId);
+
+        revalidatePath("/admin/payments");
+        revalidatePath("/admin/users");
+        return {
+          success: true,
+          message: "Subscription was not active in Stripe; updated in database directly.",
+        };
+      }
+
+      return {
+        success: false,
+        error: stripeErr?.message || "Failed to update subscription in Stripe.",
+      };
+    }
+
+    await adminClient
+      .from("profiles")
+      .update({
+        stripe_price_id: newPriceId,
+        subscription_status: updatedStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    revalidatePath("/admin/payments");
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in changeSubscriptionPlan:", err);
+    return {
+      success: false,
+      error: err?.message || "Failed to change subscription plan.",
+    };
+  }
 }
 
 /**
@@ -103,47 +231,63 @@ export async function createCoupon(data: {
   durationInMonths?: number;
   maxRedemptions?: number;
 }) {
-  await requirePermission("manage_payments");
-  const stripe = getStripe();
-
-  const codeId = data.name.toUpperCase().trim().replace(/[^A-Z0-9_-]/g, "");
-
-  const coupon = await stripe.coupons.create({
-    id: codeId || undefined,
-    name: data.name,
-    ...(data.percentOff ? { percent_off: data.percentOff } : {}),
-    ...(data.amountOff ? { amount_off: Math.round(data.amountOff * 100), currency: "usd" } : {}),
-    duration: data.duration,
-    ...(data.duration === "repeating" && data.durationInMonths
-      ? { duration_in_months: data.durationInMonths }
-      : {}),
-    ...(data.maxRedemptions ? { max_redemptions: data.maxRedemptions } : {}),
-  });
-
-  // Also create a customer-facing promotion code so it works in checkout
   try {
-    await stripe.promotionCodes.create({
-      coupon: coupon.id,
-      code: codeId || data.name.trim(),
-      ...(data.maxRedemptions ? { max_redemptions: data.maxRedemptions } : {}),
-    } as any);
-  } catch (promoErr) {
-    console.warn("Could not create promotion code alias:", promoErr);
-  }
+    await requirePermission("manage_payments");
+    const stripe = getStripe();
 
-  revalidatePath("/admin/payments");
-  return { success: true, couponId: coupon.id };
+    const codeId = data.name.toUpperCase().trim().replace(/[^A-Z0-9_-]/g, "");
+
+    const coupon = await stripe.coupons.create({
+      id: codeId || undefined,
+      name: data.name,
+      ...(data.percentOff ? { percent_off: data.percentOff } : {}),
+      ...(data.amountOff ? { amount_off: Math.round(data.amountOff * 100), currency: "usd" } : {}),
+      duration: data.duration,
+      ...(data.duration === "repeating" && data.durationInMonths
+        ? { duration_in_months: data.durationInMonths }
+        : {}),
+      ...(data.maxRedemptions ? { max_redemptions: data.maxRedemptions } : {}),
+    });
+
+    // Also create a customer-facing promotion code so it works in checkout
+    try {
+      await stripe.promotionCodes.create({
+        coupon: coupon.id,
+        code: codeId || data.name.trim(),
+        ...(data.maxRedemptions ? { max_redemptions: data.maxRedemptions } : {}),
+      } as any);
+    } catch (promoErr) {
+      console.warn("Could not create promotion code alias:", promoErr);
+    }
+
+    revalidatePath("/admin/payments");
+    return { success: true, couponId: coupon.id };
+  } catch (err: any) {
+    console.error("Error in createCoupon:", err);
+    return {
+      success: false,
+      error: err?.message || "Failed to create coupon in Stripe.",
+    };
+  }
 }
 
 /**
  * Delete a coupon from Stripe
  */
 export async function deleteCoupon(couponId: string) {
-  await requirePermission("manage_payments");
-  const stripe = getStripe();
-  await stripe.coupons.del(couponId);
-  revalidatePath("/admin/payments");
-  return { success: true };
+  try {
+    await requirePermission("manage_payments");
+    const stripe = getStripe();
+    await stripe.coupons.del(couponId);
+    revalidatePath("/admin/payments");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error in deleteCoupon:", err);
+    return {
+      success: false,
+      error: err?.message || "Failed to delete coupon from Stripe.",
+    };
+  }
 }
 
 /**

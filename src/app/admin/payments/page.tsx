@@ -102,12 +102,19 @@ export default async function AdminPaymentsPage() {
       if (isLinked) return;
     }
 
-    // Must have a Stripe subscription ID
-    if (!p.stripe_subscription_id) return;
+    // Must have a Stripe subscription ID or recorded subscription status
+    const hasSubscription = Boolean(
+      p.stripe_subscription_id ||
+      p.subscription_status === "active" ||
+      p.subscription_status === "trialing" ||
+      p.subscription_status === "canceled"
+    );
+    if (!hasSubscription) return;
 
     // Deduplicate so duplicate family entries don't render twice
-    if (seenSubIds.has(p.stripe_subscription_id)) return;
-    seenSubIds.add(p.stripe_subscription_id);
+    const dedupeKey = p.stripe_subscription_id || p.id;
+    if (seenSubIds.has(dedupeKey)) return;
+    seenSubIds.add(dedupeKey);
 
     const authUser = authUserMap.get(p.id);
 

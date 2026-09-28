@@ -516,11 +516,15 @@ export function UsersTable({ initialUsers }: { initialUsers: any[] }) {
       // Use _subscription_owner_id when a parent holds the subscription;
       // otherwise fall back to the user's own id.
       const ownerId = manageUser._subscription_owner_id || manageUser.id;
-      await cancelSubscription(manageUser.stripe_subscription_id, ownerId);
-      toast.success("Subscription cancelled");
+      const res = await cancelSubscription(manageUser.stripe_subscription_id, ownerId);
+      if (res && !res.success) {
+        toast.error(res.error || "Failed to cancel subscription");
+        return;
+      }
+      toast.success(res?.message || "Subscription cancelled");
       setManageModalOpen(false);
     } catch (err: any) {
-      toast.error(err.message || "Failed to cancel subscription");
+      toast.error(err?.message || "Failed to cancel subscription");
     } finally {
       setIsSubmitting(false);
     }

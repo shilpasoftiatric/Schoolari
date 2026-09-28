@@ -109,11 +109,15 @@ export function PaymentsAdmin({
     if (!confirm(`Cancel subscription for ${sub.display_name}? This cannot be undone.`)) return;
     startTransition(async () => {
       try {
-        await cancelSubscription(sub.stripe_subscription_id, sub.id);
-        toast.success(`Subscription canceled for ${sub.display_name}`);
+        const res = await cancelSubscription(sub.stripe_subscription_id, sub._subscription_owner_id || sub.id);
+        if (res && !res.success) {
+          toast.error(res.error || "Failed to cancel subscription.");
+          return;
+        }
+        toast.success(res?.message || `Subscription canceled for ${sub.display_name}`);
         router.refresh();
       } catch (e: any) {
-        toast.error(e.message);
+        toast.error(e?.message || "Failed to cancel subscription.");
       }
     });
   };
@@ -123,13 +127,17 @@ export function PaymentsAdmin({
     startTransition(async () => {
       try {
         const amountCents = refundAmount ? Math.round(parseFloat(refundAmount) * 100) : undefined;
-        await issueRefund(refundTarget.payment_intent, amountCents);
+        const res = await issueRefund(refundTarget.payment_intent, amountCents);
+        if (res && !res.success) {
+          toast.error(res.error || "Refund failed.");
+          return;
+        }
         toast.success("Refund issued successfully!");
         setRefundTarget(null);
         setRefundAmount("");
         router.refresh();
       } catch (e: any) {
-        toast.error(`Refund failed: ${e.message}`);
+        toast.error(`Refund failed: ${e?.message || "An unexpected error occurred."}`);
       }
     });
   };
@@ -138,13 +146,21 @@ export function PaymentsAdmin({
     if (!changePlanTarget || !selectedNewPlan) return;
     startTransition(async () => {
       try {
-        await changeSubscriptionPlan(changePlanTarget.stripe_subscription_id, selectedNewPlan, changePlanTarget.id);
-        toast.success("Plan updated successfully!");
+        const res = await changeSubscriptionPlan(
+          changePlanTarget.stripe_subscription_id,
+          selectedNewPlan,
+          changePlanTarget._subscription_owner_id || changePlanTarget.id
+        );
+        if (res && !res.success) {
+          toast.error(res.error || "Plan change failed.");
+          return;
+        }
+        toast.success(res?.message || "Plan updated successfully!");
         setChangePlanTarget(null);
         setSelectedNewPlan("");
         router.refresh();
       } catch (e: any) {
-        toast.error(`Plan change failed: ${e.message}`);
+        toast.error(`Plan change failed: ${e?.message || "An unexpected error occurred."}`);
       }
     });
   };
@@ -232,15 +248,18 @@ export function PaymentsAdmin({
           setShowCouponForm(false);
           setCouponForm({ name: "", percentOff: "", amountOff: "", duration: "once", durationInMonths: "", maxRedemptions: "" });
           router.refresh();
+        } else if (res?.error) {
+          toast.error(res.error);
         }
       } catch (e: any) {
-        toast.error(`Failed to create coupon: ${e.message}`);
+        toast.error(`Failed to create coupon: ${e?.message || "An unexpected error occurred."}`);
       }
     });
   };
 
   const handleDeleteCoupon = (id: string) => {
     if (!confirm("Delete this coupon from Stripe?")) return;
+    const backupList = [...couponList];
     setCouponList((prev) => prev.filter((c) => c.id !== id));
     startTransition(async () => {
       try {
@@ -248,9 +267,13 @@ export function PaymentsAdmin({
         if (res?.success) {
           toast.success("Coupon deleted.");
           router.refresh();
+        } else {
+          setCouponList(backupList);
+          toast.error(res?.error || "Failed to delete coupon.");
         }
       } catch (e: any) {
-        toast.error(e.message);
+        setCouponList(backupList);
+        toast.error(e?.message || "Failed to delete coupon.");
         router.refresh();
       }
     });
@@ -392,7 +415,7 @@ export function PaymentsAdmin({
                                   <span>Change Plan</span>
                                 </DropdownMenuItem>
 
-                                {sub.subscription_status === "active" && (
+                                {(sub.subscription_status === "active" || sub.subscription_status === "trialing") && (
                                   <>
                                     <div className="h-px bg-slate-100 my-1 -mx-1" />
                                     <DropdownMenuItem

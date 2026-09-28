@@ -469,6 +469,7 @@ export interface Database {
           watch_time_mins: number | null;
           is_published: boolean;
           sort_order: number;
+          notification_sent_at?: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -485,6 +486,7 @@ export interface Database {
           watch_time_mins?: number | null;
           is_published?: boolean;
           sort_order?: number;
+          notification_sent_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["earn_videos"]["Row"]>;
         Relationships: any[];

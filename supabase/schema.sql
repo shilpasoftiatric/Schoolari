@@ -146,6 +146,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS scholarship_task_index INT 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS essay_task_index INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS college_task_index INT DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS job_task_index INT DEFAULT 0;
+ALTER TABLE public.earn_videos ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMPTZ DEFAULT NULL;
 
 -- Account Type Constraint & Staff Backfill
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_account_type_check;
@@ -508,9 +509,10 @@ CREATE TABLE IF NOT EXISTS public.earn_videos (
   thumbnail_url    TEXT DEFAULT NULL,
   difficulty       TEXT DEFAULT 'beginner' CHECK (difficulty IN ('beginner', 'intermediate', 'advanced')),
   watch_time_mins  INT DEFAULT NULL,
-  is_published     BOOLEAN DEFAULT true,
-  sort_order       INT DEFAULT 0,
-  created_at       TIMESTAMPTZ DEFAULT now(),
+  is_published          BOOLEAN DEFAULT true,
+  sort_order            INT DEFAULT 0,
+  notification_sent_at  TIMESTAMPTZ DEFAULT NULL,
+  created_at            TIMESTAMPTZ DEFAULT now(),
   updated_at       TIMESTAMPTZ DEFAULT now()
 );
 
