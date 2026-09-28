@@ -34,7 +34,10 @@ export async function saveOnboardingStep(step: number, data: any) {
     'state', 'grade_level', 'fields_of_study',
     'background_tags', 'involvement_tags', 'college_start', 'biggest_challenge',
     'ethnicity_tags', 'financial_need',
-    'account_type', 'career_interest'
+    // NOTE: 'account_type' is intentionally excluded — it is set at account-creation time
+    // and must never be overwritten by onboarding form data. Allowing it here would cause
+    // a parent's 'parent' value to be stamped onto the linked student's profile row.
+    'career_interest'
   ];
 
   allowedKeys.forEach(key => {
@@ -104,11 +107,21 @@ export async function saveOnboardingStep(step: number, data: any) {
             if (!recoveryError && recoveryData?.properties?.action_link) {
               finalInviteLink = recoveryData.properties.action_link;
             }
-            
-            // We need to look up the existing student's ID to link them
-            const { data: existingStudent } = await supabaseAdmin.auth.admin.getUserById(data.student_email);
-            // We can't lookup by email with getUserById easily, we have to query the profiles table or just assume they will link later when they log in.
-            // Actually, we can just send the email and return success.
+
+            // Look up the existing student's profile by their auth email so we can
+            // set parent.linked_student_id — required for healInvitedUserProfile to
+            // find the parent when the student next logs in.
+            const { data: existingAuthUsers } = await supabaseAdmin.auth.admin.listUsers();
+            const existingAuthUser = existingAuthUsers?.users?.find(
+              (u: any) => u.email?.toLowerCase() === data.student_email?.toLowerCase()
+            );
+            if (existingAuthUser?.id) {
+              targetId = existingAuthUser.id;
+              await supabaseAdmin
+                .from("profiles")
+                .update({ linked_student_id: targetId })
+                .eq("id", user.id);
+            }
           } else {
             return { error: "The student email you provided is already registered. Please use a different email or have the student log in first." };
           }

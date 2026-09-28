@@ -61,7 +61,7 @@ export function PaymentsAdmin({
   subscribers: any[];
   recentCharges: any[];
   coupons: any[];
-  stats: { active: number; canceled: number; totalRevenueCents: number };
+  stats: { active: number; trialing: number; canceled: number; totalRevenueCents: number };
   availablePlans: { priceId: string; name: string }[];
   stripeConfigured: boolean;
 }) {
@@ -292,8 +292,9 @@ export function PaymentsAdmin({
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Active Subscribers" value={stats.active.toString()} icon={Users} color="bg-emerald-50 text-emerald-600" />
+        <StatCard label="Trialing" value={stats.trialing.toString()} icon={Clock} color="bg-blue-50 text-blue-600" />
         <StatCard label="Canceled" value={stats.canceled.toString()} icon={XCircle} color="bg-slate-100 text-slate-500" />
         <StatCard label="Total Revenue" value={`$${(stats.totalRevenueCents / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}`} icon={TrendingUp} color="bg-violet-50 text-violet-600" />
       </div>

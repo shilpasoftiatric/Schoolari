@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import twilio from "twilio";
 import { formatPhoneE164 } from "@/lib/phone";
-import { 
-  sendAlertEmail, 
-  sendTrialDay5ReminderEmail, 
-  sendTrialDay7ConvertedEmail 
+import {
+  sendAlertEmail,
+  sendTrialDay5ReminderEmail,
+  sendTrialDay7ConvertedEmail
 } from "@/lib/email";
 import { processDueScheduledMessages } from "@/app/actions/admin-messages";
 
@@ -223,18 +223,18 @@ export async function GET(req: Request) {
 
       for (const profile of trialProfiles) {
         if (!profile.trial_start_date) continue;
-        
+
         // Compute precise days since trial started
         const daysSinceStart = (nowMs - new Date(profile.trial_start_date).getTime()) / (1000 * 60 * 60 * 24);
         const name = profile.student_first_name || profile.parent_first_name || "Student";
-        
+
         const rawPhones = [profile.student_phone, profile.parent_phone].filter(Boolean) as string[];
         const uniquePhones = Array.from(new Set(rawPhones.map((p) => formatPhoneE164(p)).filter(Boolean) as string[]));
 
         const pAny = profile as any;
         const rawEmails = [pAny?.student_email, pAny?.parent_email].filter(Boolean) as string[];
         const uniqueEmails = Array.from(new Set(rawEmails.map((e: string) => e.trim().toLowerCase())));
-        
+
         // ── Day 5 Reminder (2 Days Before Trial Ends) ──────────────────────────
         if (daysSinceStart >= 4.5 && daysSinceStart < 6.5 && profile.subscription_status === "trialing" && !pAny?.trial_cancelled_email_sent) {
           // Send Day 5 SMS if not sent yet and not already sent in this batch
@@ -285,7 +285,7 @@ export async function GET(req: Request) {
             }
           }
         }
-        
+
         // ── Day 7 Confirmation (Trial Converted to Paid Subscription) ─────────
         if (daysSinceStart >= 6.75 && daysSinceStart < 8.5 && profile.subscription_status === "active") {
           // Send Day 7 SMS if not sent yet and not already sent in this batch

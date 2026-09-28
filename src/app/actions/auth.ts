@@ -148,12 +148,37 @@ export async function healInvitedUserProfile(): Promise<{ redirectTo: string }> 
   if (!user) return { redirectTo: "/login" };
 
   // --- CASE 1: Was this user invited as a STUDENT by a paying parent? ---
-  // A parent invited them: parent profile has `linked_student_id = user.id`
-  const { data: invitingParent } = await supabaseAdmin
-    .from("profiles")
-    .select("id, subscription_status, stripe_subscription_id, stripe_customer_id, stripe_price_id")
-    .eq("linked_student_id", user.id)
-    .maybeSingle();
+  // Primary: parent profile has `linked_student_id = user.id` (set when parent sent invite).
+  let invitingParent: any = null;
+  {
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select("id, subscription_status, stripe_subscription_id, stripe_customer_id, stripe_price_id")
+      .eq("linked_student_id", user.id)
+      .maybeSingle();
+    invitingParent = data;
+  }
+
+  // Fallback: if no parent found by linked_student_id (e.g. "already registered" edge case
+  // or a timing issue), check whether the invite metadata marked this user as 'student'
+  // and look for a parent profile whose student_email matches this user's email.
+  if (!invitingParent && user.user_metadata?.account_type === "student" && user.email) {
+    const { data: parentByStudentEmail } = await supabaseAdmin
+      .from("profiles")
+      .select("id, subscription_status, stripe_subscription_id, stripe_customer_id, stripe_price_id")
+      .eq("student_email", user.email)
+      .eq("account_type", "parent")
+      .maybeSingle();
+
+    if (parentByStudentEmail) {
+      invitingParent = parentByStudentEmail;
+      // Heal the parent's linked_student_id while we're here
+      await supabaseAdmin
+        .from("profiles")
+        .update({ linked_student_id: user.id })
+        .eq("id", parentByStudentEmail.id);
+    }
+  }
 
   if (invitingParent) {
     // This user is the student. Fix their account_type and copy Stripe details.

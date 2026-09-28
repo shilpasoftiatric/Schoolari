@@ -175,7 +175,8 @@ export default async function AdminPaymentsPage() {
   }
 
   // Stats
-  const activeCount = subscribers.filter((s) => s.subscription_status === "active" || s.subscription_status === "trialing").length;
+  const activeCount = subscribers.filter((s) => s.subscription_status === "active").length;
+  const trialingCount = subscribers.filter((s) => s.subscription_status === "trialing").length;
   const canceledCount = subscribers.filter((s) => s.subscription_status === "canceled").length;
   const totalRevenue = recentCharges
     .filter((c) => c.status === "succeeded")
@@ -203,7 +204,7 @@ export default async function AdminPaymentsPage() {
         subscribers={subscribers}
         recentCharges={recentCharges}
         coupons={coupons}
-        stats={{ active: activeCount, canceled: canceledCount, totalRevenueCents: totalRevenue }}
+        stats={{ active: activeCount, trialing: trialingCount, canceled: canceledCount, totalRevenueCents: totalRevenue }}
         availablePlans={availablePlans}
         stripeConfigured={!!stripe}
       />
