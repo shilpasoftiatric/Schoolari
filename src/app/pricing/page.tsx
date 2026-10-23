@@ -3,17 +3,17 @@ import { Suspense } from "react";
 import PricingClient from "./PricingClient";
 import { createClient } from "@/lib/supabase/server";
 
-async function getHasHadTrial(): Promise<boolean> {
+async function getPricingData(): Promise<{ hasHadTrial: boolean; isAlreadyDiscountUser: boolean }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user) return { hasHadTrial: false, isAlreadyDiscountUser: false };
 
   const { getStudentDashboardData } = await import("@/services/data-fetcher");
   const dbData = await getStudentDashboardData(user.id);
   const userProfile = dbData.userProfile;
   const masterProfile = dbData.profile;
 
-  return (
+  const hasHadTrial = (
     !!userProfile?.trial_start_date || 
     !!userProfile?.subscription_status || 
     !!userProfile?.stripe_customer_id || 
@@ -27,14 +27,18 @@ async function getHasHadTrial(): Promise<boolean> {
     !!masterProfile?.trial_welcome_email_sent ||
     !!masterProfile?.trial_cancelled_email_sent
   );
+
+  const isAlreadyDiscountUser = Boolean(userProfile?.is_discount_user || masterProfile?.is_discount_user);
+
+  return { hasHadTrial, isAlreadyDiscountUser };
 }
 
 export default async function PricingPage() {
-  const hasHadTrial = await getHasHadTrial();
+  const { hasHadTrial, isAlreadyDiscountUser } = await getPricingData();
 
   return (
     <Suspense fallback={<div className="flex items-center justify-center p-8 text-slate-500">Loading pricing options...</div>}>
-      <PricingClient hasHadTrial={hasHadTrial} />
+      <PricingClient hasHadTrial={hasHadTrial} isAlreadyDiscountUser={isAlreadyDiscountUser} />
     </Suspense>
   );
 }

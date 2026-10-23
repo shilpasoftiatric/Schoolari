@@ -53,11 +53,18 @@ const TIERS = [
   }
 ];
 
-export default function PricingClient({ hasHadTrial }: { hasHadTrial: boolean }) {
+export default function PricingClient({
+  hasHadTrial,
+  isAlreadyDiscountUser = false,
+}: {
+  hasHadTrial: boolean;
+  isAlreadyDiscountUser?: boolean;
+}) {
   const [loadingPriceId, setLoadingPriceId] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   // Discount Code & Referral modal states
+  const [isDiscountClaimed, setIsDiscountClaimed] = useState(isAlreadyDiscountUser);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [discountStep, setDiscountStep] = useState<"code" | "referral">("code");
   const [discountCode, setDiscountCode] = useState("");
@@ -172,14 +179,15 @@ export default function PricingClient({ hasHadTrial }: { hasHadTrial: boolean })
       });
 
       if (res.success) {
+        setIsDiscountClaimed(true);
         setIsDiscountModalOpen(false);
         await Swal.fire({
           title: "Starter Plan Unlocked!",
-          text: "Your free Starter access has been activated successfully. Welcome to Schoolari!",
+          text: "Your free Starter access has been activated! Click 'Proceed to Onboarding' on the Starter plan card to continue.",
           icon: "success",
           confirmButtonColor: "#10b981",
+          confirmButtonText: "Got It",
         });
-        window.location.assign("/onboarding");
       } else {
         Swal.fire({
           title: "Could Not Activate Plan",
@@ -237,7 +245,7 @@ export default function PricingClient({ hasHadTrial }: { hasHadTrial: boolean })
 
               {/* Price Display */}
               <div className="mb-6 flex items-baseline text-5xl font-extrabold text-slate-900">
-                {isStarter && discountValid ? (
+                {isStarter && (discountValid || isDiscountClaimed) ? (
                   <>
                     <span className="text-emerald-600 line-through text-3xl mr-2 text-slate-400">$29</span>
                     <span className="text-emerald-600">$0</span>
@@ -265,13 +273,25 @@ export default function PricingClient({ hasHadTrial }: { hasHadTrial: boolean })
               </ul>
 
               <div className="mt-auto">
-                {isStarter && discountValid ? (
+                {isStarter && isDiscountClaimed ? (
+                  <>
+                    <Button
+                      onClick={() => window.location.assign("/onboarding")}
+                      className="w-full h-12 rounded-xl text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 cursor-pointer"
+                    >
+                      Claim Free Access
+                    </Button>
+                    <p className="mt-3 text-xs text-center text-emerald-700 font-semibold">
+                      Starter plan activated — Click above to begin onboarding
+                    </p>
+                  </>
+                ) : isStarter && discountValid ? (
                   <>
                     <Button
                       onClick={handleOpenDiscountModal}
                       className="w-full h-12 rounded-xl text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 cursor-pointer"
                     >
-                      Claim Free Starter Access
+                      Claim Your Free Starter Plan
                     </Button>
                     <p className="mt-3 text-xs text-center text-emerald-700 font-semibold cursor-pointer" onClick={handleOpenDiscountModal}>
                       Code <span className="font-bold font-mono">{discountCode}</span> applied — Click to submit referral
@@ -458,7 +478,7 @@ export default function PricingClient({ hasHadTrial }: { hasHadTrial: boolean })
                     disabled={claimingPlan || !isReferralValid}
                     className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-md transition-all active:scale-95 disabled:opacity-50 mt-2 cursor-pointer"
                   >
-                    {claimingPlan ? "Activating Free Access..." : "Claim Free Starter Access"}
+                    {claimingPlan ? "Activating Free Plan..." : "Claim Your Free Starter Plan"}
                   </Button>
                 </div>
               </div>

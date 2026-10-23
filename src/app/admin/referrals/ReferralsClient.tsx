@@ -402,7 +402,7 @@ export function ReferralsClient({ initialData }: ReferralsClientProps) {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/70 border-b border-slate-200/80 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="py-3.5 px-4">Referring Student</th>
+                <th className="py-3.5 px-4">Referring User</th>
                 <th className="py-3.5 px-4">Referral Name</th>
                 <th className="py-3.5 px-4">Referral Phone</th>
                 <th className="py-3.5 px-4">Referral Email</th>
