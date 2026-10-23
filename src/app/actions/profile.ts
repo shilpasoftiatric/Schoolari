@@ -12,6 +12,12 @@ import { sendReferralSms } from "@/app/actions/sms";
 // Hardcoded fallback to members.localhost:3000 to match Supabase Site URL
 const APP_URL = process.env.NODE_ENV === 'production' ? "https://members.schoolari.com" : "http://members.localhost:3000";
 
+interface PendingReferral {
+  id: string;
+  referral_phone: string | null;
+  referral_first_name: string | null;
+}
+
 async function processPendingReferralSms(
   supabaseAdmin: any,
   userId: string,
@@ -40,18 +46,28 @@ async function processPendingReferralSms(
         .eq("sms_status", "Pending");
 
       // 2. Dispatch SMS with real student first name
-      for (const ref of pendingReferrals) {
-        if (ref.referral_phone) {
-          sendReferralSms(
-            ref.id,
-            ref.referral_phone,
-            ref.referral_first_name,
-            senderFirstName
-          ).catch((e: unknown) => {
-            console.error("[processPendingReferralSms] Failed to send referral SMS:", e);
-          });
-        }
-      }
+      await Promise.allSettled(
+        pendingReferrals.map(async (ref: PendingReferral) => {
+          if (ref.referral_phone) {
+            try {
+              const res = await sendReferralSms(
+                ref.id,
+                ref.referral_phone,
+                ref.referral_first_name || "",
+                senderFirstName
+              );
+              if (!res.success) {
+                console.warn(
+                  `[processPendingReferralSms] sendReferralSms returned unsuccessful for ref ${ref.id}:`,
+                  res.error || res.reason
+                );
+              }
+            } catch (e: unknown) {
+              console.error("[processPendingReferralSms] Failed to send referral SMS:", e);
+            }
+          }
+        })
+      );
     }
   } catch (err) {
     console.error("[processPendingReferralSms] Unexpected error:", err);
@@ -350,13 +366,13 @@ export async function saveOnboardingStep(step: number, data: any) {
         ? `${studentFirstName || ""} ${studentLastName || ""}`.trim()
         : `${parentFirstName || ""} ${parentLastName || ""}`.trim();
 
-      processPendingReferralSms(
+      await processPendingReferralSms(
         supabaseAdmin,
         user.id,
         targetId,
         senderFirstName,
         senderFullName || senderFirstName || "A Schoolari Member"
-      ).catch((e) => console.error("Error processing pending referral SMS", e));
+      );
     } catch (referralSmsErr) {
       console.error("[saveOnboardingStep] Pending referral SMS trigger error:", referralSmsErr);
     }
@@ -370,13 +386,13 @@ export async function saveOnboardingStep(step: number, data: any) {
       const studentLastName = updatedProfile.student_last_name?.trim();
       const senderFirstName = studentFirstName || updatedProfile.first_name || "A friend";
       const senderFullName = `${studentFirstName || ""} ${studentLastName || ""}`.trim() || senderFirstName;
-      processPendingReferralSms(
+      await processPendingReferralSms(
         supabaseAdmin,
         user.id,
         targetId,
         senderFirstName,
         senderFullName || senderFirstName || "A Schoolari Member"
-      ).catch(console.error);
+      );
     } catch {
       // safe fallback
     }

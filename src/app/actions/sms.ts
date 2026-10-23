@@ -70,12 +70,16 @@ export async function sendReferralSms(
     if (!e164Phone) throw new Error("Invalid phone number");
 
     const client = twilio(accountSid, authToken);
-    await client.messages.create({
+    const twilioMsg = await client.messages.create({
       body: messageBody,
       messagingServiceSid: messagingServiceSid || undefined,
       from: !messagingServiceSid ? fromPhone : undefined,
       to: e164Phone,
     });
+
+    console.log(
+      `[sendReferralSms] Twilio accepted SMS (SID: ${twilioMsg.sid}, status: ${twilioMsg.status}) for referralId: ${referralId}`
+    );
 
     await supabaseAdmin
       .from("referrals")
@@ -85,7 +89,7 @@ export async function sendReferralSms(
       })
       .eq("id", referralId);
 
-    return { success: true };
+    return { success: true, messageId: twilioMsg.sid };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : "Failed to send SMS";
     console.error("[sendReferralSms] Failed:", errorMsg);
