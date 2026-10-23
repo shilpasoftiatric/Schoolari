@@ -129,7 +129,6 @@ export function CoachingDashboard({
         { event: "*", schema: "public", table: "coaching_sessions" },
         () => {
           refreshSessions();
-          router.refresh();
         }
       )
       .on(
@@ -137,7 +136,6 @@ export function CoachingDashboard({
         { event: "*", schema: "public", table: "coaching_enrollments" },
         () => {
           refreshSessions();
-          router.refresh();
         }
       )
       .on(
@@ -145,21 +143,14 @@ export function CoachingDashboard({
         { event: "coaching_update" },
         () => {
           refreshSessions();
-          router.refresh();
         }
       )
       .subscribe();
 
-    // Fallback polling every 4 seconds for instant real-time reflection
-    const interval = setInterval(() => {
-      refreshSessions();
-    }, 4000);
-
     return () => {
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [router]);
+  }, []);
 
   const handleEnroll = async (sessionId: string) => {
     setEnrollingId(sessionId);

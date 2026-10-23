@@ -58,7 +58,7 @@ export function AdminSidebar({ role, userName, userEmail }: AdminSidebarProps) {
           // Mobile responsive drawer slide
           isMobileOpen ? "translate-x-0 w-64 shadow-2xl shadow-black/40" : "-translate-x-full lg:translate-x-0",
           // Desktop minimize/maximize width
-          isSidebarCollapsed ? "lg:w-[72px]" : "lg:w-64"
+          isSidebarCollapsed ? "lg:w-[72px]" : "lg:w-60"
         )}
       >
         {/* Header / Logo Area */}

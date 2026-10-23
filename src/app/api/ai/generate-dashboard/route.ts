@@ -5,6 +5,13 @@ import { isDashboardStateEqual, getTodayDateString, calculateWorkflowStates } fr
 import { getStudentDashboardData } from "@/services/data-fetcher";
 import { MASTER_TASKS } from "@/config/master-tasks";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function GET() {
+  return NextResponse.json({ status: "alive" });
+}
+
 const SYSTEM_PROMPT = `You are the Schoolari AI, an expert scholarship and college admissions counselor.
 Your job is to generate a highly personalized action plan based on the student profile.
 You DO NOT need to generate tasks or goals. You only generate the supplementary content.

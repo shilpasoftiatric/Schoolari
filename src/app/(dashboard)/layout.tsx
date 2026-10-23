@@ -6,7 +6,7 @@ import Topbar from "@/components/layout/Topbar";
 import TrialBanner from "@/components/layout/TrialBanner";
 import { getStudentDashboardData } from "@/services/data-fetcher";
 import { canAccessAdmin } from "@/lib/rbac";
-import { getPlanFromPriceId } from "@/lib/subscription";
+import { getPlanFromPriceId, resolveUserPlan } from "@/lib/subscription";
 import {
   calculateWorkflowStates,
   calculateOverallProgress,
@@ -81,7 +81,7 @@ async function SidebarLoader({ userId }: { userId: string }) {
   };
 
   const settings = await getSiteSettings();
-  const plan = getPlanFromPriceId(userProfile?.stripe_price_id ?? null);
+  const plan = resolveUserPlan(userProfile);
 
   return <Sidebar siteName={settings.site_name} progressData={progressData} plan={plan} />;
 }

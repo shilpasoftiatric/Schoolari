@@ -402,8 +402,20 @@ export function DashboardClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ force: forceAI }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to generate AI data");
+
+      const contentType = res.headers.get('content-type') || '';
+      let json: any = null;
+      if (contentType.includes('application/json')) {
+        json = await res.json();
+      }
+
+      if (!res.ok) {
+        throw new Error(json?.error || `Failed to generate AI data (HTTP ${res.status})`);
+      }
+
+      if (!json) {
+        throw new Error("Invalid response format received from server.");
+      }
 
       setDashboardData(json);
       router.refresh();

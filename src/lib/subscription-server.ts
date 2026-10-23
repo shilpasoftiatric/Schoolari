@@ -3,7 +3,7 @@
 // Do NOT import this from client components.
 // ─────────────────────────────────────────────────────────────
 
-import { createClient, getAuthenticatedUser } from "@/lib/supabase/server";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 import {
   getPlanFromPriceId,
   canAccessFeature,
@@ -30,6 +30,10 @@ export async function getUserPlan(): Promise<SubscriptionPlan> {
     profile.subscription_status !== "trialing"
   ) {
     return null;
+  }
+
+  if (profile.is_discount_user) {
+    return "starter";
   }
 
   return getPlanFromPriceId(profile.stripe_price_id ?? null);

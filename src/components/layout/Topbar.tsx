@@ -17,12 +17,53 @@ export default async function Topbar() {
     user ? supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10) : Promise.resolve({ data: [] })
   ]);
 
-  const profile = dbData?.userProfile;
+  const userProfile = dbData?.userProfile;
+  const masterProfile = dbData?.profile;
   const notifications = (notificationsRes.data || []) as any[];
 
-  const displayName = profile?.student_first_name || profile?.first_name || user?.email?.split("@")[0] || "Student";
+  const isParent = userProfile?.account_type === "parent" || user?.user_metadata?.account_type === "parent";
+
+  let displayName = "";
+  if (isParent) {
+    const parentFirst =
+      userProfile?.parent_first_name?.trim() ||
+      masterProfile?.parent_first_name?.trim() ||
+      userProfile?.first_name?.trim() ||
+      user?.user_metadata?.parent_first_name?.trim() ||
+      user?.user_metadata?.first_name?.trim() ||
+      "";
+
+    const parentLast =
+      userProfile?.parent_last_name?.trim() ||
+      masterProfile?.parent_last_name?.trim() ||
+      user?.user_metadata?.parent_last_name?.trim() ||
+      user?.user_metadata?.last_name?.trim() ||
+      "";
+
+    const fullParentName = [parentFirst, parentLast].filter(Boolean).join(" ");
+    displayName = fullParentName || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Parent";
+  } else {
+    const studentFirst =
+      userProfile?.student_first_name?.trim() ||
+      masterProfile?.student_first_name?.trim() ||
+      userProfile?.first_name?.trim() ||
+      user?.user_metadata?.student_first_name?.trim() ||
+      user?.user_metadata?.first_name?.trim() ||
+      "";
+
+    const studentLast =
+      userProfile?.student_last_name?.trim() ||
+      masterProfile?.student_last_name?.trim() ||
+      user?.user_metadata?.student_last_name?.trim() ||
+      user?.user_metadata?.last_name?.trim() ||
+      "";
+
+    const fullStudentName = [studentFirst, studentLast].filter(Boolean).join(" ");
+    displayName = fullStudentName || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Student";
+  }
+
   const initial = displayName.charAt(0).toUpperCase();
-  const plan = getPlanFromPriceId(profile?.stripe_price_id ?? null);
+  const plan = getPlanFromPriceId(userProfile?.stripe_price_id ?? masterProfile?.stripe_price_id ?? null);
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between h-16 px-4 sm:px-6 bg-white border-b border-border shrink-0 print:hidden">

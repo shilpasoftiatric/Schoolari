@@ -62,6 +62,27 @@ export const getStudentDashboardData = cache(async (userId: string) => {
         }
       }
     }
+
+    if (studentProfile) {
+      if (!userProfile.parent_first_name && studentProfile.parent_first_name) {
+        userProfile.parent_first_name = studentProfile.parent_first_name;
+        userProfile.parent_last_name = studentProfile.parent_last_name || userProfile.parent_last_name;
+        userProfile.parent_phone = userProfile.parent_phone || studentProfile.parent_phone;
+        userProfile.parent_email = userProfile.parent_email || studentProfile.parent_email;
+
+        supabaseAdmin
+          .from("profiles")
+          .update({
+            parent_first_name: studentProfile.parent_first_name,
+            parent_last_name: studentProfile.parent_last_name || "",
+            parent_phone: studentProfile.parent_phone || "",
+            parent_email: studentProfile.parent_email || userProfile.parent_email || "",
+            first_name: studentProfile.parent_first_name,
+          })
+          .eq("id", userId)
+          .then();
+      }
+    }
   } else {
     studentProfile = userProfile;
     // Find parent

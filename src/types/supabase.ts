@@ -130,9 +130,47 @@ export interface Database {
           created_at: string;
           updated_at: string;
           is_active: boolean;
+          is_discount_user?: boolean | null;
+          discount_code_used?: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
+        Relationships: any[];
+      };
+      platform_settings: {
+        Row: {
+          key: string;
+          value: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["platform_settings"]["Row"]> & { key: string; value: string };
+        Update: Partial<Database["public"]["Tables"]["platform_settings"]["Row"]>;
+        Relationships: [];
+      };
+      referrals: {
+        Row: {
+          id: string;
+          user_id: string;
+          referring_student_name: string;
+          referral_first_name: string;
+          referral_last_name: string;
+          referral_phone: string;
+          referral_email: string;
+          code_used: string;
+          sms_status: string;
+          sms_sent_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["referrals"]["Row"]> & {
+          user_id: string;
+          referring_student_name: string;
+          referral_first_name: string;
+          referral_last_name: string;
+          referral_phone: string;
+          referral_email: string;
+          code_used: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["referrals"]["Row"]>;
         Relationships: any[];
       };
       scholarships: {

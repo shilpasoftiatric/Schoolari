@@ -222,21 +222,56 @@ export async function enforceAiLimit(feature: AIFeature, targetUserId?: string):
     getSubscriptionInfo(masterId),
     getUserBillingCycleInfo(masterId),
   ]);
-  const plan = subInfo?.plan || "starter";
+  // Check if profile is discount user
+  const { data: userProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("is_discount_user")
+    .eq("id", masterId)
+    .maybeSingle();
+
+  const isDiscountUser = Boolean(userProfile?.is_discount_user);
+  const plan = isDiscountUser ? "discount" : (subInfo?.plan || "starter");
 
   // 2. Get global limits for this plan
-  const { data: limitsData } = await supabaseAdmin
+  let limitsData: any = null;
+  const { data: fetchedLimits } = await supabaseAdmin
     .from("ai_limits")
     .select("*")
     .eq("plan", plan)
-    .single();
+    .maybeSingle();
+
+  if (fetchedLimits) {
+    limitsData = fetchedLimits;
+  } else if (isDiscountUser) {
+    const { data: capSetting } = await supabaseAdmin
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "discount_ai_monthly_cap")
+      .maybeSingle();
+    const cap = capSetting?.value ? parseInt(capSetting.value, 10) : 10;
+    limitsData = {
+      plan: "discount",
+      ask_ai_limit: cap,
+      essay_limit: cap,
+      resume_limit: cap,
+      cover_letter_limit: cap,
+      monthly_budget_cap_usd: 9999,
+    };
+  } else {
+    const { data: fallbackStarter } = await supabaseAdmin
+      .from("ai_limits")
+      .select("*")
+      .eq("plan", "starter")
+      .single();
+    limitsData = fallbackStarter;
+  }
 
   if (!limitsData) {
     throw new Error("Unable to fetch AI limits. Please contact support.");
   }
 
   const rawBudgetCap = (limitsData as any).monthly_budget_cap_usd;
-  const budgetCap = Number(rawBudgetCap ?? (plan === "starter" ? 15 : plan === "scholar" ? 25 : 50));
+  const budgetCap = isDiscountUser ? 999999 : Number(rawBudgetCap ?? (plan === "starter" ? 15 : plan === "scholar" ? 25 : 50));
   const resetDate = cycleInfo.resetDateFormatted;
 
   // 3. Get or create master user usage for current billing / activation cycle
@@ -412,19 +447,53 @@ export async function checkDocumentCreationLimit(
       getSubscriptionInfo(masterId),
       getUserBillingCycleInfo(masterId),
     ]);
-    const plan = subInfo?.plan || "starter";
+    const { data: userProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("is_discount_user")
+      .eq("id", masterId)
+      .maybeSingle();
 
-    const { data: limitsData } = await supabaseAdmin
+    const isDiscountUser = Boolean(userProfile?.is_discount_user);
+    const plan = isDiscountUser ? "discount" : (subInfo?.plan || "starter");
+
+    let limitsData: any = null;
+    const { data: fetchedLimits } = await supabaseAdmin
       .from("ai_limits")
       .select("*")
       .eq("plan", plan)
-      .single();
+      .maybeSingle();
+
+    if (fetchedLimits) {
+      limitsData = fetchedLimits;
+    } else if (isDiscountUser) {
+      const { data: capSetting } = await supabaseAdmin
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "discount_ai_monthly_cap")
+        .maybeSingle();
+      const cap = capSetting?.value ? parseInt(capSetting.value, 10) : 10;
+      limitsData = {
+        plan: "discount",
+        ask_ai_limit: cap,
+        essay_limit: cap,
+        resume_limit: cap,
+        cover_letter_limit: cap,
+        monthly_budget_cap_usd: 9999,
+      };
+    } else {
+      const { data: fallbackStarter } = await supabaseAdmin
+        .from("ai_limits")
+        .select("*")
+        .eq("plan", "starter")
+        .maybeSingle();
+      limitsData = fallbackStarter;
+    }
 
     const resetDate = cycleInfo.resetDateFormatted;
     if (!limitsData) return { canCreate: true, used: 0, limit: 999999, resetDate };
 
     const rawBudgetCap = (limitsData as any).monthly_budget_cap_usd;
-    const budgetCap = Number(rawBudgetCap ?? (plan === "starter" ? 15 : plan === "scholar" ? 25 : 50));
+    const budgetCap = isDiscountUser ? 999999 : Number(rawBudgetCap ?? (plan === "starter" ? 15 : plan === "scholar" ? 25 : 50));
 
     const { data: usageData } = await supabaseAdmin
       .from("ai_usage")
@@ -485,13 +554,47 @@ export async function getUserAiUsage(targetUserId?: string): Promise<AIUsageData
     getSubscriptionInfo(masterId),
     getUserBillingCycleInfo(masterId),
   ]);
-  const plan = subInfo?.plan || "starter";
+  const { data: userProfile } = await supabaseAdmin
+    .from("profiles")
+    .select("is_discount_user")
+    .eq("id", masterId)
+    .maybeSingle();
 
-  const { data: limitsData } = await supabaseAdmin
+  const isDiscountUser = Boolean(userProfile?.is_discount_user);
+  const plan = isDiscountUser ? "discount" : (subInfo?.plan || "starter");
+
+  let limitsData: any = null;
+  const { data: fetchedLimits } = await supabaseAdmin
     .from("ai_limits")
     .select("*")
     .eq("plan", plan)
-    .single();
+    .maybeSingle();
+
+  if (fetchedLimits) {
+    limitsData = fetchedLimits;
+  } else if (isDiscountUser) {
+    const { data: capSetting } = await supabaseAdmin
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "discount_ai_monthly_cap")
+      .maybeSingle();
+    const cap = capSetting?.value ? parseInt(capSetting.value, 10) : 10;
+    limitsData = {
+      plan: "discount",
+      ask_ai_limit: cap,
+      essay_limit: cap,
+      resume_limit: cap,
+      cover_letter_limit: cap,
+      monthly_budget_cap_usd: 9999,
+    };
+  } else {
+    const { data: fallbackStarter } = await supabaseAdmin
+      .from("ai_limits")
+      .select("*")
+      .eq("plan", "starter")
+      .maybeSingle();
+    limitsData = fallbackStarter;
+  }
 
   if (!limitsData) return null;
 

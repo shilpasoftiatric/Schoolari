@@ -7,9 +7,56 @@ import { revalidatePath } from "next/cache";
 import { syncOnboardingContacts, syncContact, CONSTANT_CONTACT_PARENT_LIST, CONSTANT_CONTACT_STUDENT_LIST } from "@/lib/constant-contact";
 import { sendWelcomeSMS } from "@/lib/twilio";
 import { sendInviteEmail, sendWelcomeEmail, sendTrialWelcomeEmail } from "@/lib/email";
+import { sendReferralSms } from "@/app/actions/sms";
 
 // Hardcoded fallback to members.localhost:3000 to match Supabase Site URL
 const APP_URL = process.env.NODE_ENV === 'production' ? "https://members.schoolari.com" : "http://members.localhost:3000";
+
+async function processPendingReferralSms(
+  supabaseAdmin: any,
+  userId: string,
+  targetId: string,
+  senderFirstName: string,
+  senderFullName: string
+) {
+  try {
+    const { data: pendingReferrals, error } = await supabaseAdmin
+      .from("referrals")
+      .select("id, referral_phone, referral_first_name")
+      .or(`user_id.eq.${userId},user_id.eq.${targetId}`)
+      .eq("sms_status", "Pending");
+
+    if (error) {
+      console.error("[processPendingReferralSms] Error fetching pending referrals:", error);
+      return;
+    }
+
+    if (pendingReferrals && pendingReferrals.length > 0) {
+      // 1. Update referring_student_name with real name in referrals table
+      await supabaseAdmin
+        .from("referrals")
+        .update({ referring_student_name: senderFullName })
+        .or(`user_id.eq.${userId},user_id.eq.${targetId}`)
+        .eq("sms_status", "Pending");
+
+      // 2. Dispatch SMS with real student first name
+      for (const ref of pendingReferrals) {
+        if (ref.referral_phone) {
+          sendReferralSms(
+            ref.id,
+            ref.referral_phone,
+            ref.referral_first_name,
+            senderFirstName
+          ).catch((e: unknown) => {
+            console.error("[processPendingReferralSms] Failed to send referral SMS:", e);
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[processPendingReferralSms] Unexpected error:", err);
+  }
+}
 
 export async function saveOnboardingStep(step: number, data: any) {
   const supabase = await createClient();
@@ -182,6 +229,20 @@ export async function saveOnboardingStep(step: number, data: any) {
     return { error: error.message };
   }
 
+  // If parent user submitted onboarding, also sync parent info directly to their own profile row
+  if (!isCurrentUserStudent && (payload.parent_first_name || payload.parent_last_name || payload.parent_email || payload.parent_phone)) {
+    await supabaseAdmin
+      .from("profiles")
+      .update({
+        parent_first_name: payload.parent_first_name,
+        parent_last_name: payload.parent_last_name,
+        parent_email: payload.parent_email,
+        parent_phone: payload.parent_phone,
+        first_name: payload.parent_first_name,
+      })
+      .eq("id", user.id);
+  }
+
   // Trigger integrations when moving past Step 1
   if (step === 2 && updatedProfile) {
     // 1. Sync Constant Contact — Student/Parent general marketing lists (fire and forget)
@@ -273,10 +334,52 @@ export async function saveOnboardingStep(step: number, data: any) {
     } catch (e) {
       console.error("Error setting up secondary account during onboarding", e);
     }
+
+    // 3. Dispatch pending Referral SMS now that real student name has been saved in Step 1
+    try {
+      const studentFirstName = updatedProfile.student_first_name?.trim();
+      const studentLastName = updatedProfile.student_last_name?.trim();
+      const parentFirstName = updatedProfile.parent_first_name?.trim();
+      const parentLastName = updatedProfile.parent_last_name?.trim();
+
+      const senderFirstName = isCurrentUserStudent
+        ? (studentFirstName || "A friend")
+        : (parentFirstName || studentFirstName || "A friend");
+
+      const senderFullName = isCurrentUserStudent
+        ? `${studentFirstName || ""} ${studentLastName || ""}`.trim()
+        : `${parentFirstName || ""} ${parentLastName || ""}`.trim();
+
+      processPendingReferralSms(
+        supabaseAdmin,
+        user.id,
+        targetId,
+        senderFirstName,
+        senderFullName || senderFirstName || "A Schoolari Member"
+      ).catch((e) => console.error("Error processing pending referral SMS", e));
+    } catch (referralSmsErr) {
+      console.error("[saveOnboardingStep] Pending referral SMS trigger error:", referralSmsErr);
+    }
   }
 
   // ── Seed top_3_schools into saved_colleges on onboarding completion ──
   if (payload.onboarding_complete && updatedProfile) {
+    // Process any remaining pending referral SMS if not already dispatched
+    try {
+      const studentFirstName = updatedProfile.student_first_name?.trim();
+      const studentLastName = updatedProfile.student_last_name?.trim();
+      const senderFirstName = studentFirstName || updatedProfile.first_name || "A friend";
+      const senderFullName = `${studentFirstName || ""} ${studentLastName || ""}`.trim() || senderFirstName;
+      processPendingReferralSms(
+        supabaseAdmin,
+        user.id,
+        targetId,
+        senderFirstName,
+        senderFullName || senderFirstName || "A Schoolari Member"
+      ).catch(console.error);
+    } catch {
+      // safe fallback
+    }
     const schools: string[] = (updatedProfile.top_3_schools || []).filter(Boolean);
     if (schools.length > 0) {
       try {
@@ -495,6 +598,28 @@ export async function updateProfile(updates: any) {
 
   if (error) {
     throw new Error(`Failed to update profile: ${error.message}`);
+  }
+
+  // If currentUser is a parent updating a linked student profile, mirror parent updates to parent's own profile row
+  if (targetId !== user.id && currentUserProfile?.account_type === 'parent') {
+    const parentUpdates: any = {};
+    if (safeUpdates.parent_first_name !== undefined) {
+      parentUpdates.parent_first_name = safeUpdates.parent_first_name;
+      parentUpdates.first_name = safeUpdates.parent_first_name;
+    }
+    if (safeUpdates.parent_last_name !== undefined) {
+      parentUpdates.parent_last_name = safeUpdates.parent_last_name;
+    }
+    if (safeUpdates.parent_email !== undefined) {
+      parentUpdates.parent_email = safeUpdates.parent_email;
+    }
+    if (safeUpdates.parent_phone !== undefined) {
+      parentUpdates.parent_phone = safeUpdates.parent_phone;
+      parentUpdates.phone = safeUpdates.parent_phone;
+    }
+    if (Object.keys(parentUpdates).length > 0) {
+      await supabaseAdmin.from("profiles").update(parentUpdates).eq("id", user.id);
+    }
   }
 
   // ── Seed top_3_schools into saved_colleges ──

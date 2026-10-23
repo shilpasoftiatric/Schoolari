@@ -284,7 +284,10 @@ export async function getSubscriptionInfo(targetUserId?: string) {
 
   if (!profile) return null;
 
-  const plan = getPlanFromPriceId(profile.stripe_price_id ?? null);
+  let plan = getPlanFromPriceId(profile.stripe_price_id ?? null);
+  if (!plan && profile.is_discount_user && (profile.subscription_status === "active" || profile.subscription_status === "trialing")) {
+    plan = "starter";
+  }
   let renewalDate: string | null = null;
 
   let stripeStatus = profile.subscription_status;

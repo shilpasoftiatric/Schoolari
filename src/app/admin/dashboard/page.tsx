@@ -17,6 +17,7 @@ import {
   UserCog,
   Cpu,
   TrendingUp,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 import { hasPermission, NAV_PERMISSIONS, type StaffRole } from "@/lib/rbac";
@@ -56,7 +57,7 @@ function StatCard({ label, value, icon: Icon, gradient, iconColor, iconBg, borde
             {value.toLocaleString()}
           </p>
         </div>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
           <Icon className={`w-6 h-6 ${iconColor}`} />
         </div>
       </div>
@@ -78,6 +79,7 @@ const QUICK_ACTIONS = [
   { to: "/admin/career", label: "Career Center", sub: "Articles & pathways", icon: Briefcase },
   { to: "/admin/income", label: "Earn While You Learn", sub: "Videos & lessons", icon: PlaySquare },
   { to: "/admin/payments", label: "Payments & Plans", sub: "Stripe subscriptions", icon: CreditCard },
+  { to: "/admin/referrals", label: "Referrals", sub: "Discounts & invites", icon: UserPlus },
   { to: "/admin/ai-limits", label: "AI Limits", sub: "Usage & monthly caps", icon: Cpu },
   { to: "/admin/staff", label: "Staff Management", sub: "Roles & permissions", icon: UserCog },
   { to: "/admin/settings", label: "Settings", sub: "Site configuration", icon: Settings },
@@ -93,6 +95,7 @@ const ACTION_COLORS = [
   "bg-emerald-50 text-emerald-600 border-emerald-100",
   "bg-pink-50 text-pink-600 border-pink-100",
   "bg-cyan-50 text-cyan-600 border-cyan-100",
+  "bg-purple-50 text-purple-600 border-purple-100",
   "bg-indigo-50 text-indigo-600 border-indigo-100",
   "bg-teal-50 text-teal-600 border-teal-100",
   "bg-orange-50 text-orange-600 border-orange-100",
@@ -157,7 +160,7 @@ export default async function AdminDashboardPage() {
   }).length;
 
   // ── Active Subscription count — matches Payments & Memberships logic exactly ──
-  const profileMap = new Map<string, any>();
+  const profileMap = new Map<string, (typeof profilesList)[number]>();
   profilesList.forEach((p) => profileMap.set(p.id, p));
 
   // 1. Cross-linking pass: if parent holds Stripe data, mirror it onto the student profile

@@ -1021,6 +1021,109 @@ EXCEPTION
   WHEN OTHERS THEN NULL;
 END $$;
 
+
+-- ─────────────────────────────────────────────────────────────
+-- SECTION 13. DISCOUNT CODES & REFERRALS SYSTEM
+-- ─────────────────────────────────────────────────────────────
+
+-- 1. PLATFORM SETTINGS
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+INSERT INTO public.platform_settings (key, value)
+VALUES
+  ('discount_code_enabled', 'true'),
+  ('discount_code_value',   'STARTERFREE'),
+  ('discount_ai_monthly_cap', '10')
+ON CONFLICT (key) DO NOTHING;
+
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'platform_settings' AND policyname = 'Anyone can read platform_settings'
+  ) THEN
+    CREATE POLICY "Anyone can read platform_settings"
+      ON public.platform_settings FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'platform_settings' AND policyname = 'Admin full access on platform_settings'
+  ) THEN
+    CREATE POLICY "Admin full access on platform_settings"
+      ON public.platform_settings FOR ALL
+      USING (EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid()
+        AND role IN ('admin', 'super_admin')
+      ));
+  END IF;
+END $$;
+
+-- 2. REFERRALS
+CREATE TABLE IF NOT EXISTS public.referrals (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  referring_student_name TEXT NOT NULL,
+  referral_first_name    TEXT NOT NULL,
+  referral_last_name     TEXT NOT NULL,
+  referral_phone         TEXT NOT NULL,
+  referral_email         TEXT NOT NULL,
+  code_used              TEXT NOT NULL,
+  sms_status             TEXT DEFAULT 'Pending',
+  sms_sent_at            TIMESTAMPTZ DEFAULT NULL,
+  created_at             TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'referrals' AND policyname = 'Admin full access on referrals'
+  ) THEN
+    CREATE POLICY "Admin full access on referrals"
+      ON public.referrals FOR ALL
+      USING (EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid()
+        AND role IN ('admin', 'super_admin')
+      ));
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'referrals' AND policyname = 'Users can insert their own referral'
+  ) THEN
+    CREATE POLICY "Users can insert their own referral"
+      ON public.referrals FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- 3. PROFILES COLUMNS FOR DISCOUNT USERS
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_discount_user   BOOLEAN DEFAULT false;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS discount_code_used  TEXT    DEFAULT NULL;
+
+-- 4. DISCOUNT PLAN AI LIMITS SEED
+INSERT INTO public.ai_limits (plan, ask_ai_limit, essay_limit, resume_limit, cover_letter_limit, monthly_budget_cap_usd)
+VALUES ('discount', 10, 10, 10, 10, 0)
+ON CONFLICT (plan) DO UPDATE SET
+  ask_ai_limit = EXCLUDED.ask_ai_limit,
+  essay_limit = EXCLUDED.essay_limit,
+  resume_limit = EXCLUDED.resume_limit,
+  cover_letter_limit = EXCLUDED.cover_letter_limit;
+
 -- ============================================================
 -- MASTER SCHEMA SETUP COMPLETE
 -- ============================================================

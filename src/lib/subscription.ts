@@ -86,6 +86,27 @@ export function getPlanFromPriceId(priceId: string | null | undefined): Subscrip
   return null;
 }
 
+// Resolves effective plan for a profile, accounting for discount code Starter users
+export function resolveUserPlan(
+  profile: {
+    is_discount_user?: boolean | null;
+    subscription_status?: string | null;
+    stripe_price_id?: string | null;
+  } | null | undefined
+): SubscriptionPlan {
+  if (!profile) return null;
+  if (
+    profile.subscription_status !== "active" &&
+    profile.subscription_status !== "trialing"
+  ) {
+    return null;
+  }
+  if (profile.is_discount_user) {
+    return "starter";
+  }
+  return getPlanFromPriceId(profile.stripe_price_id ?? null);
+}
+
 // Check if a plan can access a feature
 export function canAccessFeature(plan: SubscriptionPlan, feature: SubscriptionFeature): boolean {
   if (!plan) return false;

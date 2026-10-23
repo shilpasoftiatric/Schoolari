@@ -16,6 +16,7 @@ import {
   CreditCard,
   Briefcase,
   Cpu,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hasPermission, NAV_PERMISSIONS, type StaffRole } from "@/lib/rbac";
@@ -32,6 +33,7 @@ const ALL_NAV_ITEMS = [
   { href: "/admin/career", label: "Career Center", icon: Briefcase },
   { href: "/admin/income", label: "Earn While You Learn", icon: PlaySquare },
   { href: "/admin/payments", label: "Payments & Members", icon: CreditCard },
+  { href: "/admin/referrals", label: "Referrals", icon: UserPlus },
   { href: "/admin/staff", label: "Staff Management", icon: UserCog },
   { href: "/admin/ai-limits", label: "AI Limits", icon: Cpu },
   { href: "/admin/settings", label: "Settings", icon: Settings },

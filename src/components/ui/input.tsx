@@ -133,9 +133,9 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
         </button>
 
         {isOpen && (
-          <div className="absolute top-full left-0 mt-2 w-[280px] bg-white border border-slate-200 shadow-xl rounded-xl z-50 overflow-hidden flex flex-col">
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
-              <Search className="w-4 h-4 text-slate-400" />
+          <div className="absolute top-full left-0 mt-1.5 w-[280px] bg-white border border-slate-200 shadow-2xl rounded-xl z-50 overflow-hidden flex flex-col">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 shrink-0">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <input
                 type="text"
                 placeholder="Search country or code..."
@@ -164,7 +164,7 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
                 autoFocus
               />
             </div>
-            <div className="max-h-[300px] overflow-y-auto p-1">
+            <div className="max-h-[180px] overflow-y-auto overflow-x-hidden p-1 overscroll-contain [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent]">
               {filteredCountries.length === 0 ? (
                 <div className="p-3 text-sm text-center text-slate-500">No country found</div>
               ) : (
@@ -176,17 +176,19 @@ export function PhoneInput({ value, onChange, defaultCountry = "US", className, 
                     onClick={() => handleCountrySelect(c.code as CountryCode)}
                     onMouseEnter={() => setSelectedIndex(index)}
                     className={cn(
-                      "flex items-center justify-between w-full p-2 rounded-lg text-sm transition-colors text-left",
+                      "flex items-center justify-between w-full p-2 rounded-lg text-sm transition-colors text-left cursor-pointer",
                       countryCode === c.code ? "text-primary font-medium" : "text-slate-700",
                       selectedIndex === index ? (countryCode === c.code ? "bg-primary/20" : "bg-slate-100") : (countryCode === c.code ? "bg-primary/10" : "hover:bg-slate-50")
                     )}
                   >
-                    <span className="flex items-center gap-2">
-                      <img src={`https://flagcdn.com/${c.code.toLowerCase()}.svg`} alt={c.name} className="w-5 object-cover" />
+                    <span className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                      <img src={`https://flagcdn.com/${c.code.toLowerCase()}.svg`} alt={c.name} className="w-5 h-3.5 object-cover rounded-xs shrink-0" />
                       <span className="truncate">{c.name}</span>
-                      <span className="text-slate-400 text-xs ml-1">{c.dialCode}</span>
                     </span>
-                    {countryCode === c.code && <Check className="w-4 h-4 text-primary" />}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-slate-400 text-xs font-mono">{c.dialCode}</span>
+                      {countryCode === c.code && <Check className="w-4 h-4 text-primary shrink-0" />}
+                    </div>
                   </button>
                 ))
               )}
