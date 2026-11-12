@@ -235,52 +235,59 @@ export async function GET(req: Request) {
         const rawEmails = [pAny?.student_email, pAny?.parent_email].filter(Boolean) as string[];
         const uniqueEmails = Array.from(new Set(rawEmails.map((e: string) => e.trim().toLowerCase())));
 
-        // ── Day 5 Reminder (2 Days Before Trial Ends) ──────────────────────────
-        if (daysSinceStart >= 4.5 && daysSinceStart < 6.5 && profile.subscription_status === "trialing" && !pAny?.trial_cancelled_email_sent) {
-          // Send Day 5 SMS if not sent yet and not already sent in this batch
+        // ── Day 6 Reminder (1 Day / 24 Hours Before Trial Ends) ───────────────
+        if (daysSinceStart >= 5.5 && daysSinceStart < 6.75 && profile.subscription_status === "trialing" && !pAny?.trial_cancelled_email_sent) {
+          // Send 1 SMS to primary contact if not sent yet
           if (!profile.trial_day5_sms_sent) {
-            const msgText = `Hi ${name}, a quick reminder from Schoolari that your free trial ends in 2 days. Manage your subscription at ${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/pricing`;
+            const primaryPhone = formatPhoneE164(profile.parent_phone || profile.student_phone);
+            const msgText = `Hi ${name}, a quick reminder from Schoolari that your free trial ends tomorrow. You will be billed on Day 7 to continue the service. Manage your subscription at ${process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com"}/pricing`;
             let smsSuccess = false;
-            if (client && twilioPhone) {
-              for (const phone of uniquePhones) {
-                if (sentDay5PhonesThisRun.has(phone)) {
-                  smsSuccess = true;
-                  continue;
-                }
+
+            if (primaryPhone && client && twilioPhone) {
+              if (sentDay5PhonesThisRun.has(primaryPhone)) {
+                smsSuccess = true;
+              } else {
                 try {
-                  await client.messages.create({ body: msgText, from: twilioPhone, to: phone });
+                  await client.messages.create({ body: msgText, from: twilioPhone, to: primaryPhone });
                   smsSuccess = true;
-                  sentDay5PhonesThisRun.add(phone);
+                  sentDay5PhonesThisRun.add(primaryPhone);
                   sentCount++;
-                } catch (e) { failCount++; }
+                } catch (e) {
+                  failCount++;
+                  console.error(`[cron/reminders] Failed trial reminder SMS to ${primaryPhone}:`, e);
+                }
               }
             }
-            if (smsSuccess || uniquePhones.length === 0 || !client) {
+
+            if (smsSuccess || !primaryPhone || !client) {
               await supabase.from("profiles").update({ trial_day5_sms_sent: true }).eq("id", profile.id);
             }
           }
 
-          // Send Day 5 Email if not sent yet and not already sent in this batch
+          // Send 1 Email to primary contact if not sent yet
           if (!pAny?.trial_day5_email_sent) {
+            const primaryEmail = (pAny?.parent_email || pAny?.student_email || pAny?.email)?.trim().toLowerCase();
             let emailSent = false;
-            for (const email of uniqueEmails) {
-              if (sentDay5EmailsThisRun.has(email)) {
+
+            if (primaryEmail) {
+              if (sentDay5EmailsThisRun.has(primaryEmail)) {
                 emailSent = true;
-                continue;
-              }
-              try {
-                const res = await sendTrialDay5ReminderEmail(email, name);
-                if (res.success) {
-                  emailSent = true;
-                  sentDay5EmailsThisRun.add(email);
-                  sentCount++;
-                  console.log(`[cron/reminders] Day 5 reminder email sent to ${email} (userId: ${profile.id})`);
+              } else {
+                try {
+                  const res = await sendTrialDay5ReminderEmail(primaryEmail, name);
+                  if (res.success) {
+                    emailSent = true;
+                    sentDay5EmailsThisRun.add(primaryEmail);
+                    sentCount++;
+                    console.log(`[cron/reminders] Trial ending reminder email sent to ${primaryEmail} (userId: ${profile.id})`);
+                  }
+                } catch (e) {
+                  console.error(`[cron/reminders] Failed trial ending email to ${primaryEmail}:`, e);
                 }
-              } catch (e) {
-                console.error(`[cron/reminders] Failed Day 5 email to ${email}:`, e);
               }
             }
-            if (emailSent || uniqueEmails.length === 0) {
+
+            if (emailSent || !primaryEmail) {
               await supabase.from("profiles").update({ trial_day5_email_sent: true } as any).eq("id", profile.id);
             }
           }

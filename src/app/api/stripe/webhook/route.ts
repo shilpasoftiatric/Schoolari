@@ -2,11 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
-import { sendTrialEndingSMS } from "@/lib/twilio";
 import { getSupabaseAdmin, mirrorStripeSubscription } from "@/lib/stripe-mirror";
 import { getPlanFromPriceId } from "@/lib/subscription";
 import { 
-  sendTrialDay5ReminderEmail, 
   sendTrialDay7ConvertedEmail, 
   sendTrialCancelledEmail 
 } from "@/lib/email";
@@ -190,44 +188,7 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.trial_will_end": {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
-
-        // Fetch user profile to get contact info
-        const adminClient = getSupabaseAdmin();
-        const { data: profile } = await adminClient
-          .from("profiles")
-          .select("id, student_phone, parent_phone, student_first_name, parent_first_name, student_email, parent_email, trial_day5_email_sent, trial_day5_sms_sent")
-          .eq("stripe_customer_id", customerId)
-          .single();
-
-        if (profile) {
-          const phoneNumber = profile.student_phone || profile.parent_phone;
-          const name = profile.student_first_name || profile.parent_first_name || "there";
-          const email = profile.student_email || profile.parent_email;
-          const pAny = profile as any;
-
-          const currentPeriodEnd = (subscription as any).current_period_end ?? (subscription as any).current_period?.end;
-          const renewalDate = new Date(currentPeriodEnd * 1000).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric"
-          });
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com";
-          const manageLink = `${appUrl}/pricing`;
-
-          // Send SMS reminder
-          if (phoneNumber && !profile.trial_day5_sms_sent) {
-            await sendTrialEndingSMS(phoneNumber, name, renewalDate, manageLink);
-            await adminClient.from("profiles").update({ trial_day5_sms_sent: true }).eq("id", profile.id);
-            console.log(`Sent trial ending SMS to ${phoneNumber} for customer ${customerId}`);
-          }
-
-          // Send Day 5 Email reminder via Google Workspace
-          if (email && !pAny?.trial_day5_email_sent) {
-            await sendTrialDay5ReminderEmail(email, name);
-            await adminClient.from("profiles").update({ trial_day5_email_sent: true }).eq("id", profile.id);
-            console.log(`Sent trial ending reminder email to ${email} for customer ${customerId}`);
-          }
-        }
+        console.log(`[Stripe Webhook] customer.subscription.trial_will_end received for customer ${customerId}. Pre-expiration notification is scheduled for 1 day prior via cron.`);
         break;
       }
 
