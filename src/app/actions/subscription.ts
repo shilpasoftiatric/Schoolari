@@ -31,15 +31,39 @@ export async function upgradeSubscriptionPlan(newPriceId: string) {
   const ownerId = dbData.subscriptionOwnerId || user.id;
 
   if (!profile) throw new Error("Profile not found");
-  if (!profile.stripe_subscription_id) {
-    throw new Error("No active subscription found. Please subscribe first.");
-  }
 
   const currentPlan = getPlanFromPriceId(profile.stripe_price_id);
   const newPlan = getPlanFromPriceId(newPriceId);
 
   if (!newPlan) throw new Error("Invalid plan selected.");
   if (currentPlan === newPlan) throw new Error("You are already on this plan.");
+
+  // If user does not have an active Stripe subscription (e.g. discount code user upgrading to a paid plan)
+  if (!profile.stripe_subscription_id) {
+    const stripe = getStripe();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://members.schoolari.com";
+    const customerEmail = user.email || profile.student_email || profile.parent_email || undefined;
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [{ price: newPriceId, quantity: 1 }],
+      client_reference_id: user.id,
+      customer: profile.stripe_customer_id || undefined,
+      customer_email: profile.stripe_customer_id ? undefined : customerEmail,
+      success_url: `${appUrl}/api/stripe/verify?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/profile?canceled=true`,
+    });
+
+    return {
+      success: true,
+      requiresPayment: true,
+      paymentUrl: session.url,
+      newPlan: PLAN_INFO[newPlan].label,
+      status: "pending_checkout",
+      amountPaid: 0,
+    };
+  }
 
   const stripe = getStripe();
   const subscription = await stripe.subscriptions.retrieve(profile.stripe_subscription_id);
@@ -147,7 +171,19 @@ export async function getUpgradePreview(targetPriceId: string) {
   const profile = dbData.userProfile;
 
   if (!profile?.stripe_subscription_id || !profile?.stripe_customer_id) {
-    throw new Error("No active subscription");
+    // Discount users or users without an active Stripe subscription are purchasing a new paid plan
+    const targetPlan = getPlanFromPriceId(targetPriceId);
+    const amountInCents = targetPlan === "elite" ? 9900 : targetPlan === "scholar" ? 4900 : 2900;
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+    return {
+      amountDue: amountInCents,
+      subtotal: amountInCents,
+      nextBillingDate: nextMonth.toISOString(),
+      isTrialing: false,
+      requiresCheckout: true,
+    };
   }
 
   const stripe = getStripe();

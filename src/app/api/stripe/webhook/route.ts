@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
           stripe_subscription_id: subscriptionId,
           stripe_price_id: priceId,
           subscription_status: subscription.status, // e.g. "trialing" or "active"
+          is_discount_user: false,
         };
 
         if (subscription.status === "trialing") {

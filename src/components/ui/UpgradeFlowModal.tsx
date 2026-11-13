@@ -35,7 +35,7 @@ export function UpgradeFlowModal({
 }: UpgradeFlowModalProps) {
   const [mounted, setMounted] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(true);
-  const [previewData, setPreviewData] = useState<{ amountDue: number; nextBillingDate: string; isTrialing?: boolean } | null>(null);
+  const [previewData, setPreviewData] = useState<{ amountDue: number; nextBillingDate: string; isTrialing?: boolean; requiresCheckout?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isProcessingImmediate, setIsProcessingImmediate] = useState(false);
   const [isProcessingScheduled, setIsProcessingScheduled] = useState(false);
@@ -258,74 +258,115 @@ export function UpgradeFlowModal({
               )}
 
               {!loadingPreview && previewData && !previewData.isTrialing && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Option 1: Immediate */}
-                  <div className="border-2 border-slate-100 rounded-2xl p-5 hover:border-violet-200 transition-colors bg-slate-50 relative">
-                    <div className="absolute -top-3 left-4 bg-violet-100 text-violet-700 text-xs font-bold px-2 py-0.5 rounded-full">Option 1</div>
-                    <h4 className="font-bold text-slate-800 text-lg mb-1 mt-1">Upgrade Today</h4>
-                    <p className="text-sm text-slate-500 mb-4 h-10">Start using {planInfo.label} features right now.</p>
-                    
-                    <div className="bg-white rounded-xl p-3 mb-4 shadow-sm text-sm">
-                      <div className="flex justify-between mb-1">
-                        <span className="text-slate-500">Prorated Amount Due:</span>
-                        <span className="font-bold text-slate-800">${(previewData.amountDue / 100).toFixed(2)}</span>
+                previewData.requiresCheckout ? (
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="border-2 border-slate-100 rounded-2xl p-6 bg-slate-50 relative">
+                      <h4 className="font-bold text-slate-800 text-lg mb-1">Upgrade to {planInfo.label}</h4>
+                      <p className="text-sm text-slate-500 mb-4">Start using {planInfo.label} features right now.</p>
+                      
+                      <div className="bg-white rounded-xl p-4 mb-5 shadow-sm text-sm border border-slate-100">
+                        <div className="flex justify-between mb-2">
+                          <span className="text-slate-500">Plan Price:</span>
+                          <span className="font-bold text-slate-800">{planInfo.price}</span>
+                        </div>
+                        <div className="flex justify-between mb-3">
+                          <span className="text-slate-500">Amount Due Today:</span>
+                          <span className="font-bold text-slate-900">${(previewData.amountDue / 100).toFixed(2)}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 leading-snug">
+                          * You will be redirected to Stripe&apos;s secure checkout to activate your {planInfo.label} subscription. You can cancel or change your plan at any time.
+                        </p>
                       </div>
-                      <div className="flex justify-between mb-3">
-                        <span className="text-slate-500">Then monthly:</span>
-                        <span className="font-semibold text-slate-700">{planInfo.price}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 leading-snug">
-                        * Unlock {planInfo.label} today by paying only today&apos;s upgrade amount. Your subscription will automatically renew at {planInfo.price} starting from your next billing date on <strong className="text-slate-700">{new Date(previewData.nextBillingDate).toLocaleDateString()}</strong>.
-                      </p>
-                    </div>
 
-                    <button
-                      onClick={handleImmediateClick}
-                      disabled={isProcessingImmediate || isProcessingScheduled}
-                      className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all cursor-pointer`}
-                    >
-                      {isProcessingImmediate ? <Loader2 className="w-4 h-4 animate-spin" /> : (showConfirmImmediate ? <CheckCircle2 className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
-                      {showConfirmImmediate ? `Confirm Charge of $${(previewData.amountDue / 100).toFixed(2)}` : `Pay $${(previewData.amountDue / 100).toFixed(2)} Now`}
-                    </button>
-                    {showConfirmImmediate && !isProcessingImmediate && (
-                      <button 
-                        onClick={() => setShowConfirmImmediate(false)} 
-                        className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700 cursor-pointer"
+                      <button
+                        onClick={handleImmediateUpgrade}
+                        disabled={isProcessingImmediate}
+                        className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r ${color.bg} hover:shadow-lg text-white font-bold py-3.5 rounded-xl transition-all cursor-pointer`}
                       >
-                        Cancel
+                        {isProcessingImmediate ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Redirecting to Checkout...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Upgrade to {planInfo.label} — ${(previewData.amountDue / 100).toFixed(2)}</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
                       </button>
-                    )}
+                    </div>
                   </div>
-
-                  {/* Option 2: Next Cycle */}
-                  <div className="border-2 border-slate-100 rounded-2xl p-5 hover:border-blue-200 transition-colors bg-slate-50 relative">
-                    <div className="absolute -top-3 left-4 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">Option 2</div>
-                    <h4 className="font-bold text-slate-800 text-lg mb-1 mt-1">Upgrade Next Cycle</h4>
-                    <p className="text-sm text-slate-500 mb-4 h-10">Keep your current plan until renewal.</p>
-
-                    <div className="bg-white rounded-xl p-3 mb-4 shadow-sm text-sm">
-                      <div className="flex justify-between mb-1">
-                        <span className="text-slate-500">Amount Due Today:</span>
-                        <span className="font-bold text-slate-800">$0.00</span>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Option 1: Immediate */}
+                    <div className="border-2 border-slate-100 rounded-2xl p-5 hover:border-violet-200 transition-colors bg-slate-50 relative">
+                      <div className="absolute -top-3 left-4 bg-violet-100 text-violet-700 text-xs font-bold px-2 py-0.5 rounded-full">Option 1</div>
+                      <h4 className="font-bold text-slate-800 text-lg mb-1 mt-1">Upgrade Today</h4>
+                      <p className="text-sm text-slate-500 mb-4 h-10">Start using {planInfo.label} features right now.</p>
+                      
+                      <div className="bg-white rounded-xl p-3 mb-4 shadow-sm text-sm">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-slate-500">Prorated Amount Due:</span>
+                          <span className="font-bold text-slate-800">${(previewData.amountDue / 100).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between mb-3">
+                          <span className="text-slate-500">Then monthly:</span>
+                          <span className="font-semibold text-slate-700">{planInfo.price}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 leading-snug">
+                          * Unlock {planInfo.label} today by paying only today&apos;s upgrade amount. Your subscription will automatically renew at {planInfo.price} starting from your next billing date on <strong className="text-slate-700">{new Date(previewData.nextBillingDate).toLocaleDateString()}</strong>.
+                        </p>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Starts On:</span>
-                        <span className="font-semibold text-slate-700">
-                          {new Date(previewData.nextBillingDate).toLocaleDateString()}
-                        </span>
-                      </div>
+
+                      <button
+                        onClick={handleImmediateClick}
+                        disabled={isProcessingImmediate || isProcessingScheduled}
+                        className={`w-full flex items-center justify-center gap-2 ${showConfirmImmediate ? "bg-green-600 hover:bg-green-700" : `bg-gradient-to-r ${color.bg} hover:shadow-lg`} text-white font-bold py-3 rounded-xl transition-all cursor-pointer`}
+                      >
+                        {isProcessingImmediate ? <Loader2 className="w-4 h-4 animate-spin" /> : (showConfirmImmediate ? <CheckCircle2 className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />)}
+                        {showConfirmImmediate ? `Confirm Charge of $${(previewData.amountDue / 100).toFixed(2)}` : `Pay $${(previewData.amountDue / 100).toFixed(2)} Now`}
+                      </button>
+                      {showConfirmImmediate && !isProcessingImmediate && (
+                        <button 
+                          onClick={() => setShowConfirmImmediate(false)} 
+                          className="w-full text-center text-xs text-slate-500 mt-2 hover:text-slate-700 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
 
-                    <button
-                      onClick={handleScheduledUpgrade}
-                      disabled={isProcessingImmediate || isProcessingScheduled}
-                      className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-bold py-2.5 rounded-xl transition-all mt-4 cursor-pointer"
-                    >
-                      {isProcessingScheduled ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}
-                      Schedule Upgrade
-                    </button>
+                    {/* Option 2: Next Cycle */}
+                    <div className="border-2 border-slate-100 rounded-2xl p-5 hover:border-blue-200 transition-colors bg-slate-50 relative">
+                      <div className="absolute -top-3 left-4 bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">Option 2</div>
+                      <h4 className="font-bold text-slate-800 text-lg mb-1 mt-1">Upgrade Next Cycle</h4>
+                      <p className="text-sm text-slate-500 mb-4 h-10">Keep your current plan until renewal.</p>
+
+                      <div className="bg-white rounded-xl p-3 mb-4 shadow-sm text-sm">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-slate-500">Amount Due Today:</span>
+                          <span className="font-bold text-slate-800">$0.00</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Starts On:</span>
+                          <span className="font-semibold text-slate-700">
+                            {new Date(previewData.nextBillingDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleScheduledUpgrade}
+                        disabled={isProcessingImmediate || isProcessingScheduled}
+                        className="w-full flex items-center justify-center gap-2 bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-300 hover:text-blue-700 font-bold py-2.5 rounded-xl transition-all mt-4 cursor-pointer"
+                      >
+                        {isProcessingScheduled ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}
+                        Schedule Upgrade
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )
               )}
             </>
           )}

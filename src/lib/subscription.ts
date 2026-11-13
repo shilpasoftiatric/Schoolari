@@ -101,10 +101,14 @@ export function resolveUserPlan(
   ) {
     return null;
   }
+  const stripePlan = getPlanFromPriceId(profile.stripe_price_id ?? null);
+  if (stripePlan && stripePlan !== "starter") {
+    return stripePlan;
+  }
   if (profile.is_discount_user) {
     return "starter";
   }
-  return getPlanFromPriceId(profile.stripe_price_id ?? null);
+  return stripePlan;
 }
 
 // Check if a plan can access a feature

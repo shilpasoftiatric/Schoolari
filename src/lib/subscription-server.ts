@@ -32,11 +32,16 @@ export async function getUserPlan(): Promise<SubscriptionPlan> {
     return null;
   }
 
+  const stripePlan = getPlanFromPriceId(profile.stripe_price_id ?? null);
+  if (stripePlan && stripePlan !== "starter") {
+    return stripePlan;
+  }
+
   if (profile.is_discount_user) {
     return "starter";
   }
 
-  return getPlanFromPriceId(profile.stripe_price_id ?? null);
+  return stripePlan;
 }
 
 // Server-side: throw if user cannot access a feature

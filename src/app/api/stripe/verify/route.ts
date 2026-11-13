@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
       const subscriptionId = session.subscription as string;
       const customerId = session.customer as string;
 
+      let userProfile: any = null;
       if (userId && subscriptionId) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = subscription.items.data[0].price.id;
@@ -49,6 +50,7 @@ export async function GET(req: NextRequest) {
           stripe_subscription_id: subscriptionId,
           stripe_price_id: priceId,
           subscription_status: subscription.status, // Should be "active" or "trialing"
+          is_discount_user: false,
         };
 
         if (subscription.status === "trialing") {
@@ -62,17 +64,22 @@ export async function GET(req: NextRequest) {
           .select()
           .single();
 
+        userProfile = profile;
+
         // 2. Mirror to linked family members
         await mirrorStripeSubscription(userId, stripePayload);
 
         revalidatePath("/admin/users");
         revalidatePath("/dashboard");
+        revalidatePath("/profile");
       }
 
-      // Redirect successfully to onboarding using a standard redirect
-      // Now that appUrl correctly includes the subdomain (e.g. members.localhost), 
-      // the browser will stay on the same origin and send the auth cookies properly.
-      return NextResponse.redirect(`${appUrl}/onboarding?payment_success=true`);
+      // Redirect successfully to profile if already onboarded, otherwise to onboarding
+      const destination = userProfile?.onboarding_complete
+        ? `${appUrl}/profile?upgraded=true`
+        : `${appUrl}/onboarding?payment_success=true`;
+
+      return NextResponse.redirect(destination);
     } else {
       // Payment failed or incomplete
       return NextResponse.redirect(`${appUrl}/pricing?canceled=true`);
